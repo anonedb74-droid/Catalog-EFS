@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Catalog EFS</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#22402C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Catalog EFS">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --track:#C1440E;
+    --track-dark:#9A350A;
+    --infield:#22402C;
+    --infield-dark:#182E20;
+    --chalk:#F6F4EE;
+    --card:#FFFFFF;
+    --ink:#1E211D;
+    --muted:#6E7268;
+    --border:#E2DECF;
+    --yellow:#E3A23C;
+    --danger:#B23A32;
+    --ok:#3D7A4E;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--chalk);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  h1,h2,h3,.display{
+    font-family:'Oswald',system-ui,sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.02em;
+  }
+  #app{
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+  }
+  /* ---------- HEADER ---------- */
+  header{
+    background:var(--infield);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    flex-shrink:0;
+    border-bottom:4px solid var(--track);
+  }
+  header .title{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  header h1{
+    margin:0;
+    font-size:22px;
+    color:#fff;
+  }
+  header .subtitle{
+    font-size:13px;
+    color:#C9D6C7;
+    font-family:'Inter',sans-serif;
+    text-transform:none;
+    letter-spacing:0;
+  }
+  header .date{
+    font-family:'Oswald',sans-serif;
+    font-size:14px;
+    color:#E3D9C4;
+    text-transform:capitalize;
+  }
+  /* ---------- LAYOUT ---------- */
+  .body-wrap{
+    flex:1;
+    display:flex;
+    overflow:hidden;
+  }
+  nav.sidebar{
+    width:190px;
+    background:var(--infield-dark);
+    flex-shrink:0;
+    display:flex;
+    flex-direction:column;
+    padding:10px 0;
+    overflow-y:auto;
+  }
+  nav.sidebar button{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    border:none;
+    background:transparent;
+    color:#CFE0CC;
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    font-weight:600;
+    padding:14px 18px;
+    cursor:pointer;
+    text-align:left;
+    border-left:4px solid transparent;
+  }
+  nav.sidebar button svg{flex-shrink:0;width:20px;height:20px;}
+  nav.sidebar button.active{
+    background:var(--infield);
+    color:#fff;
+    border-left:4px solid var(--track);
+  }
+  nav.sidebar button:not(.active):hover{
+    background:rgba(255,255,255,0.06);
+  }
+  main{
+    flex:1;
+    overflow-y:auto;
+    padding:22px 26px 80px;
+  }
+  main h2{
+    font-size:22px;
+    margin:0 0 4px;
+    color:var(--infield);
+  }
+  .tab-desc{
+    color:var(--muted);
+    font-size:14px;
+    margin:0 0 20px;
+  }
+  /* ---------- BOTTOM TAB BAR (narrow screens) ---------- */
+  nav.bottombar{
+    display:none;
+  }
+  @media (max-width:760px){
+    nav.sidebar{display:none;}
+    .body-wrap{flex-direction:column;}
+    main{padding:16px 14px 90px;}
+    nav.bottombar{
+      display:flex;
+      position:fixed;
+      bottom:0; left:0; right:0;
+      background:var(--infield-dark);
+      border-top:3px solid var(--track);
+      z-index:20;
+    }
+    nav.bottombar button{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:3px;
+      background:transparent;
+      border:none;
+      color:#CFE0CC;
+      font-size:10px;
+      font-weight:600;
+      padding:8px 2px 10px;
+    }
+    nav.bottombar button svg{width:19px;height:19px;}
+    nav.bottombar button.active{color:#fff;}
+    nav.bottombar button.active svg{stroke:var(--track);}
+  }
+  /* ---------- GENERIC UI ---------- */
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em;}
+  input[type=text], input[type=date], input[type=number], select{
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    padding:10px 12px;
+    border:1.5px solid var(--border);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+    min-height:44px;
+  }
+  input:focus, select:focus{outline:2px solid var(--track); outline-offset:1px;}
+  button.btn{
+    font-family:'Inter',sans-serif;
+    font-weight:700;
+    font-size:14px;
+    padding:11px 18px;
+    border-radius:8px;
+    border:none;
+    cursor:pointer;
+    min-height:44px;
+    white-space:nowrap;
+  }
+  button.btn-primary{background:var(--track); color:#fff;}
+  button.btn-primary:hover{background:var(--track-dark);}
+  button.btn-secondary{background:#fff; color:var(--infield); border:1.5px solid var(--infield);}
+  button.btn-danger{background:transparent; color:var(--danger); border:1.5px solid var(--danger); padding:8px 12px; font-size:13px; min-height:36px;}
+  button.btn-ghost{background:transparent; color:var(--muted); border:1px solid var(--border); padding:8px 12px; font-size:13px; min-height:36px;}
+  table{width:100%; border-collapse:collapse; font-size:14px;}
+  th{
+    text-align:left;
+    font-family:'Oswald',sans-serif;
+    font-size:12px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color:var(--muted);
+    border-bottom:2px solid var(--border);
+    padding:8px 8px;
+  }
+  td{padding:9px 8px; border-bottom:1px solid var(--border); vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .empty{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--muted);
+  }
+  .empty .display{font-size:17px; color:var(--infield); margin-bottom:6px;}
+  .pill{
+    display:inline-block;
+    padding:3px 10px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:600;
+  }
+  .pill-yellow{background:#FBEBD3; color:#8A5A16;}
+  .pill-danger{background:#F6DCDA; color:var(--danger);}
+  .pill-ok{background:#DCEBDF; color:var(--ok);}
+  .class-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px;}
+  .class-card{
+    background:var(--card);
+    border:1.5px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px;
+    border-top:4px solid var(--infield);
+  }
+  .class-card h3{margin:0 0 4px; font-size:18px; color:var(--infield);}
+  .class-card .count{color:var(--muted); font-size:13px; margin-bottom:12px;}
+  .class-card .actions{display:flex; gap:8px;}
+  .toast{
+    position:fixed;
+    bottom:24px;
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--infield);
+    color:#fff;
+    padding:10px 20px;
+    border-radius:30px;
+    font-size:14px;
+    font-weight:600;
+    box-shadow:0 6px 18px rgba(0,0,0,0.2);
+    z-index:50;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+  input.grade-input{width:100px; text-align:center;}
+  .student-name{font-weight:600;}
+  .exempt-note{font-style:italic; color:var(--yellow); font-size:13px;}
+  select.absence-select{min-width:170px;}
+  .settings-btn{
+    background:transparent;
+    border:none;
+    color:#C9D6C7;
+    cursor:pointer;
+    padding:6px;
+  }
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.45);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100;
+  }
+  .modal{
+    background:#fff; border-radius:12px; padding:24px;
+    width:min(420px,90vw);
+  }
+  .modal h3{margin-top:0; color:var(--infield);}
+  .modal .row{margin-bottom:14px;}
+  .top-actions{display:flex; justify-content:flex-end; gap:8px; margin-bottom:14px;}
+  .count-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:22px; height:22px; padding:0 6px;
+    border-radius:11px; background:var(--track); color:#fff;
+    font-size:12px; font-weight:700;
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CATALOG EFS — catalog personal pentru profesorul de educație fizică
+   Stocare persistentă locală (localStorage), 100% pe dispozitiv, fără internet.
+   ============================================================ */
+
+const STORAGE_KEY = 'catalog_efs_state_v1';
+
+let state = {
+  settings: { titlu: 'Catalogul meu EFS' },
+  clase: [],      // {id, nume, an: 'IX'|'X'|'XI'|'XII'}
+  elevi: [],      // {id, claseId, nume, prenume, sex, scutit, motivScutire}
+  probe: [],      // {id, nume, claseId ('all' sau id clasă), data}
+  note: [],       // {id, eleviId, probaId, valoare, notaCalculata, data}
+  absente: [],    // {id, eleviId, claseId, data, stare} stare: 'prezent'|'motivat'|'nemotivat'
+  bareme: []      // {id, nume, directie:'desc'|'asc', praguri:{IX:{M:{9..4},F:{9..4}}, X:{...}, XI:{...}, XII:{...}}}
+};
+
+const ANI = ['IX','X','XI','XII'];
+
+let currentTab = 'clase';
+let ui = {
+  eleviClasa: null,
+  notareClasa: null, notareProba: null,
+  absenteClasa: null, absenteData: todayISO(),
+  baremeSelectat: null, baremeAn: 'IX',
+};
+
+function todayISO(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+function uid(){
+  return (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+}
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- STORAGE ----------------
+   Salvare 100% locală, în browserul dispozitivului (localStorage).
+   Nu are nevoie de internet — funcționează și fără semnal, pe teren.
+   Singura limită: datele rămân pe DISPOZITIVUL pe care le-ai introdus.
+   Pentru a le muta pe alt dispozitiv (laptop <-> tabletă), folosește
+   Setări -> Exportă backup / Importă backup.
+------------------------------------------------ */
+async function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      state = Object.assign(state, parsed);
+    }
+  }catch(e){
+    console.log('Nicio dată salvată anterior pe acest dispozitiv, pornim de la zero.');
+  }
+}
+let saveTimer = null;
+function saveState(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }catch(e){
+      showToast('Nu am putut salva pe acest dispozitiv (spațiu insuficient?).');
+    }
+  }, 150);
+}
+
+/* ---------------- EXPORT / IMPORT (sincronizare manuală între dispozitive) ---------------- */
+function exportBackup(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = todayISO();
+  a.href = url;
+  a.download = `catalog-efs-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function importBackupFile(file, onDone){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed || typeof parsed !== 'object') throw new Error('format invalid');
+      state = Object.assign({settings:{titlu:'Catalogul meu EFS'}, clase:[], elevi:[], probe:[], note:[], absente:[], bareme:[]}, parsed);
+      saveState();
+      onDone(true);
+    }catch(e){
+      onDone(false);
+    }
+  };
+  reader.onerror = () => onDone(false);
+  reader.readAsText(file);
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------------- ICONS (inline SVG, stroke style) ---------------- */
+const ICONS = {
+  clase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg>',
+  elevi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M15 20c0-2.6 1-4.6 3-5.5"/></svg>',
+  probe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/><path d="M12 2v3"/></svg>',
+  notare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11l2 2 4-4"/></svg>',
+  absente: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18"/><path d="M9 14l2 2 4-4"/></svg>',
+  scutiri: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 5-3.2 7.8-7 9-3.8-1.2-7-4-7-9V6z"/><path d="M12 9v5"/><path d="M9.5 11.5h5"/></svg>',
+  bareme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16"/><path d="M6 20V10l4-6 4 6v10"/><path d="M6 14h8"/><path d="M17 20v-7l2-3 2 3v7"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 000-2l2-1.5-2-3.4-2.3.9a7.7 7.7 0 00-1.7-1L15 3h-6l-.4 2.9a7.7 7.7 0 00-1.7 1l-2.3-.9-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.5 2 3.4 2.3-.9c.5.4 1.1.8 1.7 1L9 21h6l.4-2.9c.6-.2 1.2-.6 1.7-1l2.3.9 2-3.4z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>',
+};
+
+const TABS = [
+  {id:'clase', label:'Clase'},
+  {id:'elevi', label:'Elevi'},
+  {id:'probe', label:'Probe'},
+  {id:'bareme', label:'Bareme'},
+  {id:'notare', label:'Notare'},
+  {id:'absente', label:'Absențe'},
+  {id:'scutiri', label:'Scutiri'},
+];
+
+/* ---------------- HELPERS DE DATE ---------------- */
+function claseNume(id){
+  const c = state.clase.find(c=>c.id===id);
+  return c ? c.nume : '—';
+}
+function eleviDinClasa(claseId){
+  return state.elevi.filter(e=>e.claseId===claseId).sort((a,b)=>a.nume.localeCompare(b.nume,'ro'));
+}
+function formatDataRo(iso){
+  if(!iso) return '—';
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('ro-RO', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+
+/* ================= RENDER PRINCIPAL ================= */
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header>
+      <div class="title">
+        <h1 id="titlu-app">${escapeHtml(state.settings.titlu)}</h1>
+        <span class="subtitle">Educație fizică și sport</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span class="date">${new Date().toLocaleDateString('ro-RO',{weekday:'long', day:'numeric', month:'long'})}</span>
+        <button class="settings-btn" id="btn-settings" title="Setări">${ICONS.gear}</button>
+      </div>
+    </header>
+    <div class="body-wrap">
+      <nav class="sidebar">
+        ${TABS.map(t=>`<button data-tab="${t.id}" class="${currentTab===t.id?'active':''}">${ICONS[t.id]}<span>${t.label}</span></button>`).join('')}
+      </nav>
+      <main id="main"></main>
+    </div>
+    <nav class="bottombar">
+      ${TABS.map(t=>`<button data-tab="${t.id}" class="${currentTab===t.id?'active':''}">${ICONS[t.id]}<span>${t.label}</span></button>`).join('')}
+    </nav>
+  `;
+  document.querySelectorAll('[data-tab]').forEach(b=>{
+    b.addEventListener('click', ()=>{ currentTab = b.dataset.tab; render(); });
+  });
+  document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
+  renderTab();
+}
+
+function renderTab(){
+  const main = document.getElementById('main');
+  if(currentTab==='clase') return renderClase(main);
+  if(currentTab==='elevi') return renderElevi(main);
+  if(currentTab==='probe') return renderProbe(main);
+  if(currentTab==='bareme') return renderBareme(main);
+  if(currentTab==='notare') return renderNotare(main);
+  if(currentTab==='absente') return renderAbsente(main);
+  if(currentTab==='scutiri') return renderScutiri(main);
+}
+
+/* ================= TAB: CLASE ================= */
+function renderClase(main){
+  main.innerHTML = `
+    <h2>Clase</h2>
+    <p class="tab-desc">Adaugă clasele la care predai. Fiecare clasă își are propria listă de elevi.</p>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="flex:1; min-width:180px;">
+          <label>Nume clasă</label>
+          <input type="text" id="input-clasa-nume" placeholder="ex: a IX-a A" />
+        </div>
+        <div class="field">
+          <label>An de studiu</label>
+          <select id="input-clasa-an">${ANI.map(a=>`<option value="${a}">${a}</option>`).join('')}</select>
+        </div>
+        <button class="btn btn-primary" id="btn-add-clasa">+ Adaugă clasă</button>
+      </div>
+    </div>
+    ${state.clase.length===0 ? emptyState('Nicio clasă adăugată încă.', 'Adaugă prima clasă mai sus ca să poți începe să treci elevi.') : `
+      <div class="class-grid">
+        ${state.clase.map(c=>{
+          const nr = eleviDinClasa(c.id).length;
+          return `<div class="class-card">
+            <h3>${escapeHtml(c.nume)}</h3>
+            <div class="row" style="margin:0 0 8px; align-items:center;">
+              <span style="font-size:12px; color:var(--muted); font-weight:600;">AN:</span>
+              <select data-an-clasa="${c.id}" style="min-height:32px; padding:4px 8px; font-size:13px;">
+                ${ANI.map(a=>`<option value="${a}" ${c.an===a?'selected':''}>${a}</option>`).join('')}
+              </select>
+            </div>
+            <div class="count">${nr} elev${nr===1?'':'i'}</div>
+            <div class="actions">
+              <button class="btn btn-ghost" data-rename="${c.id}">Redenumește</button>
+              <button class="btn btn-danger" data-del-clasa="${c.id}">${ICONS.trash} Șterge</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    `}
+  `;
+  document.getElementById('btn-add-clasa').addEventListener('click', ()=>{
+    const inp = document.getElementById('input-clasa-nume');
+    const an = document.getElementById('input-clasa-an').value;
+    const nume = inp.value.trim();
+    if(!nume) return showToast('Scrie numele clasei.');
+    state.clase.push({id:uid(), nume, an});
+    saveState(); render(); showToast('Clasă adăugată.');
+  });
+  main.querySelectorAll('[data-rename]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const c = state.clase.find(c=>c.id===b.dataset.rename);
+      const nou = prompt('Nume nou pentru clasă:', c.nume);
+      if(nou && nou.trim()){ c.nume = nou.trim(); saveState(); render(); }
+    });
+  });
+  main.querySelectorAll('[data-an-clasa]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const c = state.clase.find(c=>c.id===sel.dataset.anClasa);
+      c.an = sel.value; saveState(); showToast('An actualizat.');
+    });
+  });
+  main.querySelectorAll('[data-del-clasa]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const id = b.dataset.delClasa;
+      const nr = eleviDinClasa(id).length;
+      const msg = nr>0
+        ? `Această clasă are ${nr} elev(i). Ștergând clasa, se șterg și elevii, notele, absențele și probele asociate. Continui?`
+        : 'Ștergi această clasă?';
+      if(!confirm(msg)) return;
+      const eleviIds = state.elevi.filter(e=>e.claseId===id).map(e=>e.id);
+      state.clase = state.clase.filter(c=>c.id!==id);
+      state.elevi = state.elevi.filter(e=>e.claseId!==id);
+      state.probe = state.probe.filter(p=>p.claseId!==id);
+      state.note = state.note.filter(n=>!eleviIds.includes(n.eleviId));
+      state.absente = state.absente.filter(a=>!eleviIds.includes(a.eleviId));
+      saveState(); render(); showToast('Clasă ștearsă.');
+    });
+  });
+}
+
+/* ================= TAB: ELEVI ================= */
+function renderElevi(main){
+  if(state.clase.length===0){
+    main.innerHTML = `<h2>Elevi</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    return;
+  }
+  if(!ui.eleviClasa || !state.clase.find(c=>c.id===ui.eleviClasa)) ui.eleviClasa = state.clase[0].id;
+  const lista = eleviDinClasa(ui.eleviClasa);
+  main.innerHTML = `
+    <h2>Elevi</h2>
+    <p class="tab-desc">Gestionează lista de elevi pentru fiecare clasă.</p>
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field">
+        <label>Clasă</label>
+        <select id="select-elevi-clasa">
+          ${state.clase.map(c=>`<option value="${c.id}" ${c.id===ui.eleviClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Adaugă toată clasa dintr-o listă</div>
+      <div class="tab-desc" style="margin-bottom:10px;">
+        Lipește lista, un elev pe rând: <b>Nume Prenume</b>. Opțional, adaugă M sau F la final de linie
+        (ex: <i>Popescu Andrei M</i>) — dacă nu specifici, se aplică sexul implicit ales mai jos.
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <textarea id="bulk-elevi-text" rows="6" style="width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px;"
+          placeholder="Popescu Andrei M
+Ionescu Maria F
+Vasile Ana
+Georgescu Mihai"></textarea>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Sex implicit (dacă nu-l scrii pe linie)</label>
+          <select id="bulk-elevi-sex-implicit">
+            <option value="M">Băiat</option>
+            <option value="F">Fată</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="btn-bulk-add-elevi">+ Adaugă toată lista</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Sau adaugă un singur elev</div>
+      <div class="row">
+        <div class="field"><label>Nume</label><input type="text" id="new-elev-nume" placeholder="Popescu"/></div>
+        <div class="field"><label>Prenume</label><input type="text" id="new-elev-prenume" placeholder="Andrei"/></div>
+        <div class="field"><label>Sex</label>
+          <select id="new-elev-sex"><option value="M">Băiat</option><option value="F">Fată</option></select>
+        </div>
+        <button class="btn btn-secondary" id="btn-add-elev">+ Adaugă elev</button>
+      </div>
+    </div>
+
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă lista de mai sus, dintr-o dată sau elev cu elev.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Nume</th><th>Prenume</th><th>Sex</th><th>Scutit medical</th><th></th></tr></thead>
+        <tbody>
+          ${lista.map(e=>`
+            <tr>
+              <td class="student-name">${escapeHtml(e.nume)}</td>
+              <td>${escapeHtml(e.prenume)}</td>
+              <td>
+                <select data-sex-elev="${e.id}" style="min-height:34px; padding:4px 8px;">
+                  <option value="M" ${e.sex==='M'?'selected':''}>Băiat</option>
+                  <option value="F" ${e.sex==='F'?'selected':''}>Fată</option>
+                </select>
+              </td>
+              <td>${e.scutit ? `<span class="pill pill-yellow">Scutit${e.motivScutire ? ' — '+escapeHtml(e.motivScutire) : ''}</span>` : '—'}</td>
+              <td><button class="btn btn-danger" data-del-elev="${e.id}">${ICONS.trash}</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  `;
+  document.getElementById('select-elevi-clasa').addEventListener('change', (e)=>{
+    ui.eleviClasa = e.target.value; render();
+  });
+  document.getElementById('btn-add-elev').addEventListener('click', ()=>{
+    const nume = document.getElementById('new-elev-nume').value.trim();
+    const prenume = document.getElementById('new-elev-prenume').value.trim();
+    const sex = document.getElementById('new-elev-sex').value;
+    if(!nume || !prenume) return showToast('Completează numele și prenumele.');
+    state.elevi.push({id:uid(), claseId:ui.eleviClasa, nume, prenume, sex, scutit:false, motivScutire:''});
+    saveState(); render(); showToast('Elev adăugat.');
+  });
+  document.getElementById('btn-bulk-add-elevi').addEventListener('click', ()=>{
+    const raw = document.getElementById('bulk-elevi-text').value;
+    const sexImplicit = document.getElementById('bulk-elevi-sex-implicit').value;
+    const linii = raw.split('\n').map(l=>l.trim()).filter(Boolean);
+    if(linii.length===0) return showToast('Lipește lista de elevi mai întâi.');
+    let adaugati = 0;
+    linii.forEach(linie=>{
+      const parti = linie.split(/\s+/);
+      let sex = sexImplicit;
+      const ultima = parti[parti.length-1].toUpperCase();
+      if(ultima==='M' || ultima==='F'){ sex = ultima; parti.pop(); }
+      if(parti.length===0) return;
+      const nume = parti[0];
+      const prenume = parti.slice(1).join(' ') || '—';
+      state.elevi.push({id:uid(), claseId:ui.eleviClasa, nume, prenume, sex, scutit:false, motivScutire:''});
+      adaugati++;
+    });
+    saveState(); render(); showToast(`${adaugati} elevi adăugați.`);
+  });
+  main.querySelectorAll('[data-sex-elev]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const e = state.elevi.find(e=>e.id===sel.dataset.sexElev);
+      e.sex = sel.value; saveState();
+    });
+  });
+  main.querySelectorAll('[data-del-elev]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(!confirm('Ștergi acest elev? Se șterg și notele/absențele lui.')) return;
+      const id = b.dataset.delElev;
+      state.elevi = state.elevi.filter(e=>e.id!==id);
+      state.note = state.note.filter(n=>n.eleviId!==id);
+      state.absente = state.absente.filter(a=>a.eleviId!==id);
+      saveState(); render(); showToast('Elev șters.');
+    });
+  });
+}
+
+/* ================= TAB: PROBE ================= */
+function renderProbe(main){
+  main.innerHTML = `
+    <h2>Probe</h2>
+    <p class="tab-desc">Definește testările pe care le dai (alergări, sărituri, aruncări etc.).</p>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="flex:1.4; min-width:200px;"><label>Denumire probă</label><input type="text" id="new-proba-nume" placeholder="ex: Alergare viteză 30 m"/></div>
+        <div class="field"><label>Clasă</label>
+          <select id="new-proba-clasa">
+            <option value="all">Toate clasele</option>
+            ${state.clase.map(c=>`<option value="${c.id}">${escapeHtml(c.nume)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Dată</label><input type="date" id="new-proba-data" value="${todayISO()}"/></div>
+        <button class="btn btn-primary" id="btn-add-proba">+ Adaugă probă</button>
+      </div>
+    </div>
+    ${state.probe.length===0 ? emptyState('Nicio probă definită.', 'Adaugă prima testare mai sus.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Probă</th><th>Clasă</th><th>Dată</th><th></th></tr></thead>
+        <tbody>
+          ${[...state.probe].sort((a,b)=>b.data.localeCompare(a.data)).map(p=>`
+            <tr>
+              <td class="student-name">${escapeHtml(p.nume)}</td>
+              <td>${p.claseId==='all' ? 'Toate clasele' : escapeHtml(claseNume(p.claseId))}</td>
+              <td>${formatDataRo(p.data)}</td>
+              <td><button class="btn btn-danger" data-del-proba="${p.id}">${ICONS.trash}</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  `;
+  document.getElementById('btn-add-proba').addEventListener('click', ()=>{
+    const nume = document.getElementById('new-proba-nume').value.trim();
+    const claseId = document.getElementById('new-proba-clasa').value;
+    const data = document.getElementById('new-proba-data').value || todayISO();
+    if(!nume) return showToast('Scrie denumirea probei.');
+    state.probe.push({id:uid(), nume, claseId, data});
+    saveState(); render(); showToast('Probă adăugată.');
+  });
+  main.querySelectorAll('[data-del-proba]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(!confirm('Ștergi această probă? Se șterg și notele asociate.')) return;
+      const id = b.dataset.delProba;
+      state.probe = state.probe.filter(p=>p.id!==id);
+      state.note = state.note.filter(n=>n.probaId!==id);
+      saveState(); render(); showToast('Probă ștearsă.');
+    });
+  });
+}
+
+/* ================= BAREME: HELPERE ================= */
+function pragGol(){ return {9:null,8:null,7:null,6:null,5:null,4:null}; }
+function baremNou(nume, directie){
+  return {
+    id: uid(), nume, directie: directie || 'desc',
+    praguri: { IX:{M:pragGol(),F:pragGol()}, X:{M:pragGol(),F:pragGol()}, XI:{M:pragGol(),F:pragGol()}, XII:{M:pragGol(),F:pragGol()} }
+  };
+}
+function claseAn(claseId){
+  const c = state.clase.find(c=>c.id===claseId);
+  return (c && c.an) ? c.an : 'IX';
+}
+function findBaremForProba(probaNume){
+  if(!probaNume) return null;
+  const target = probaNume.trim().toLowerCase();
+  return state.bareme.find(b=>b.nume.trim().toLowerCase()===target) || null;
+}
+// Întoarce nota calculată (10..4) sau null dacă nu există prag definit / rezultatul e sub baremul minim.
+function calculeazaNota(barem, an, sex, valoareStr){
+  if(!barem) return null;
+  const v = parseFloat(String(valoareStr).replace(',','.'));
+  if(isNaN(v)) return null;
+  const praguri = barem.praguri[an] && barem.praguri[an][sex];
+  if(!praguri) return null;
+  const ordine = [9,8,7,6,5,4];
+  if(barem.directie==='desc'){ // valoare mai mică = notă mai mare (ex: timp)
+    if(praguri[9]!=null && v < praguri[9]) return 10;
+    for(const n of ordine){ if(praguri[n]!=null && v <= praguri[n]) return n; }
+  } else { // valoare mai mare = notă mai mare (ex: distanță, repetări)
+    if(praguri[9]!=null && v > praguri[9]) return 10;
+    for(const n of ordine){ if(praguri[n]!=null && v >= praguri[n]) return n; }
+  }
+  return null; // sub pragul minim definit (4)
+}
+
+/* ================= TAB: BAREME ================= */
+function renderBareme(main){
+  const barem = state.bareme.find(b=>b.id===ui.baremeSelectat) || null;
+  main.innerHTML = `
+    <h2>Bareme</h2>
+    <p class="tab-desc">
+      Definește pragurile de notare pentru fiecare probă. Denumirea baremului trebuie să fie identică
+      cu denumirea probei (din tabul „Probe”), ca să se facă legătura automat la notare.
+    </p>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Listă bareme existente</label>
+          <select id="select-barem">
+            <option value="">— alege un barem —</option>
+            ${state.bareme.map(b=>`<option value="${b.id}" ${b.id===ui.baremeSelectat?'selected':''}>${escapeHtml(b.nume)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn btn-secondary" id="btn-barem-nou">+ Barem nou</button>
+      </div>
+    </div>
+
+    ${!barem ? emptyState('Niciun barem selectat.', 'Alege un barem din listă sau creează unul nou.') : renderBaremEditor(barem)}
+  `;
+  document.getElementById('select-barem').addEventListener('change', e=>{
+    ui.baremeSelectat = e.target.value || null; render();
+  });
+  document.getElementById('btn-barem-nou').addEventListener('click', ()=>{
+    const nume = prompt('Denumirea probei pentru acest barem (identică cu cea din tabul „Probe”):');
+    if(!nume || !nume.trim()) return;
+    const nb = baremNou(nume.trim(), 'desc');
+    state.bareme.push(nb);
+    ui.baremeSelectat = nb.id;
+    saveState(); render(); showToast('Barem creat.');
+  });
+  if(barem) wireBaremEditor(main, barem);
+}
+
+function renderBaremEditor(barem){
+  const an = ui.baremeAn || 'IX';
+  const note = [10,9,8,7,6,5,4];
+  return `
+    <div class="card">
+      <div class="row">
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Denumire (trebuie să coincidă cu proba)</label>
+          <input type="text" id="barem-nume" value="${escapeHtml(barem.nume)}"/>
+        </div>
+        <div class="field">
+          <label>Sensul notării</label>
+          <select id="barem-directie">
+            <option value="desc" ${barem.directie==='desc'?'selected':''}>Valoare mai mică = notă mai mare (timp)</option>
+            <option value="asc" ${barem.directie==='asc'?'selected':''}>Valoare mai mare = notă mai mare (distanță/repetări)</option>
+          </select>
+        </div>
+        <button class="btn btn-danger" id="btn-del-barem">${ICONS.trash} Șterge baremul</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin-bottom:12px; gap:8px;">
+      ${ANI.map(a=>`<button class="btn ${a===an?'btn-primary':'btn-ghost'}" data-barem-an="${a}">Clasa a ${a}-a</button>`).join('')}
+    </div>
+
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Notă</th><th>Băieți</th><th>Fete</th></tr></thead>
+        <tbody>
+          ${note.map(n=>{
+            if(n===10){
+              return `<tr><td><strong>10</strong></td><td colspan="2" style="color:var(--muted); font-style:italic;">sub pragul notei 9 (automat)</td></tr>`;
+            }
+            const vM = barem.praguri[an].M[n];
+            const vF = barem.praguri[an].F[n];
+            return `<tr>
+              <td><strong>${n}</strong></td>
+              <td><input type="text" class="grade-input" data-prag="M" data-nota="${n}" value="${vM==null?'':vM}" placeholder="—"/></td>
+              <td><input type="text" class="grade-input" data-prag="F" data-nota="${n}" value="${vF==null?'':vF}" placeholder="—"/></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function wireBaremEditor(main, barem){
+  main.querySelectorAll('[data-barem-an]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ui.baremeAn = b.dataset.baremAn; render(); });
+  });
+  document.getElementById('barem-nume').addEventListener('change', e=>{
+    barem.nume = e.target.value.trim() || barem.nume; saveState(); showToast('Denumire actualizată.');
+  });
+  document.getElementById('barem-directie').addEventListener('change', e=>{
+    barem.directie = e.target.value; saveState(); showToast('Sens actualizat.');
+  });
+  document.getElementById('btn-del-barem').addEventListener('click', ()=>{
+    if(!confirm('Ștergi acest barem?')) return;
+    state.bareme = state.bareme.filter(b=>b.id!==barem.id);
+    ui.baremeSelectat = null;
+    saveState(); render(); showToast('Barem șters.');
+  });
+  main.querySelectorAll('[data-prag]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const an = ui.baremeAn || 'IX';
+      const sex = inp.dataset.prag;
+      const nota = inp.dataset.nota;
+      const val = inp.value.trim().replace(',','.');
+      barem.praguri[an][sex][nota] = val==='' ? null : parseFloat(val);
+      saveState();
+    });
+  });
+}
+
+/* ================= TAB: NOTARE ================= */
+function renderNotare(main){
+  if(state.clase.length===0){
+    main.innerHTML = `<h2>Notare</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă și o probă.');
+    return;
+  }
+  if(!ui.notareClasa || !state.clase.find(c=>c.id===ui.notareClasa)) ui.notareClasa = state.clase[0].id;
+  const probeDisponibile = state.probe.filter(p=>p.claseId==='all' || p.claseId===ui.notareClasa)
+                                       .sort((a,b)=>b.data.localeCompare(a.data));
+  if(!ui.notareProba || !probeDisponibile.find(p=>p.id===ui.notareProba)){
+    ui.notareProba = probeDisponibile.length ? probeDisponibile[0].id : null;
+  }
+  const lista = eleviDinClasa(ui.notareClasa);
+  const probaSelectata = probeDisponibile.find(p=>p.id===ui.notareProba) || null;
+  const barem = probaSelectata ? findBaremForProba(probaSelectata.nume) : null;
+
+  main.innerHTML = `
+    <h2>Notare</h2>
+    <p class="tab-desc">Alege clasa și proba, apoi treci rapid notele sau timpii pentru fiecare elev.</p>
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field">
+        <label>Clasă</label>
+        <select id="select-notare-clasa">
+          ${state.clase.map(c=>`<option value="${c.id}" ${c.id===ui.notareClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Probă</label>
+        <select id="select-notare-proba" ${probeDisponibile.length===0?'disabled':''}>
+          ${probeDisponibile.length===0 ? '<option>Nicio probă pentru această clasă</option>' :
+            probeDisponibile.map(p=>`<option value="${p.id}" ${p.id===ui.notareProba?'selected':''}>${escapeHtml(p.nume)} — ${formatDataRo(p.data)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    ${probaSelectata && !barem ? `
+      <div class="card" style="background:#FBEBD3; border-color:#E3A23C;">
+        Nu există un barem definit pentru „${escapeHtml(probaSelectata.nume)}” — introduci direct nota, sau
+        <button class="btn btn-ghost" id="btn-jump-barem" style="margin-left:6px;">creează un barem acum</button>
+        ca să-ți calculeze automat nota din timp.
+      </div>
+    ` : ''}
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') :
+      probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Elev</th><th>${barem ? (barem.directie==='desc'?'Timp':'Rezultat') : 'Notă / Timp'}</th>${barem?'<th>Notă calculată</th>':''}</tr></thead>
+        <tbody>
+          ${lista.map(e=>{
+            const existing = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba);
+            if(e.scutit){
+              return `<tr><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td><span class="exempt-note">Scutit medical</span></td>${barem?'<td></td>':''}</tr>`;
+            }
+            const an = claseAn(e.claseId);
+            const notaInit = barem ? calculeazaNota(barem, an, e.sex, existing ? existing.valoare : '') : null;
+            return `<tr>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              <td><input type="text" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/></td>
+              ${barem ? `<td class="nota-calc" data-nota-for="${e.id}">${notaInit!=null?notaInit:'<span style=\"color:var(--muted);\">—</span>'}</td>` : ''}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="top-actions" style="justify-content:flex-start; margin-top:14px;">
+      <button class="btn btn-primary" id="btn-save-note">Salvează notele</button>
+    </div>
+    `}
+  `;
+  document.getElementById('select-notare-clasa').addEventListener('change', e=>{ ui.notareClasa = e.target.value; ui.notareProba = null; render(); });
+  const selProba = document.getElementById('select-notare-proba');
+  if(selProba) selProba.addEventListener('change', e=>{ ui.notareProba = e.target.value; render(); });
+  const btnJump = document.getElementById('btn-jump-barem');
+  if(btnJump) btnJump.addEventListener('click', ()=>{
+    const nb = baremNou(probaSelectata.nume, 'desc');
+    state.bareme.push(nb);
+    ui.baremeSelectat = nb.id;
+    saveState();
+    currentTab = 'bareme'; render();
+  });
+  if(barem){
+    main.querySelectorAll('.grade-input').forEach(inp=>{
+      inp.addEventListener('input', ()=>{
+        const nota = calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, inp.value);
+        const cell = main.querySelector(`[data-nota-for="${inp.dataset.elev}"]`);
+        if(cell) cell.innerHTML = nota!=null ? nota : '<span style="color:var(--muted);">—</span>';
+      });
+    });
+  }
+  const btnSave = document.getElementById('btn-save-note');
+  if(btnSave){
+    btnSave.addEventListener('click', ()=>{
+      let count = 0;
+      main.querySelectorAll('.grade-input').forEach(inp=>{
+        const val = inp.value.trim();
+        if(val==='') return;
+        const eleviId = inp.dataset.elev;
+        const notaCalculata = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
+        let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba);
+        if(rec){ rec.valoare = val; rec.notaCalculata = notaCalculata; } else {
+          state.note.push({id:uid(), eleviId, probaId:ui.notareProba, valoare:val, notaCalculata, data:todayISO()});
+        }
+        count++;
+      });
+      saveState();
+      showToast(`Note salvate (${count}).`);
+    });
+  }
+}
+
+/* ================= TAB: ABSENȚE ================= */
+function renderAbsente(main){
+  if(state.clase.length===0){
+    main.innerHTML = `<h2>Absențe</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    return;
+  }
+  if(!ui.absenteClasa || !state.clase.find(c=>c.id===ui.absenteClasa)) ui.absenteClasa = state.clase[0].id;
+  const lista = eleviDinClasa(ui.absenteClasa);
+
+  main.innerHTML = `
+    <h2>Absențe</h2>
+    <p class="tab-desc">Bifează rapid absențele. Se salvează automat, imediat ce bifezi sau scrii o observație.</p>
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field">
+        <label>Clasă</label>
+        <select id="select-absente-clasa">
+          ${state.clase.map(c=>`<option value="${c.id}" ${c.id===ui.absenteClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Data orei</label>
+        <input type="date" id="input-absente-data" value="${ui.absenteData}"/>
+      </div>
+    </div>
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Elev</th><th>Absent</th><th>Motivat</th><th>Observație</th><th>Total absențe</th></tr></thead>
+        <tbody>
+          ${lista.map(e=>{
+            const rec = state.absente.find(a=>a.eleviId===e.id && a.data===ui.absenteData);
+            const stare = rec ? rec.stare : 'prezent';
+            const esteAbsent = stare!=='prezent';
+            const esteMotivat = stare==='motivat';
+            const nota = rec ? (rec.nota || '') : '';
+            const total = state.absente.filter(a=>a.eleviId===e.id && a.stare!=='prezent').length;
+            return `<tr data-row-elev="${e.id}">
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${e.scutit?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''}</td>
+              <td style="text-align:center;">
+                <input type="checkbox" class="chk-absent" data-elev="${e.id}" ${esteAbsent?'checked':''} style="width:22px; height:22px; cursor:pointer;"/>
+              </td>
+              <td style="text-align:center;">
+                <input type="checkbox" class="chk-motivat" data-elev="${e.id}" ${esteMotivat?'checked':''} ${esteAbsent?'':'disabled'} style="width:22px; height:22px; cursor:pointer;"/>
+              </td>
+              <td>
+                <input type="text" class="input-nota-absenta" data-elev="${e.id}" value="${escapeHtml(nota)}" placeholder="ex: nu s-a prezentat în echipament" style="width:100%; min-width:200px;"/>
+              </td>
+              <td>${total>0 ? `<span class="pill pill-danger">${total}</span>` : '<span class="pill pill-ok">0</span>'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    `}
+  `;
+  document.getElementById('select-absente-clasa').addEventListener('change', e=>{ ui.absenteClasa = e.target.value; render(); });
+  document.getElementById('input-absente-data').addEventListener('change', e=>{ ui.absenteData = e.target.value; render(); });
+
+  function upsertAbsenta(eleviId, patch){
+    let rec = state.absente.find(a=>a.eleviId===eleviId && a.data===ui.absenteData);
+    if(!rec){
+      rec = {id:uid(), eleviId, claseId:ui.absenteClasa, data:ui.absenteData, stare:'prezent', nota:''};
+      state.absente.push(rec);
+    }
+    Object.assign(rec, patch);
+    if(rec.stare==='prezent' && !rec.nota){
+      state.absente = state.absente.filter(a=>a!==rec);
+    }
+    saveState();
+  }
+
+  main.querySelectorAll('.chk-absent').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const eleviId = chk.dataset.elev;
+      const row = main.querySelector(`tr[data-row-elev="${eleviId}"]`);
+      const chkMotivat = row.querySelector('.chk-motivat');
+      if(chk.checked){
+        chkMotivat.disabled = false;
+        upsertAbsenta(eleviId, {stare: chkMotivat.checked ? 'motivat' : 'nemotivat'});
+      } else {
+        chkMotivat.checked = false;
+        chkMotivat.disabled = true;
+        upsertAbsenta(eleviId, {stare:'prezent'});
+      }
+      const totalCell = row.children[4];
+      const total = state.absente.filter(a=>a.eleviId===eleviId && a.stare!=='prezent').length;
+      totalCell.innerHTML = total>0 ? `<span class="pill pill-danger">${total}</span>` : '<span class="pill pill-ok">0</span>';
+    });
+  });
+  main.querySelectorAll('.chk-motivat').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      upsertAbsenta(chk.dataset.elev, {stare: chk.checked ? 'motivat' : 'nemotivat'});
+    });
+  });
+  main.querySelectorAll('.input-nota-absenta').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      upsertAbsenta(inp.dataset.elev, {nota: inp.value.trim()});
+    });
+  });
+}
+
+/* ================= TAB: SCUTIRI MEDICALE ================= */
+function renderScutiri(main){
+  const scutiti = state.elevi.filter(e=>e.scutit);
+  main.innerHTML = `
+    <h2>Scutiri medicale</h2>
+    <p class="tab-desc">Vezi toți elevii scutiți, indiferent de clasă, și gestionează scutirile.</p>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="min-width:220px;">
+          <label>Elev</label>
+          <select id="select-scutire-elev">
+            <option value="">Alege un elev...</option>
+            ${state.clase.map(c=>{
+              const ei = eleviDinClasa(c.id).filter(e=>!e.scutit);
+              if(ei.length===0) return '';
+              return `<optgroup label="${escapeHtml(c.nume)}">
+                ${ei.map(e=>`<option value="${e.id}">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</option>`).join('')}
+              </optgroup>`;
+            }).join('')}
+          </select>
+        </div>
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Motiv scutire</label>
+          <input type="text" id="input-scutire-motiv" placeholder="ex: scutire medicală pe semestrul I"/>
+        </div>
+        <button class="btn btn-primary" id="btn-add-scutire">+ Marchează scutit</button>
+      </div>
+    </div>
+    ${scutiti.length===0 ? emptyState('Niciun elev scutit momentan.', 'Adaugă o scutire folosind formularul de mai sus.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Elev</th><th>Clasă</th><th>Motiv</th><th></th></tr></thead>
+        <tbody>
+          ${scutiti.map(e=>`
+            <tr>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              <td>${escapeHtml(claseNume(e.claseId))}</td>
+              <td>${escapeHtml(e.motivScutire) || '—'}</td>
+              <td><button class="btn btn-ghost" data-unscutire="${e.id}">Anulează scutirea</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  `;
+  document.getElementById('btn-add-scutire').addEventListener('click', ()=>{
+    const id = document.getElementById('select-scutire-elev').value;
+    const motiv = document.getElementById('input-scutire-motiv').value.trim();
+    if(!id) return showToast('Alege un elev.');
+    const e = state.elevi.find(e=>e.id===id);
+    e.scutit = true; e.motivScutire = motiv;
+    saveState(); render(); showToast('Scutire înregistrată.');
+  });
+  main.querySelectorAll('[data-unscutire]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const e = state.elevi.find(e=>e.id===b.dataset.unscutire);
+      e.scutit = false; e.motivScutire = '';
+      saveState(); render(); showToast('Scutire anulată.');
+    });
+  });
+}
+
+/* ================= SETĂRI ================= */
+function openSettingsModal(){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>Setări</h3>
+      <div class="row">
+        <div class="field" style="flex:1;">
+          <label>Titlul catalogului</label>
+          <input type="text" id="modal-titlu" value="${escapeHtml(state.settings.titlu)}"/>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border); margin:18px 0 14px; padding-top:14px;">
+        <div style="font-weight:700; color:var(--infield); margin-bottom:4px;">Sincronizare între dispozitive</div>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">
+          Datele stau doar pe acest dispozitiv, fără internet. Ca să le ai și pe laptop și pe tabletă,
+          exportă un fișier de pe unul și importă-l pe celălalt (prin Drive, email sau USB, oricând ai semnal).
+        </div>
+        <div class="row">
+          <button class="btn btn-secondary" id="modal-export">⭳ Exportă backup</button>
+          <button class="btn btn-secondary" id="modal-import-btn">⭱ Importă backup</button>
+          <input type="file" id="modal-import-input" accept="application/json" style="display:none;"/>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content:space-between; margin-top:6px;">
+        <button class="btn btn-danger" id="modal-reset">Golește toate datele</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" id="modal-cancel">Renunță</button>
+          <button class="btn btn-primary" id="modal-save">Salvează</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  document.getElementById('modal-cancel').addEventListener('click', ()=>backdrop.remove());
+  backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) backdrop.remove(); });
+  document.getElementById('modal-save').addEventListener('click', ()=>{
+    state.settings.titlu = document.getElementById('modal-titlu').value.trim() || 'Catalogul meu EFS';
+    saveState(); backdrop.remove(); render();
+  });
+  document.getElementById('modal-reset').addEventListener('click', ()=>{
+    if(!confirm('Sigur ștergi toate datele (clase, elevi, note, absențe, probe, bareme)? Nu se poate anula.')) return;
+    state = { settings:{titlu:state.settings.titlu}, clase:[], elevi:[], probe:[], note:[], absente:[], bareme:[] };
+    saveState(); backdrop.remove(); render(); showToast('Toate datele au fost șterse.');
+  });
+  document.getElementById('modal-export').addEventListener('click', ()=>{
+    exportBackup();
+    showToast('Backup descărcat.');
+  });
+  const importInput = document.getElementById('modal-import-input');
+  document.getElementById('modal-import-btn').addEventListener('click', ()=> importInput.click());
+  importInput.addEventListener('change', ()=>{
+    const file = importInput.files[0];
+    if(!file) return;
+    if(!confirm('Importarea unui backup înlocuiește TOATE datele curente de pe acest dispozitiv cu cele din fișier. Continui?')) return;
+    importBackupFile(file, (ok)=>{
+      if(ok){ backdrop.remove(); render(); showToast('Backup importat cu succes.'); }
+      else{ showToast('Fișierul nu pare un backup valid.'); }
+    });
+  });
+}
+
+/* ---------------- UI HELPERS ---------------- */
+function emptyState(title, sub){
+  return `<div class="empty"><div class="display">${escapeHtml(title)}</div><div>${escapeHtml(sub)}</div></div>`;
+}
+
+/* ---------------- BOOT ---------------- */
+(async function init(){
+  await loadState();
+  render();
+})();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>

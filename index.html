@@ -343,6 +343,8 @@ let ui = {
   absenteClasa: null, absenteData: todayISO(),
   baremeSelectat: null, baremeAn: 'IX',
   sintezaClasa: null,
+  scutiriClasa: null,
+  istoricClasa: null, istoricElev: null,
 };
 
 function todayISO(){
@@ -373,6 +375,17 @@ async function loadState(){
   }catch(e){
     console.log('Nicio dată salvată anterior pe acest dispozitiv, pornim de la zero.');
   }
+  migreazaDate();
+}
+// aduce datele mai vechi la formatele noi (probe cu o singură clasă -> listă de clase; tip de notare implicit)
+function migreazaDate(){
+  (state.probe || []).forEach(p=>{
+    if(!p.claseIds){
+      p.claseIds = p.claseId ? [p.claseId] : ['all'];
+    }
+    if(!p.tipNotare) p.tipNotare = 'nota';
+  });
+  if(!state.observatiiCustom) state.observatiiCustom = [];
 }
 let saveTimer = null;
 let ultimaSalvare = null;
@@ -420,7 +433,8 @@ function importBackupFile(file, onDone){
     try{
       const parsed = JSON.parse(reader.result);
       if(!parsed || typeof parsed !== 'object') throw new Error('format invalid');
-      state = Object.assign({settings:{titlu:'Catalogul meu EFS'}, clase:[], elevi:[], probe:[], note:[], absente:[], bareme:[]}, parsed);
+      state = Object.assign({settings:{titlu:'Catalogul meu EFS'}, clase:[], elevi:[], probe:[], note:[], absente:[], bareme:[], observatiiCustom:[]}, parsed);
+      migreazaDate();
       saveState();
       onDone(true);
     }catch(e){
@@ -448,6 +462,7 @@ const ICONS = {
   scutiri: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 5-3.2 7.8-7 9-3.8-1.2-7-4-7-9V6z"/><path d="M12 9v5"/><path d="M9.5 11.5h5"/></svg>',
   bareme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16"/><path d="M6 20V10l4-6 4 6v10"/><path d="M6 14h8"/><path d="M17 20v-7l2-3 2 3v7"/></svg>',
   sinteza: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.2"/><rect x="14" y="3" width="7" height="5" rx="1.2"/><rect x="14" y="12" width="7" height="9" rx="1.2"/><rect x="3" y="16" width="7" height="5" rx="1.2"/></svg>',
+  istoric: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
   save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/><path d="M7 21v-8h10v8"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 000-2l2-1.5-2-3.4-2.3.9a7.7 7.7 0 00-1.7-1L15 3h-6l-.4 2.9a7.7 7.7 0 00-1.7 1l-2.3-.9-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.5 2 3.4 2.3-.9c.5.4 1.1.8 1.7 1L9 21h6l.4-2.9c.6-.2 1.2-.6 1.7-1l2.3.9 2-3.4z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>',
@@ -461,6 +476,7 @@ const TABS = [
   {id:'bareme', label:'Bareme'},
   {id:'notare', label:'Notare'},
   {id:'absente', label:'Absențe'},
+  {id:'istoric', label:'Istoric elev'},
   {id:'scutiri', label:'Scutiri'},
 ];
 
@@ -524,6 +540,7 @@ function renderTab(){
   if(currentTab==='bareme') return renderBareme(main);
   if(currentTab==='notare') return renderNotare(main);
   if(currentTab==='absente') return renderAbsente(main);
+  if(currentTab==='istoric') return renderIstoric(main);
   if(currentTab==='scutiri') return renderScutiri(main);
 }
 
@@ -616,7 +633,7 @@ function renderSinteza(main){
   if(!ui.sintezaClasa || !state.clase.find(c=>c.id===ui.sintezaClasa)) ui.sintezaClasa = state.clase[0].id;
   const claseId = ui.sintezaClasa;
   const lista = eleviDinClasa(claseId);
-  const probeClasa = state.probe.filter(p=>p.claseId==='all' || p.claseId===claseId)
+  const probeClasa = state.probe.filter(p=>probaSeAplicaClasei(p, claseId))
                                  .sort((a,b)=>a.data.localeCompare(b.data));
 
   main.innerHTML = `
@@ -832,6 +849,30 @@ Georgescu Mihai"></textarea>
 }
 
 /* ================= TAB: PROBE ================= */
+const TIPURI_NOTARE = [
+  {v:'nota', label:'Notă directă (scriu 1-10)'},
+  {v:'calificativ', label:'Calificativ (FB, B, S, NS)'},
+  {v:'barem', label:'Cu barem (calculează din timp/rezultat)'},
+];
+function tipNotareLabel(v){
+  return (TIPURI_NOTARE.find(t=>t.v===v) || TIPURI_NOTARE[0]).label;
+}
+function claseleProbei(p){
+  // compatibilitate: probele vechi au claseId (un singur id sau 'all'); cele noi au claseIds (listă)
+  if(p.claseIds && p.claseIds.length) return p.claseIds;
+  if(p.claseId) return [p.claseId];
+  return ['all'];
+}
+function probaSeAplicaClasei(p, claseId){
+  const ids = claseleProbei(p);
+  return ids.includes('all') || ids.includes(claseId);
+}
+function numeClaseleProbei(p){
+  const ids = claseleProbei(p);
+  if(ids.includes('all')) return 'Toate clasele';
+  return ids.map(id=>claseNume(id)).join(', ');
+}
+
 function renderProbe(main){
   main.innerHTML = `
     <h2>Probe</h2>
@@ -839,26 +880,41 @@ function renderProbe(main){
     <div class="card">
       <div class="row">
         <div class="field" style="flex:1.4; min-width:200px;"><label>Denumire probă</label><input type="text" id="new-proba-nume" placeholder="ex: Alergare viteză 30 m"/></div>
-        <div class="field"><label>Clasă</label>
-          <select id="new-proba-clasa">
-            <option value="all">Toate clasele</option>
-            ${state.clase.map(c=>`<option value="${c.id}">${escapeHtml(c.nume)}</option>`).join('')}
+        <div class="field"><label>Dată</label><input type="date" id="new-proba-data" value="${todayISO()}"/></div>
+        <div class="field"><label>Tip de notare</label>
+          <select id="new-proba-tip">
+            ${TIPURI_NOTARE.map(t=>`<option value="${t.v}">${t.label}</option>`).join('')}
           </select>
         </div>
-        <div class="field"><label>Dată</label><input type="date" id="new-proba-data" value="${todayISO()}"/></div>
+      </div>
+      <div class="field" style="margin-top:12px;">
+        <label>Clase (poți bifa mai multe)</label>
+        <div style="display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:6px;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:700;">
+            <input type="checkbox" id="chk-proba-toate-clasele" style="width:18px; height:18px;"/> Toate clasele
+          </label>
+          ${state.clase.map(c=>`
+            <label style="display:flex; align-items:center; gap:6px;">
+              <input type="checkbox" class="chk-proba-clasa" value="${c.id}" style="width:18px; height:18px;"/> ${escapeHtml(c.nume)}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px;">
         <button class="btn btn-primary" id="btn-add-proba">+ Adaugă probă</button>
       </div>
     </div>
     ${state.probe.length===0 ? emptyState('Nicio probă definită.', 'Adaugă prima testare mai sus.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Probă</th><th>Clasă</th><th>Dată</th><th></th></tr></thead>
+        <thead><tr><th>Probă</th><th>Clase</th><th>Dată</th><th>Tip notare</th><th></th></tr></thead>
         <tbody>
           ${[...state.probe].sort((a,b)=>b.data.localeCompare(a.data)).map(p=>`
             <tr>
               <td class="student-name">${escapeHtml(p.nume)}</td>
-              <td>${p.claseId==='all' ? 'Toate clasele' : escapeHtml(claseNume(p.claseId))}</td>
+              <td>${escapeHtml(numeClaseleProbei(p))}</td>
               <td>${formatDataRo(p.data)}</td>
+              <td>${escapeHtml(tipNotareLabel(p.tipNotare))}</td>
               <td><button class="btn btn-danger" data-del-proba="${p.id}">${ICONS.trash}</button></td>
             </tr>
           `).join('')}
@@ -866,12 +922,24 @@ function renderProbe(main){
       </table>
     </div>`}
   `;
+  const chkToate = document.getElementById('chk-proba-toate-clasele');
+  const chkClase = () => Array.from(main.querySelectorAll('.chk-proba-clasa'));
+  chkToate.addEventListener('change', ()=>{
+    chkClase().forEach(c=>{ c.disabled = chkToate.checked; if(chkToate.checked) c.checked = false; });
+  });
   document.getElementById('btn-add-proba').addEventListener('click', ()=>{
     const nume = document.getElementById('new-proba-nume').value.trim();
-    const claseId = document.getElementById('new-proba-clasa').value;
     const data = document.getElementById('new-proba-data').value || todayISO();
+    const tipNotare = document.getElementById('new-proba-tip').value;
+    let claseIds;
+    if(chkToate.checked){
+      claseIds = ['all'];
+    } else {
+      claseIds = chkClase().filter(c=>c.checked).map(c=>c.value);
+    }
     if(!nume) return showToast('Scrie denumirea probei.');
-    state.probe.push({id:uid(), nume, claseId, data});
+    if(claseIds.length===0) return showToast('Bifează cel puțin o clasă (sau „Toate clasele”).');
+    state.probe.push({id:uid(), nume, claseIds, data, tipNotare});
     saveState(); render(); showToast('Probă adăugată.');
   });
   main.querySelectorAll('[data-del-proba]').forEach(b=>{
@@ -886,6 +954,20 @@ function renderProbe(main){
 }
 
 /* ================= BAREME: HELPERE ================= */
+const CALIFICATIVE = [
+  {cod:'FB*', nota:10, label:'FB* — Foarte bine cu stea'},
+  {cod:'FB',  nota:9,  label:'FB — Foarte bine'},
+  {cod:'B*',  nota:8,  label:'B* — Bine cu stea'},
+  {cod:'B',   nota:7,  label:'B — Bine'},
+  {cod:'S*',  nota:6,  label:'S* — Suficient cu stea'},
+  {cod:'S',   nota:5,  label:'S — Suficient'},
+  {cod:'NS*', nota:4,  label:'NS* — Nesatisfăcător cu stea'},
+  {cod:'NS',  nota:3,  label:'NS — Nesatisfăcător'},
+];
+function notaDinCalificativ(cod){
+  const c = CALIFICATIVE.find(c=>c.cod===cod);
+  return c ? c.nota : null;
+}
 function pragGol(){ return {9:null,8:null,7:null,6:null,5:null,4:null}; }
 function baremNou(nume, directie){
   return {
@@ -1040,18 +1122,19 @@ function renderNotare(main){
     return;
   }
   if(!ui.notareClasa || !state.clase.find(c=>c.id===ui.notareClasa)) ui.notareClasa = state.clase[0].id;
-  const probeDisponibile = state.probe.filter(p=>p.claseId==='all' || p.claseId===ui.notareClasa)
+  const probeDisponibile = state.probe.filter(p=>probaSeAplicaClasei(p, ui.notareClasa))
                                        .sort((a,b)=>b.data.localeCompare(a.data));
   if(!ui.notareProba || !probeDisponibile.find(p=>p.id===ui.notareProba)){
     ui.notareProba = probeDisponibile.length ? probeDisponibile[0].id : null;
   }
   const lista = eleviDinClasa(ui.notareClasa);
   const probaSelectata = probeDisponibile.find(p=>p.id===ui.notareProba) || null;
-  const barem = probaSelectata ? findBaremForProba(probaSelectata.nume) : null;
+  const tipNotare = probaSelectata ? (probaSelectata.tipNotare || 'nota') : 'nota';
+  const barem = (probaSelectata && tipNotare==='barem') ? findBaremForProba(probaSelectata.nume) : null;
 
   main.innerHTML = `
     <h2>Notare</h2>
-    <p class="tab-desc">Alege clasa și proba, apoi treci rapid notele sau timpii pentru fiecare elev.</p>
+    <p class="tab-desc">Alege clasa și proba, apoi treci rapid notele pentru fiecare elev.</p>
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -1067,7 +1150,7 @@ function renderNotare(main){
         </select>
       </div>
     </div>
-    ${probaSelectata && !barem ? `
+    ${probaSelectata && tipNotare==='barem' && !barem ? `
       <div class="card" style="background:#FBEBD3; border-color:#E3A23C;">
         Nu există un barem definit pentru „${escapeHtml(probaSelectata.nume)}” — introduci direct nota, sau
         <button class="btn btn-ghost" id="btn-jump-barem" style="margin-left:6px;">creează un barem acum</button>
@@ -1078,7 +1161,7 @@ function renderNotare(main){
       probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Elev</th><th>${barem ? (barem.directie==='desc'?'Timp':'Rezultat') : 'Notă / Timp'}</th>${barem?'<th>Notă calculată</th>':''}</tr></thead>
+        <thead><tr><th>Elev</th><th>${barem ? (barem.directie==='desc'?'Timp':'Rezultat') : tipNotare==='calificativ' ? 'Calificativ' : 'Notă'}</th>${barem?'<th>Notă calculată</th>':''}</tr></thead>
         <tbody>
           ${lista.map(e=>{
             const existing = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba);
@@ -1086,6 +1169,18 @@ function renderNotare(main){
               return `<tr><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td><span class="exempt-note">Scutit medical</span></td>${barem?'<td></td>':''}</tr>`;
             }
             const an = claseAn(e.claseId);
+            if(tipNotare==='calificativ'){
+              const valExist = existing ? existing.valoare : '';
+              return `<tr>
+                <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+                <td>
+                  <select class="calificativ-input" data-elev="${e.id}">
+                    <option value="">— alege —</option>
+                    ${CALIFICATIVE.map(c=>`<option value="${c.cod}" ${valExist===c.cod?'selected':''}>${escapeHtml(c.label)}</option>`).join('')}
+                  </select>
+                </td>
+              </tr>`;
+            }
             const notaInit = barem ? calculeazaNota(barem, an, e.sex, existing ? existing.valoare : '') : null;
             return `<tr>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
@@ -1137,17 +1232,31 @@ function renderNotare(main){
   if(btnSave){
     btnSave.addEventListener('click', ()=>{
       let count = 0;
-      main.querySelectorAll('.grade-input').forEach(inp=>{
-        const val = inp.value.trim();
-        if(val==='') return;
-        const eleviId = inp.dataset.elev;
-        const notaCalculata = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
-        let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba);
-        if(rec){ rec.valoare = val; rec.notaCalculata = notaCalculata; } else {
-          state.note.push({id:uid(), eleviId, probaId:ui.notareProba, valoare:val, notaCalculata, data:todayISO()});
-        }
-        count++;
-      });
+      if(tipNotare==='calificativ'){
+        main.querySelectorAll('.calificativ-input').forEach(sel=>{
+          const val = sel.value;
+          if(!val) return;
+          const eleviId = sel.dataset.elev;
+          const notaCalculata = notaDinCalificativ(val);
+          let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba);
+          if(rec){ rec.valoare = val; rec.notaCalculata = notaCalculata; } else {
+            state.note.push({id:uid(), eleviId, probaId:ui.notareProba, valoare:val, notaCalculata, data:todayISO()});
+          }
+          count++;
+        });
+      } else {
+        main.querySelectorAll('.grade-input').forEach(inp=>{
+          const val = inp.value.trim();
+          if(val==='') return;
+          const eleviId = inp.dataset.elev;
+          const notaCalculata = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
+          let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba);
+          if(rec){ rec.valoare = val; rec.notaCalculata = notaCalculata; } else {
+            state.note.push({id:uid(), eleviId, probaId:ui.notareProba, valoare:val, notaCalculata, data:todayISO()});
+          }
+          count++;
+        });
+      }
       saveState();
       showToast(`Note salvate (${count}).`);
     });
@@ -1332,25 +1441,99 @@ function renderAbsente(main){
   });
 }
 
+/* ================= TAB: ISTORIC ELEV ================= */
+function renderIstoric(main){
+  if(state.clase.length===0){
+    main.innerHTML = `<h2>Istoric elev</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    return;
+  }
+  if(!ui.istoricClasa || !state.clase.find(c=>c.id===ui.istoricClasa)) ui.istoricClasa = state.clase[0].id;
+  const eleviClasa = eleviDinClasa(ui.istoricClasa);
+  if(!ui.istoricElev || !eleviClasa.find(e=>e.id===ui.istoricElev)){
+    ui.istoricElev = eleviClasa.length ? eleviClasa[0].id : null;
+  }
+  const elev = ui.istoricElev ? state.elevi.find(e=>e.id===ui.istoricElev) : null;
+
+  main.innerHTML = `
+    <h2>Istoric elev</h2>
+    <p class="tab-desc">Alege clasa și elevul ca să vezi tot istoricul: absențe, observații, cu data fiecăreia și totalul cumulat.</p>
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field">
+        <label>Clasă</label>
+        <select id="select-istoric-clasa">
+          ${state.clase.map(c=>`<option value="${c.id}" ${c.id===ui.istoricClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" style="min-width:220px;">
+        <label>Elev</label>
+        <select id="select-istoric-elev" ${eleviClasa.length===0?'disabled':''}>
+          ${eleviClasa.length===0 ? '<option>Niciun elev în această clasă</option>' :
+            eleviClasa.map(e=>`<option value="${e.id}" ${e.id===ui.istoricElev?'selected':''}>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    ${!elev ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : (()=>{
+      const inregistrari = state.absente.filter(a=>a.eleviId===elev.id).sort((a,b)=>a.data.localeCompare(b.data));
+      const totalMotivate = inregistrari.filter(a=>a.stare==='motivat').length;
+      const totalNemotivate = inregistrari.filter(a=>a.stare==='nemotivat').length;
+      let cumulat = 0;
+      const randuri = inregistrari.map(a=>{
+        if(a.stare!=='prezent') cumulat++;
+        return `<tr>
+          <td>${formatDataRo(a.data)}</td>
+          <td>${a.stare==='motivat' ? '<span class="pill pill-yellow">absent motivat</span>' : a.stare==='nemotivat' ? '<span class="pill pill-danger">absent nemotivat</span>' : '<span class="pill pill-ok">prezent</span>'}</td>
+          <td>${escapeHtml(a.nota) || '<span style="color:var(--muted);">—</span>'}</td>
+          <td><strong>${cumulat}</strong></td>
+        </tr>`;
+      }).join('');
+      return `
+        <div class="row" style="margin-bottom:16px; gap:10px;">
+          <span class="pill pill-yellow">Motivate: ${totalMotivate}</span>
+          <span class="pill pill-danger">Nemotivate: ${totalNemotivate}</span>
+          <span class="pill pill-ok">Total absențe: ${totalMotivate+totalNemotivate}</span>
+          ${elev.scutit ? `<span class="pill pill-yellow">Scutit medical${elev.motivScutire?' — '+escapeHtml(elev.motivScutire):''}</span>` : ''}
+        </div>
+        ${inregistrari.length===0 ? emptyState('Niciun eveniment înregistrat.', 'Absențele și observațiile pentru acest elev vor apărea aici, pe măsură ce le adaugi în tabul „Absențe”.') : `
+        <div class="card" style="padding:0; overflow-x:auto;">
+          <table>
+            <thead><tr><th>Data</th><th>Stare</th><th>Observație</th><th>Total absențe până la această dată</th></tr></thead>
+            <tbody>${randuri}</tbody>
+          </table>
+        </div>`}
+      `;
+    })()}
+  `;
+  document.getElementById('select-istoric-clasa').addEventListener('change', e=>{
+    ui.istoricClasa = e.target.value; ui.istoricElev = null; render();
+  });
+  const selElev = document.getElementById('select-istoric-elev');
+  if(selElev) selElev.addEventListener('change', e=>{ ui.istoricElev = e.target.value; render(); });
+}
+
 /* ================= TAB: SCUTIRI MEDICALE ================= */
 function renderScutiri(main){
   const scutiti = state.elevi.filter(e=>e.scutit);
+  if(!ui.scutiriClasa || !state.clase.find(c=>c.id===ui.scutiriClasa)){
+    ui.scutiriClasa = state.clase.length ? state.clase[0].id : null;
+  }
+  const eleviNescutitiClasa = ui.scutiriClasa ? eleviDinClasa(ui.scutiriClasa).filter(e=>!e.scutit) : [];
   main.innerHTML = `
     <h2>Scutiri medicale</h2>
     <p class="tab-desc">Vezi toți elevii scutiți, indiferent de clasă, și gestionează scutirile.</p>
     <div class="card">
       <div class="row">
+        <div class="field" style="min-width:180px;">
+          <label>Clasă</label>
+          <select id="select-scutire-clasa" ${state.clase.length===0?'disabled':''}>
+            ${state.clase.length===0 ? '<option>Nicio clasă</option>' :
+              state.clase.map(c=>`<option value="${c.id}" ${c.id===ui.scutiriClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
+          </select>
+        </div>
         <div class="field" style="min-width:220px;">
           <label>Elev</label>
-          <select id="select-scutire-elev">
-            <option value="">Alege un elev...</option>
-            ${state.clase.map(c=>{
-              const ei = eleviDinClasa(c.id).filter(e=>!e.scutit);
-              if(ei.length===0) return '';
-              return `<optgroup label="${escapeHtml(c.nume)}">
-                ${ei.map(e=>`<option value="${e.id}">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</option>`).join('')}
-              </optgroup>`;
-            }).join('')}
+          <select id="select-scutire-elev" ${eleviNescutitiClasa.length===0?'disabled':''}>
+            <option value="">${eleviNescutitiClasa.length===0 ? 'Niciun elev disponibil' : 'Alege un elev...'}</option>
+            ${eleviNescutitiClasa.map(e=>`<option value="${e.id}">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</option>`).join('')}
           </select>
         </div>
         <div class="field" style="flex:1; min-width:220px;">
@@ -1377,6 +1560,9 @@ function renderScutiri(main){
       </table>
     </div>`}
   `;
+  document.getElementById('select-scutire-clasa').addEventListener('change', e=>{
+    ui.scutiriClasa = e.target.value; render();
+  });
   document.getElementById('btn-add-scutire').addEventListener('click', ()=>{
     const id = document.getElementById('select-scutire-elev').value;
     const motiv = document.getElementById('input-scutire-motiv').value.trim();

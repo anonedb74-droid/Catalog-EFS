@@ -4,14 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Catalog EFS</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#22402C">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Catalog EFS">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -171,6 +163,27 @@
     nav.bottombar button.active{color:#fff;}
     nav.bottombar button.active svg{stroke:var(--track);}
   }
+  /* ---------- MOD COMPACT PE ECRAN ÎN PORTRET (tabletă) — mai mulți elevi vizibili pe pagină ---------- */
+  @media (orientation: portrait){
+    header{padding:8px 14px;}
+    header h1{font-size:17px;}
+    header .subtitle{display:none;}
+    header .date{display:none;}
+    main{padding:10px 12px 80px;}
+    main h2{font-size:17px; margin-bottom:2px;}
+    .tab-desc{font-size:12px; margin-bottom:10px;}
+    .card{padding:10px; margin-bottom:10px;}
+    .row{gap:6px;}
+    input[type=text], input[type=date], input[type=number], select{
+      min-height:36px; padding:7px 9px; font-size:14px;
+    }
+    button.btn{min-height:36px; padding:8px 12px; font-size:13px;}
+    table th{padding:5px 6px; font-size:11px;}
+    table td{padding:5px 6px; font-size:13px;}
+    nav.sidebar button{padding:9px 14px; font-size:13px;}
+    nav.sidebar{width:150px;}
+    input.grade-input{width:78px; min-height:34px; padding:5px 7px; font-size:14px;}
+  }
   /* ---------- GENERIC UI ---------- */
   .card{
     background:var(--card);
@@ -317,7 +330,8 @@ let state = {
   probe: [],      // {id, nume, claseId ('all' sau id clasă), data}
   note: [],       // {id, eleviId, probaId, valoare, notaCalculata, data}
   absente: [],    // {id, eleviId, claseId, data, stare} stare: 'prezent'|'motivat'|'nemotivat'
-  bareme: []      // {id, nume, directie:'desc'|'asc', praguri:{IX:{M:{9..4},F:{9..4}}, X:{...}, XI:{...}, XII:{...}}}
+  bareme: [],     // {id, nume, directie:'desc'|'asc', praguri:{IX:{M:{9..4},F:{9..4}}, X:{...}, XI:{...}, XII:{...}}}
+  observatiiCustom: []  // observații suplimentare adăugate de profesor, pe lângă cele predefinite
 };
 
 const ANI = ['IX','X','XI','XII'];
@@ -328,6 +342,7 @@ let ui = {
   notareClasa: null, notareProba: null,
   absenteClasa: null, absenteData: todayISO(),
   baremeSelectat: null, baremeAn: 'IX',
+  sintezaClasa: null,
 };
 
 function todayISO(){
@@ -360,16 +375,31 @@ async function loadState(){
   }
 }
 let saveTimer = null;
+let ultimaSalvare = null;
+function saveStateNow(){
+  clearTimeout(saveTimer);
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    ultimaSalvare = new Date();
+    return true;
+  }catch(e){
+    return false;
+  }
+}
 function saveState(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }catch(e){
-      showToast('Nu am putut salva pe acest dispozitiv (spațiu insuficient?).');
-    }
+    if(!saveStateNow()) showToast('Nu am putut salva pe acest dispozitiv (spațiu insuficient?).');
+    updateSaveIndicator();
   }, 150);
 }
+function updateSaveIndicator(){
+  const el = document.getElementById('save-indicator');
+  if(el) el.textContent = ultimaSalvare ? ('Salvat ' + ultimaSalvare.toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit',second:'2-digit'})) : '';
+}
+// dacă închizi sau navighezi din pagină, forțăm salvarea imediată a oricărei modificări netrimise încă
+window.addEventListener('beforeunload', ()=>{ saveStateNow(); });
+window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveStateNow(); });
 
 /* ---------------- EXPORT / IMPORT (sincronizare manuală între dispozitive) ---------------- */
 function exportBackup(){
@@ -417,12 +447,15 @@ const ICONS = {
   absente: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18"/><path d="M9 14l2 2 4-4"/></svg>',
   scutiri: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 5-3.2 7.8-7 9-3.8-1.2-7-4-7-9V6z"/><path d="M12 9v5"/><path d="M9.5 11.5h5"/></svg>',
   bareme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16"/><path d="M6 20V10l4-6 4 6v10"/><path d="M6 14h8"/><path d="M17 20v-7l2-3 2 3v7"/></svg>',
+  sinteza: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.2"/><rect x="14" y="3" width="7" height="5" rx="1.2"/><rect x="14" y="12" width="7" height="9" rx="1.2"/><rect x="3" y="16" width="7" height="5" rx="1.2"/></svg>',
+  save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/><path d="M7 21v-8h10v8"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 000-2l2-1.5-2-3.4-2.3.9a7.7 7.7 0 00-1.7-1L15 3h-6l-.4 2.9a7.7 7.7 0 00-1.7 1l-2.3-.9-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.5 2 3.4 2.3-.9c.5.4 1.1.8 1.7 1L9 21h6l.4-2.9c.6-.2 1.2-.6 1.7-1l2.3.9 2-3.4z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>',
 };
 
 const TABS = [
   {id:'clase', label:'Clase'},
+  {id:'sinteza', label:'Sinteză'},
   {id:'elevi', label:'Elevi'},
   {id:'probe', label:'Probe'},
   {id:'bareme', label:'Bareme'},
@@ -455,7 +488,8 @@ function render(){
         <span class="subtitle">Educație fizică și sport</span>
       </div>
       <div style="display:flex; align-items:center; gap:14px;">
-        <span class="date">${new Date().toLocaleDateString('ro-RO',{weekday:'long', day:'numeric', month:'long'})}</span>
+        <span class="date" id="save-indicator" style="min-width:110px; text-align:right;">${ultimaSalvare ? ('Salvat ' + ultimaSalvare.toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit',second:'2-digit'})) : ''}</span>
+        <button class="btn btn-primary" id="btn-save-now" style="padding:8px 14px; min-height:36px; display:flex; align-items:center; gap:6px;">${ICONS.save} Salvează</button>
         <button class="settings-btn" id="btn-settings" title="Setări">${ICONS.gear}</button>
       </div>
     </header>
@@ -473,12 +507,18 @@ function render(){
     b.addEventListener('click', ()=>{ currentTab = b.dataset.tab; render(); });
   });
   document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
+  document.getElementById('btn-save-now').addEventListener('click', ()=>{
+    const ok = saveStateNow();
+    updateSaveIndicator();
+    showToast(ok ? 'Salvat ✓' : 'Nu am putut salva.');
+  });
   renderTab();
 }
 
 function renderTab(){
   const main = document.getElementById('main');
   if(currentTab==='clase') return renderClase(main);
+  if(currentTab==='sinteza') return renderSinteza(main);
   if(currentTab==='elevi') return renderElevi(main);
   if(currentTab==='probe') return renderProbe(main);
   if(currentTab==='bareme') return renderBareme(main);
@@ -566,6 +606,102 @@ function renderClase(main){
     });
   });
 }
+
+/* ================= TAB: SINTEZĂ (vedere generală pe clasă) ================= */
+function renderSinteza(main){
+  if(state.clase.length===0){
+    main.innerHTML = `<h2>Sinteză</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    return;
+  }
+  if(!ui.sintezaClasa || !state.clase.find(c=>c.id===ui.sintezaClasa)) ui.sintezaClasa = state.clase[0].id;
+  const claseId = ui.sintezaClasa;
+  const lista = eleviDinClasa(claseId);
+  const probeClasa = state.probe.filter(p=>p.claseId==='all' || p.claseId===claseId)
+                                 .sort((a,b)=>a.data.localeCompare(b.data));
+
+  main.innerHTML = `
+    <h2>Sinteză</h2>
+    <p class="tab-desc">O imagine de ansamblu pe clasă: toate probele, notele, absențele și observațiile.</p>
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field">
+        <label>Clasă</label>
+        <select id="select-sinteza-clasa">
+          ${state.clase.map(c=>`<option value="${c.id}" ${c.id===claseId?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
+
+    <h3 style="font-size:16px; color:var(--infield); margin-bottom:8px;">Note pe probe</h3>
+    ${probeClasa.length===0 ? `<div class="tab-desc" style="margin-bottom:16px;">Nicio probă dată încă la această clasă.</div>` : `
+    <div class="card" style="padding:0; overflow-x:auto; margin-bottom:24px;">
+      <table>
+        <thead><tr>
+          <th style="position:sticky; left:0; background:var(--card);">Elev</th>
+          ${probeClasa.map(p=>`<th>${escapeHtml(p.nume)}<br><span style="font-weight:400; text-transform:none; font-size:11px;">${formatDataRo(p.data)}</span></th>`).join('')}
+          <th>Medie</th>
+        </tr></thead>
+        <tbody>
+          ${lista.map(e=>{
+            const noteNumerice = [];
+            const celule = probeClasa.map(p=>{
+              if(e.scutit) return '<span class="exempt-note">scutit</span>';
+              const rec = state.note.find(n=>n.eleviId===e.id && n.probaId===p.id);
+              if(!rec) return '<span style="color:var(--muted);">—</span>';
+              let afisaj = rec.valoare;
+              if(rec.notaCalculata!=null){
+                afisaj = `${rec.valoare} <span class="pill pill-ok" style="margin-left:4px;">${rec.notaCalculata}</span>`;
+                noteNumerice.push(rec.notaCalculata);
+              } else {
+                const numeric = parseFloat(String(rec.valoare).replace(',','.'));
+                if(!isNaN(numeric) && numeric>=1 && numeric<=10) noteNumerice.push(numeric);
+              }
+              return escapeHtmlKeepPill(afisaj);
+            });
+            const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
+            return `<tr>
+              <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              ${celule.map(c=>`<td>${c}</td>`).join('')}
+              <td><strong>${medie}</strong></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    `}
+
+    <h3 style="font-size:16px; color:var(--infield); margin-bottom:8px;">Absențe și observații</h3>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Elev</th><th>Motivate</th><th>Nemotivate</th><th>Observații</th></tr></thead>
+        <tbody>
+          ${lista.map(e=>{
+            const absElev = state.absente.filter(a=>a.eleviId===e.id);
+            const motivate = absElev.filter(a=>a.stare==='motivat').length;
+            const nemotivate = absElev.filter(a=>a.stare==='nemotivat').length;
+            const observatii = absElev.filter(a=>a.nota && a.nota.trim())
+                                       .sort((a,b)=>a.data.localeCompare(b.data))
+                                       .map(a=>`${formatDataRo(a.data)} (${labelStare(a.stare)}): ${escapeHtml(a.nota)}`)
+                                       .join('<br>');
+            return `<tr>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              <td>${motivate>0?`<span class="pill pill-yellow">${motivate}</span>`:'—'}</td>
+              <td>${nemotivate>0?`<span class="pill pill-danger">${nemotivate}</span>`:'—'}</td>
+              <td style="font-size:13px;">${observatii || '<span style="color:var(--muted);">—</span>'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    `}
+  `;
+  document.getElementById('select-sinteza-clasa').addEventListener('change', e=>{
+    ui.sintezaClasa = e.target.value; render();
+  });
+}
+// notele de mai sus pot conține deja un <span> pill — nu îl mai scăpăm prin escapeHtml a doua oară
+function escapeHtmlKeepPill(html){ return html; }
 
 /* ================= TAB: ELEVI ================= */
 function renderElevi(main){
@@ -985,6 +1121,18 @@ function renderNotare(main){
       });
     });
   }
+  // Enter -> trece la câmpul elevului următor, ca într-un tabel Excel
+  const campuriNotare = Array.from(main.querySelectorAll('.grade-input[data-elev]'));
+  campuriNotare.forEach((inp, idx)=>{
+    inp.addEventListener('keydown', (ev)=>{
+      if(ev.key==='Enter'){
+        ev.preventDefault();
+        const urmator = campuriNotare[idx+1];
+        if(urmator){ urmator.focus(); urmator.select(); }
+        else{ inp.blur(); }
+      }
+    });
+  });
   const btnSave = document.getElementById('btn-save-note');
   if(btnSave){
     btnSave.addEventListener('click', ()=>{
@@ -1007,6 +1155,21 @@ function renderNotare(main){
 }
 
 /* ================= TAB: ABSENȚE ================= */
+const OBSERVATII_PREDEFINITE = [
+  'A întârziat la oră',
+  'Nu s-a prezentat la oră în echipament sportiv',
+  'Nu participă la ore din motive medicale',
+  'Refuză participarea la oră',
+  'Nu respectă sarcinile date de profesor',
+];
+function labelStare(stare){
+  if(stare==='motivat') return 'absent motivat';
+  if(stare==='nemotivat') return 'absent nemotivat';
+  return 'prezent';
+}
+function toateObservatiile(){
+  return [...OBSERVATII_PREDEFINITE, ...state.observatiiCustom];
+}
 function renderAbsente(main){
   if(state.clase.length===0){
     main.innerHTML = `<h2>Absențe</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
@@ -1017,7 +1180,7 @@ function renderAbsente(main){
 
   main.innerHTML = `
     <h2>Absențe</h2>
-    <p class="tab-desc">Bifează rapid absențele. Se salvează automat, imediat ce bifezi sau scrii o observație.</p>
+    <p class="tab-desc">Bifează rapid absențele. Alege o observație din listă (sau scrie una proprie). Se salvează automat, imediat.</p>
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -1030,6 +1193,28 @@ function renderAbsente(main){
         <input type="date" id="input-absente-data" value="${ui.absenteData}"/>
       </div>
     </div>
+
+    <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Lista de observații</div>
+      <div class="row" style="margin-bottom:10px;">
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Observație nouă</label>
+          <input type="text" id="input-observatie-noua" placeholder="ex: A plecat fără voie de la oră"/>
+        </div>
+        <button class="btn btn-secondary" id="btn-add-observatie">+ Adaugă la listă</button>
+      </div>
+      ${state.observatiiCustom.length ? `
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${state.observatiiCustom.map((o,idx)=>`
+            <span class="pill pill-yellow" style="display:flex; align-items:center; gap:6px;">
+              ${escapeHtml(o)}
+              <button data-del-observatie="${idx}" style="border:none; background:transparent; cursor:pointer; color:#8A5A16; font-weight:700; padding:0;">✕</button>
+            </span>
+          `).join('')}
+        </div>
+      ` : `<div class="tab-desc" style="margin:0;">Nicio observație proprie adăugată încă — cele 5 de bază sunt mereu disponibile.</div>`}
+    </div>
+
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
@@ -1041,6 +1226,7 @@ function renderAbsente(main){
             const esteAbsent = stare!=='prezent';
             const esteMotivat = stare==='motivat';
             const nota = rec ? (rec.nota || '') : '';
+            const esteCustom = nota && !toateObservatiile().includes(nota);
             const total = state.absente.filter(a=>a.eleviId===e.id && a.stare!=='prezent').length;
             return `<tr data-row-elev="${e.id}">
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${e.scutit?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''}</td>
@@ -1050,8 +1236,14 @@ function renderAbsente(main){
               <td style="text-align:center;">
                 <input type="checkbox" class="chk-motivat" data-elev="${e.id}" ${esteMotivat?'checked':''} ${esteAbsent?'':'disabled'} style="width:22px; height:22px; cursor:pointer;"/>
               </td>
-              <td>
-                <input type="text" class="input-nota-absenta" data-elev="${e.id}" value="${escapeHtml(nota)}" placeholder="ex: nu s-a prezentat în echipament" style="width:100%; min-width:200px;"/>
+              <td style="min-width:220px;">
+                <select class="select-observatie" data-elev="${e.id}">
+                  <option value="">— fără observație —</option>
+                  ${toateObservatiile().map(o=>`<option value="${escapeHtml(o)}" ${nota===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}
+                  <option value="__custom__" ${esteCustom?'selected':''}>Altă observație...</option>
+                </select>
+                <input type="text" class="input-observatie-custom" data-elev="${e.id}" value="${esteCustom?escapeHtml(nota):''}"
+                  style="width:100%; min-width:200px; margin-top:5px; display:${esteCustom?'block':'none'};" placeholder="scrie observația ta"/>
               </td>
               <td>${total>0 ? `<span class="pill pill-danger">${total}</span>` : '<span class="pill pill-ok">0</span>'}</td>
             </tr>`;
@@ -1063,6 +1255,23 @@ function renderAbsente(main){
   `;
   document.getElementById('select-absente-clasa').addEventListener('change', e=>{ ui.absenteClasa = e.target.value; render(); });
   document.getElementById('input-absente-data').addEventListener('change', e=>{ ui.absenteData = e.target.value; render(); });
+
+  document.getElementById('btn-add-observatie').addEventListener('click', ()=>{
+    const inp = document.getElementById('input-observatie-noua');
+    const text = inp.value.trim();
+    if(!text) return showToast('Scrie observația mai întâi.');
+    if(toateObservatiile().some(o=>o.toLowerCase()===text.toLowerCase())) return showToast('Există deja în listă.');
+    state.observatiiCustom.push(text);
+    saveState(); render(); showToast('Observație adăugată la listă.');
+  });
+  main.querySelectorAll('[data-del-observatie]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const idx = parseInt(b.dataset.delObservatie, 10);
+      if(!confirm('Ștergi această observație din listă? (nu afectează observațiile deja salvate la elevi)')) return;
+      state.observatiiCustom.splice(idx,1);
+      saveState(); render(); showToast('Observație ștearsă din listă.');
+    });
+  });
 
   function upsertAbsenta(eleviId, patch){
     let rec = state.absente.find(a=>a.eleviId===eleviId && a.data===ui.absenteData);
@@ -1100,7 +1309,23 @@ function renderAbsente(main){
       upsertAbsenta(chk.dataset.elev, {stare: chk.checked ? 'motivat' : 'nemotivat'});
     });
   });
-  main.querySelectorAll('.input-nota-absenta').forEach(inp=>{
+  main.querySelectorAll('.select-observatie').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const eleviId = sel.dataset.elev;
+      const row = main.querySelector(`tr[data-row-elev="${eleviId}"]`);
+      const customInput = row.querySelector('.input-observatie-custom');
+      if(sel.value==='__custom__'){
+        customInput.style.display = 'block';
+        customInput.focus();
+        upsertAbsenta(eleviId, {nota: customInput.value.trim()});
+      } else {
+        customInput.style.display = 'none';
+        customInput.value = '';
+        upsertAbsenta(eleviId, {nota: sel.value});
+      }
+    });
+  });
+  main.querySelectorAll('.input-observatie-custom').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       upsertAbsenta(inp.dataset.elev, {nota: inp.value.trim()});
     });
@@ -1244,12 +1469,6 @@ function emptyState(title, sub){
   await loadState();
   render();
 })();
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
-  });
-}
 </script>
 </body>
 </html>

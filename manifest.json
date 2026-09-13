@@ -1,7 +1,6 @@
 {
-  "name": "Catalogul meu EFS",
+  "name": "Catalog EFS",
   "short_name": "Catalog EFS",
-  "description": "Catalog personal pentru profesorul de Educație Fizică și Sport",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -9,7 +8,7 @@
   "background_color": "#F6F4EE",
   "theme_color": "#22402C",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }

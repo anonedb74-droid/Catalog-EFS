@@ -1,41 +1,42 @@
-const CACHE_NAME = 'catalog-efs-v1';
-const APP_SHELL = [
+// Service worker pentru Catalog EFS — face aplicația disponibilă offline,
+// oricât timp a trecut de la ultima deschidere cu internet.
+const CACHE_NAME = 'catalog-efs-cache-v1';
+const FILES_DE_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(FILES_DE_CACHE))
   );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    caches.keys().then((nume) =>
+      Promise.all(nume.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
     )
   );
   self.clients.claim();
 });
 
-// Cache-first: catalogul funcționează chiar și fără semnal.
+// Strategie: încearcă rețeaua întâi (ca să prinzi mereu ultima versiune când ai
+// internet), iar dacă nu ai semnal, servește din cache — deci aplicația se
+// deschide oricum, chiar și fără nicio conexiune.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => cached);
-    })
+    fetch(event.request)
+      .then((raspuns) => {
+        const copie = raspuns.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copie));
+        return raspuns;
+      })
+      .catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
   );
 });

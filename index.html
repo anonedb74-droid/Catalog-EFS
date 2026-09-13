@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Catalog EFS</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#22402C">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1655,6 +1658,16 @@ function emptyState(title, sub){
   await loadState();
   render();
 })();
+
+// Activează modul offline real (PWA): odată încărcată o dată cu internet,
+// aplicația rămâne disponibilă chiar și fără semnal, oricât timp ar trece.
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{
+      // dacă nu există încă fișierul pe server, aplicația funcționează normal, doar fără cache offline garantat
+    });
+  });
+}
 </script>
 </body>
 </html>

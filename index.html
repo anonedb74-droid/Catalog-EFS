@@ -1326,13 +1326,15 @@ function renderNotare(main){
             const an = claseAn(e.claseId);
             if(tipNotare==='calificativ'){
               const valExist = existing ? existing.valoare : '';
+              const notaExist = valExist ? notaDinCalificativ(valExist) : null;
               return `<tr>
                 <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
                 <td style="display:flex; align-items:center; gap:8px;">
                   <select class="calificativ-input" data-elev="${e.id}">
-                    <option value="">— alege —</option>
-                    ${CALIFICATIVE.map(c=>`<option value="${c.cod}" ${valExist===c.cod?'selected':''}>${escapeHtml(c.label)}</option>`).join('')}
+                    <option value="">—</option>
+                    ${CALIFICATIVE.map(c=>`<option value="${c.cod}" title="${escapeHtml(c.label)}" ${valExist===c.cod?'selected':''}>${c.cod}</option>`).join('')}
                   </select>
+                  <span class="pill pill-ok nota-calc-calif" data-nota-for="${e.id}">${notaExist!=null?notaExist:'—'}</span>
                   ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
                 </td>
               </tr>`;
@@ -1372,6 +1374,15 @@ function renderNotare(main){
       inp.addEventListener('input', ()=>{
         const nota = calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, inp.value);
         const cell = main.querySelector(`[data-nota-for="${inp.dataset.elev}"]`);
+        if(cell) cell.textContent = nota!=null ? nota : '—';
+      });
+    });
+  }
+  if(tipNotare==='calificativ'){
+    main.querySelectorAll('.calificativ-input').forEach(sel=>{
+      sel.addEventListener('change', ()=>{
+        const nota = sel.value ? notaDinCalificativ(sel.value) : null;
+        const cell = main.querySelector(`[data-nota-for="${sel.dataset.elev}"]`);
         if(cell) cell.textContent = nota!=null ? nota : '—';
       });
     });

@@ -1328,11 +1328,12 @@ function renderNotare(main){
               const valExist = existing ? existing.valoare : '';
               return `<tr>
                 <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
-                <td>
+                <td style="display:flex; align-items:center; gap:8px;">
                   <select class="calificativ-input" data-elev="${e.id}">
                     <option value="">— alege —</option>
                     ${CALIFICATIVE.map(c=>`<option value="${c.cod}" ${valExist===c.cod?'selected':''}>${escapeHtml(c.label)}</option>`).join('')}
                   </select>
+                  ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
                 </td>
               </tr>`;
             }
@@ -1342,6 +1343,7 @@ function renderNotare(main){
               <td style="display:flex; align-items:center; gap:8px;">
                 <input type="text" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
                 ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}">${notaInit!=null?notaInit:'—'}</span>` : ''}
+                ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
               </td>
             </tr>`;
           }).join('')}
@@ -1386,37 +1388,56 @@ function renderNotare(main){
       }
     });
   });
+  // Ștergere rapidă a unei note deja salvate, dintr-un click
+  main.querySelectorAll('.btn-sterge-nota').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const eleviId = b.dataset.elev;
+      if(!confirm('Ștergi nota salvată pentru acest elev, la această probă?')) return;
+      state.note = state.note.filter(n=>!(n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment));
+      saveState(); render(); showToast('Notă ștearsă.');
+    });
+  });
   const btnSave = document.getElementById('btn-save-note');
   if(btnSave){
     btnSave.addEventListener('click', ()=>{
-      let count = 0;
+      let salvate = 0, sterse = 0;
       if(tipNotare==='calificativ'){
         main.querySelectorAll('.calificativ-input').forEach(sel=>{
           const val = sel.value;
-          if(!val) return;
           const eleviId = sel.dataset.elev;
+          const rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment);
+          if(val===''){
+            if(rec){ state.note = state.note.filter(n=>n!==rec); sterse++; }
+            return;
+          }
           const notaCalculata = notaDinCalificativ(val);
-          let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment);
           if(rec){ rec.valoare = val; rec.notaCalculata = notaCalculata; } else {
             state.note.push({id:uid(), eleviId, probaId:ui.notareProba, moment, valoare:val, notaCalculata, data:todayISO()});
           }
-          count++;
+          salvate++;
         });
       } else {
         main.querySelectorAll('.grade-input').forEach(inp=>{
           const val = inp.value.trim();
-          if(val==='') return;
           const eleviId = inp.dataset.elev;
+          const rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment);
+          if(val===''){
+            if(rec){ state.note = state.note.filter(n=>n!==rec); sterse++; }
+            return;
+          }
           const notaCalculata = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
-          let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment);
           if(rec){ rec.valoare = val; rec.notaCalculata = notaCalculata; } else {
             state.note.push({id:uid(), eleviId, probaId:ui.notareProba, moment, valoare:val, notaCalculata, data:todayISO()});
           }
-          count++;
+          salvate++;
         });
       }
       saveState();
-      showToast(`Note salvate (${count}).`);
+      const mesaje = [];
+      if(salvate) mesaje.push(`${salvate} salvate`);
+      if(sterse) mesaje.push(`${sterse} șterse`);
+      showToast(mesaje.length ? mesaje.join(', ') + '.' : 'Nimic de salvat.');
+      render();
     });
   }
 }

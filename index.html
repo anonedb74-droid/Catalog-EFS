@@ -1675,11 +1675,18 @@ function renderIstoric(main){
       let cumulat = 0;
       const randuri = inregistrari.map(a=>{
         if(a.stare!=='prezent') cumulat++;
-        return `<tr>
+        return `<tr data-istoric-id="${a.id}">
           <td>${formatDataRo(a.data)}</td>
-          <td>${a.stare==='motivat' ? '<span class="pill pill-yellow">absent motivat</span>' : a.stare==='nemotivat' ? '<span class="pill pill-danger">absent nemotivat</span>' : '<span class="pill pill-ok">prezent</span>'}</td>
-          <td>${escapeHtml(a.nota) || '<span style="color:var(--muted);">—</span>'}</td>
+          <td>
+            <select class="istoric-stare" data-id="${a.id}">
+              <option value="prezent" ${a.stare==='prezent'?'selected':''}>prezent</option>
+              <option value="motivat" ${a.stare==='motivat'?'selected':''}>absent motivat</option>
+              <option value="nemotivat" ${a.stare==='nemotivat'?'selected':''}>absent nemotivat</option>
+            </select>
+          </td>
+          <td><input type="text" class="istoric-observatie" data-id="${a.id}" value="${escapeHtml(a.nota||'')}" placeholder="—" style="min-width:200px;"/></td>
           <td><strong>${cumulat}</strong></td>
+          <td><button class="btn btn-danger" data-del-istoric="${a.id}">${ICONS.trash}</button></td>
         </tr>`;
       }).join('');
       return `
@@ -1690,9 +1697,10 @@ function renderIstoric(main){
           ${elev.scutit ? `<span class="pill pill-yellow">Scutit medical${elev.motivScutire?' — '+escapeHtml(elev.motivScutire):''}</span>` : ''}
         </div>
         ${inregistrari.length===0 ? emptyState('Niciun eveniment înregistrat.', 'Absențele și observațiile pentru acest elev vor apărea aici, pe măsură ce le adaugi în tabul „Absențe”.') : `
+        <p class="tab-desc" style="margin-top:-6px;">Poți corecta direct aici starea sau observația unei zile trecute, sau șterge complet o înregistrare greșită.</p>
         <div class="card" style="padding:0; overflow-x:auto;">
           <table>
-            <thead><tr><th>Data</th><th>Stare</th><th>Observație</th><th>Total absențe până la această dată</th></tr></thead>
+            <thead><tr><th>Data</th><th>Stare</th><th>Observație</th><th>Total absențe până la această dată</th><th></th></tr></thead>
             <tbody>${randuri}</tbody>
           </table>
         </div>`}
@@ -1704,6 +1712,40 @@ function renderIstoric(main){
   });
   const selElev = document.getElementById('select-istoric-elev');
   if(selElev) selElev.addEventListener('change', e=>{ ui.istoricElev = e.target.value; render(); });
+
+  main.querySelectorAll('.istoric-stare').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const rec = state.absente.find(a=>a.id===sel.dataset.id);
+      if(!rec) return;
+      if(sel.value==='prezent' && !rec.nota){
+        // fără observație și fără absență -> înregistrarea nu mai are rost, o ștergem
+        state.absente = state.absente.filter(a=>a.id!==rec.id);
+      } else {
+        rec.stare = sel.value;
+      }
+      saveState(); render(); showToast('Actualizat.');
+    });
+  });
+  main.querySelectorAll('.istoric-observatie').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const rec = state.absente.find(a=>a.id===inp.dataset.id);
+      if(!rec) return;
+      const val = inp.value.trim();
+      if(rec.stare==='prezent' && !val){
+        state.absente = state.absente.filter(a=>a.id!==rec.id);
+      } else {
+        rec.nota = val;
+      }
+      saveState(); render(); showToast('Actualizat.');
+    });
+  });
+  main.querySelectorAll('[data-del-istoric]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(!confirm('Ștergi complet această înregistrare (absență/observație)?')) return;
+      state.absente = state.absente.filter(a=>a.id!==b.dataset.delIstoric);
+      saveState(); render(); showToast('Înregistrare ștearsă.');
+    });
+  });
 }
 
 /* ================= TAB: SCUTIRI MEDICALE ================= */

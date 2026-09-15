@@ -361,6 +361,10 @@ function uid(){
 function escapeHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+// pune automat majusculă la începutul fiecărui cuvânt dintr-un nume (funcționează cu diacritice și nume compuse cu cratimă)
+function capitalizeazaNume(s){
+  return String(s ?? '').toLowerCase().replace(/(^|[\s-])\p{L}/gu, m => m.toUpperCase());
+}
 
 /* ---------------- STORAGE ----------------
    Salvare 100% locală, în browserul dispozitivului (localStorage).
@@ -891,7 +895,7 @@ function renderElevi(main){
         (ex: <i>Popescu Andrei M</i>) — dacă nu specifici, se aplică sexul implicit ales mai jos.
       </div>
       <div class="field" style="margin-bottom:10px;">
-        <textarea id="bulk-elevi-text" rows="6" style="width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px;"
+        <textarea id="bulk-elevi-text" rows="6" autocapitalize="words" style="width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px;"
           placeholder="Popescu Andrei M
 Ionescu Maria F
 Vasile Ana
@@ -912,8 +916,8 @@ Georgescu Mihai"></textarea>
     <div class="card">
       <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Sau adaugă un singur elev</div>
       <div class="row">
-        <div class="field"><label>Nume</label><input type="text" id="new-elev-nume" placeholder="Popescu"/></div>
-        <div class="field"><label>Prenume</label><input type="text" id="new-elev-prenume" placeholder="Andrei"/></div>
+        <div class="field"><label>Nume</label><input type="text" id="new-elev-nume" autocapitalize="words" placeholder="Popescu"/></div>
+        <div class="field"><label>Prenume</label><input type="text" id="new-elev-prenume" autocapitalize="words" placeholder="Andrei"/></div>
         <div class="field"><label>Sex</label>
           <select id="new-elev-sex"><option value="M">Băiat</option><option value="F">Fată</option></select>
         </div>
@@ -967,8 +971,8 @@ Georgescu Mihai"></textarea>
     });
   });
   document.getElementById('btn-add-elev').addEventListener('click', ()=>{
-    const nume = document.getElementById('new-elev-nume').value.trim();
-    const prenume = document.getElementById('new-elev-prenume').value.trim();
+    const nume = capitalizeazaNume(document.getElementById('new-elev-nume').value.trim());
+    const prenume = capitalizeazaNume(document.getElementById('new-elev-prenume').value.trim());
     const sex = document.getElementById('new-elev-sex').value;
     if(!nume || !prenume) return showToast('Completează numele și prenumele.');
     state.elevi.push({id:uid(), claseId:ui.eleviClasa, nume, prenume, sex, scutit:false, motivScutire:'', inaltime:null, greutate:null});
@@ -986,8 +990,8 @@ Georgescu Mihai"></textarea>
       const ultima = parti[parti.length-1].toUpperCase();
       if(ultima==='M' || ultima==='F'){ sex = ultima; parti.pop(); }
       if(parti.length===0) return;
-      const nume = parti[0];
-      const prenume = parti.slice(1).join(' ') || '—';
+      const nume = capitalizeazaNume(parti[0]);
+      const prenume = capitalizeazaNume(parti.slice(1).join(' ')) || '—';
       state.elevi.push({id:uid(), claseId:ui.eleviClasa, nume, prenume, sex, scutit:false, motivScutire:'', inaltime:null, greutate:null});
       adaugati++;
     });
@@ -1243,8 +1247,8 @@ function renderBaremEditor(barem){
             const vF = barem.praguri[an].F[n];
             return `<tr>
               <td><strong>${n}</strong></td>
-              <td><input type="text" class="grade-input" data-prag="M" data-nota="${n}" value="${vM==null?'':vM}" placeholder="—"/></td>
-              <td><input type="text" class="grade-input" data-prag="F" data-nota="${n}" value="${vF==null?'':vF}" placeholder="—"/></td>
+              <td><input type="text" inputmode="decimal" class="grade-input" data-prag="M" data-nota="${n}" value="${vM==null?'':vM}" placeholder="—"/></td>
+              <td><input type="text" inputmode="decimal" class="grade-input" data-prag="F" data-nota="${n}" value="${vF==null?'':vF}" placeholder="—"/></td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1376,7 +1380,7 @@ function renderNotare(main){
             return `<tr>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
               <td style="display:flex; align-items:center; gap:8px;">
-                <input type="text" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
+                <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
                 ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}">${notaInit!=null?notaInit:'—'}</span>` : ''}
                 ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
               </td>

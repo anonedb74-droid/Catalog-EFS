@@ -254,6 +254,8 @@
   .pill-yellow{background:#FBEBD3; color:#8A5A16;}
   .pill-danger{background:#F6DCDA; color:var(--danger);}
   .pill-ok{background:#DCEBDF; color:var(--ok);}
+  .pill-blue{background:#D9E6F5; color:#1D5A9E;}
+  .pill-ghost{background:#EDEBE3; color:var(--muted);}
   .class-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px;}
   .class-card{
     background:var(--card);
@@ -412,11 +414,45 @@ function migreazaDate(){
   (state.elevi || []).forEach(e=>{
     if(e.inaltime===undefined) e.inaltime = null;
     if(e.greutate===undefined) e.greutate = null;
+    // scutire veche (doar boolean + motiv) -> se consideră "totală anuală" implicit
+    if(e.scutit && !e.scutireTip) e.scutireTip = 'totala_anuala';
+    if(e.scutireTip===undefined) e.scutireTip = null;
+    if(e.scutireSubTip===undefined) e.scutireSubTip = null;
+    if(e.scutireStart===undefined) e.scutireStart = null;
+    if(e.scutireEnd===undefined) e.scutireEnd = null;
   });
   (state.note || []).forEach(n=>{
     if(!n.moment) n.moment = 'initial';
   });
   if(!state.observatiiCustom) state.observatiiCustom = [];
+}
+// scutirea e activă azi? (o scutire temporară expiră automat singură, elevul redevine apt)
+function esteScutitActiv(e){
+  if(!e.scutit || !e.scutireTip) return false;
+  if(e.scutireTip==='temporara'){
+    if(!e.scutireStart || !e.scutireEnd) return true;
+    const azi = todayISO();
+    return azi>=e.scutireStart && azi<=e.scutireEnd;
+  }
+  return true; // totală anuală sau parțială -> activă până e anulată manual
+}
+function scutirePillHTML(e){
+  if(!e.scutit || !e.scutireTip) return '—';
+  const activa = esteScutitActiv(e);
+  if(e.scutireTip==='totala_anuala'){
+    return activa ? '<span class="pill pill-danger">Scutit — Totală anuală</span>' : '—';
+  }
+  if(e.scutireTip==='partiala'){
+    return activa ? '<span class="pill pill-blue">Scutit — Parțială</span>' : '—';
+  }
+  if(e.scutireTip==='temporara'){
+    const fel = e.scutireSubTip==='partiala' ? 'parțială' : 'totală';
+    if(activa){
+      return `<span class="pill pill-yellow">Scutit — Temporară (${fel}), ${formatDataRo(e.scutireStart)}–${formatDataRo(e.scutireEnd)}</span>`;
+    }
+    return `<span class="pill pill-ghost">Temporară expirată (${formatDataRo(e.scutireStart)}–${formatDataRo(e.scutireEnd)}) — apt</span>`;
+  }
+  return '—';
 }
 // pentru un elev + o probă, alege nota testării finale dacă există, altfel cea a testării inițiale
 function notaPentruSinteza(eleviId, probaId){
@@ -702,7 +738,7 @@ function renderSinteza(main){
           ${lista.map(e=>{
             const noteNumerice = [];
             const celule = probeClasa.map(p=>{
-              if(e.scutit) return '<span class="exempt-note">scutit</span>';
+              if(esteScutitActiv(e)) return '<span class="exempt-note">scutit</span>';
               const rec = notaPentruSinteza(e.id, p.id);
               if(!rec) return '<span style="color:var(--muted);">—</span>';
               const eticheta = rec.moment==='final' ? 'F' : 'I';
@@ -771,7 +807,7 @@ function genereazaRaportClasa(claseId){
   const randuriNote = lista.map(e=>{
     const noteNumerice = [];
     const celule = probeClasa.map(p=>{
-      if(e.scutit) return 'scutit';
+      if(esteScutitActiv(e)) return 'scutit';
       const rec = notaPentruSinteza(e.id, p.id);
       if(!rec) return '—';
       const eticheta = rec.moment==='final' ? 'F' : 'I';
@@ -945,7 +981,7 @@ Georgescu Mihai"></textarea>
               <td><input type="number" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
               <td><input type="number" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
               <td style="color:var(--muted);">${imc}</td>
-              <td>${e.scutit ? `<span class="pill pill-yellow">Scutit${e.motivScutire ? ' — '+escapeHtml(e.motivScutire) : ''}</span>` : '—'}</td>
+              <td>${scutirePillHTML(e)}</td>
               <td><button class="btn btn-danger" data-del-elev="${e.id}">${ICONS.trash}</button></td>
             </tr>
           `;}).join('')}
@@ -1357,7 +1393,7 @@ function renderNotare(main){
         <tbody>
           ${lista.map(e=>{
             const existing = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment===moment);
-            if(e.scutit){
+            if(esteScutitActiv(e)){
               return `<tr><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
             const an = claseAn(e.claseId);
@@ -1541,7 +1577,7 @@ function renderAbsente(main){
             const esteCustom = nota && !toateObservatiile().includes(nota);
             const total = state.absente.filter(a=>a.eleviId===e.id && a.stare!=='prezent').length;
             return `<tr data-row-elev="${e.id}">
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${e.scutit?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''}</td>
               <td class="stare-badge-cell">${starePillHTML(stare)}</td>
               <td style="text-align:center;">
                 <input type="checkbox" class="chk-absent" data-elev="${e.id}" ${esteAbsent?'checked':''} style="width:22px; height:22px; cursor:pointer;"/>
@@ -1549,14 +1585,14 @@ function renderAbsente(main){
               <td style="text-align:center;">
                 <input type="checkbox" class="chk-motivat" data-elev="${e.id}" ${esteMotivat?'checked':''} ${esteAbsent?'':'disabled'} style="width:22px; height:22px; cursor:pointer;"/>
               </td>
-              <td style="min-width:220px;">
-                <select class="select-observatie" data-elev="${e.id}">
+              <td style="max-width:150px;">
+                <select class="select-observatie" data-elev="${e.id}" style="max-width:150px;">
                   <option value="">— fără observație —</option>
                   ${toateObservatiile().map(o=>`<option value="${escapeHtml(o)}" ${nota===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}
                   <option value="__custom__" ${esteCustom?'selected':''}>Altă observație...</option>
                 </select>
                 <input type="text" class="input-observatie-custom" data-elev="${e.id}" value="${esteCustom?escapeHtml(nota):''}"
-                  style="width:100%; min-width:200px; margin-top:5px; display:${esteCustom?'block':'none'};" placeholder="scrie observația ta"/>
+                  style="width:100%; max-width:150px; margin-top:5px; display:${esteCustom?'block':'none'};" placeholder="scrie observația ta"/>
               </td>
               <td>${totalBadgeHTML(e.id)}</td>
             </tr>`;
@@ -1714,7 +1750,7 @@ function renderIstoric(main){
           <span class="pill pill-yellow">Motivate: ${totalMotivate}</span>
           <span class="pill pill-danger">Nemotivate: ${totalNemotivate}</span>
           <span class="pill pill-ok">Total absențe: ${totalMotivate+totalNemotivate}</span>
-          ${elev.scutit ? `<span class="pill pill-yellow">Scutit medical${elev.motivScutire?' — '+escapeHtml(elev.motivScutire):''}</span>` : ''}
+          ${esteScutitActiv(elev) ? scutirePillHTML(elev) : ''}
         </div>
         ${inregistrari.length===0 ? emptyState('Niciun eveniment înregistrat.', 'Absențele și observațiile pentru acest elev vor apărea aici, pe măsură ce le adaugi în tabul „Absențe”.') : `
         <p class="tab-desc" style="margin-top:-6px;">Poți corecta direct aici starea sau observația unei zile trecute, sau șterge complet o înregistrare greșită.</p>
@@ -1770,14 +1806,15 @@ function renderIstoric(main){
 
 /* ================= TAB: SCUTIRI MEDICALE ================= */
 function renderScutiri(main){
-  const scutiti = state.elevi.filter(e=>e.scutit);
+  const scutiti = state.elevi.filter(e=>e.scutit && e.scutireTip);
   if(!ui.scutiriClasa || !state.clase.find(c=>c.id===ui.scutiriClasa)){
     ui.scutiriClasa = state.clase.length ? state.clase[0].id : null;
   }
-  const eleviNescutitiClasa = ui.scutiriClasa ? eleviDinClasa(ui.scutiriClasa).filter(e=>!e.scutit) : [];
+  if(!ui.scutireTipNou) ui.scutireTipNou = 'totala_anuala';
+  const eleviNescutitiClasa = ui.scutiriClasa ? eleviDinClasa(ui.scutiriClasa).filter(e=>!(e.scutit && e.scutireTip)) : [];
   main.innerHTML = `
     <h2>Scutiri medicale</h2>
-    <p class="tab-desc">Vezi toți elevii scutiți, indiferent de clasă, și gestionează scutirile.</p>
+    <p class="tab-desc">Vezi toți elevii scutiți, indiferent de clasă, și gestionează scutirile. Gestionarea se face doar aici.</p>
     <div class="card">
       <div class="row">
         <div class="field" style="min-width:180px;">
@@ -1794,6 +1831,35 @@ function renderScutiri(main){
             ${eleviNescutitiClasa.map(e=>`<option value="${e.id}">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</option>`).join('')}
           </select>
         </div>
+        <div class="field" style="min-width:200px;">
+          <label>Fel de scutire</label>
+          <select id="select-scutire-tip">
+            <option value="totala_anuala" ${ui.scutireTipNou==='totala_anuala'?'selected':''}>Totală anuală</option>
+            <option value="partiala" ${ui.scutireTipNou==='partiala'?'selected':''}>Parțială</option>
+            <option value="temporara" ${ui.scutireTipNou==='temporara'?'selected':''}>Temporară</option>
+          </select>
+        </div>
+      </div>
+      ${ui.scutireTipNou==='temporara' ? `
+      <div class="row" style="margin-top:10px;">
+        <div class="field" style="min-width:160px;">
+          <label>Fel (în perioada temporară)</label>
+          <select id="select-scutire-subtip">
+            <option value="totala">Totală</option>
+            <option value="partiala">Parțială</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>De la</label>
+          <input type="date" id="input-scutire-start" value="${todayISO()}"/>
+        </div>
+        <div class="field">
+          <label>Până la</label>
+          <input type="date" id="input-scutire-end" value="${todayISO()}"/>
+        </div>
+      </div>
+      ` : ''}
+      <div class="row" style="margin-top:10px;">
         <div class="field" style="flex:1; min-width:220px;">
           <label>Motiv scutire</label>
           <input type="text" id="input-scutire-motiv" placeholder="ex: scutire medicală pe semestrul I"/>
@@ -1804,12 +1870,13 @@ function renderScutiri(main){
     ${scutiti.length===0 ? emptyState('Niciun elev scutit momentan.', 'Adaugă o scutire folosind formularul de mai sus.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Elev</th><th>Clasă</th><th>Motiv</th><th></th></tr></thead>
+        <thead><tr><th>Elev</th><th>Clasă</th><th>Fel</th><th>Motiv</th><th></th></tr></thead>
         <tbody>
           ${scutiti.map(e=>`
             <tr>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
               <td>${escapeHtml(claseNume(e.claseId))}</td>
+              <td>${scutirePillHTML(e)}</td>
               <td>${escapeHtml(e.motivScutire) || '—'}</td>
               <td><button class="btn btn-ghost" data-unscutire="${e.id}">Anulează scutirea</button></td>
             </tr>
@@ -1821,18 +1888,34 @@ function renderScutiri(main){
   document.getElementById('select-scutire-clasa').addEventListener('change', e=>{
     ui.scutiriClasa = e.target.value; render();
   });
+  document.getElementById('select-scutire-tip').addEventListener('change', e=>{
+    ui.scutireTipNou = e.target.value; render();
+  });
   document.getElementById('btn-add-scutire').addEventListener('click', ()=>{
     const id = document.getElementById('select-scutire-elev').value;
     const motiv = document.getElementById('input-scutire-motiv').value.trim();
+    const tip = ui.scutireTipNou;
     if(!id) return showToast('Alege un elev.');
     const e = state.elevi.find(e=>e.id===id);
-    e.scutit = true; e.motivScutire = motiv;
+    e.scutit = true;
+    e.scutireTip = tip;
+    e.motivScutire = motiv;
+    if(tip==='temporara'){
+      const subTip = document.getElementById('select-scutire-subtip').value;
+      const start = document.getElementById('input-scutire-start').value;
+      const end = document.getElementById('input-scutire-end').value;
+      if(!start || !end) return showToast('Completează perioada (de la - până la).');
+      if(end<start) return showToast('Data „până la” nu poate fi înainte de „de la”.');
+      e.scutireSubTip = subTip; e.scutireStart = start; e.scutireEnd = end;
+    } else {
+      e.scutireSubTip = null; e.scutireStart = null; e.scutireEnd = null;
+    }
     saveState(); render(); showToast('Scutire înregistrată.');
   });
   main.querySelectorAll('[data-unscutire]').forEach(b=>{
     b.addEventListener('click', ()=>{
       const e = state.elevi.find(e=>e.id===b.dataset.unscutire);
-      e.scutit = false; e.motivScutire = '';
+      e.scutit = false; e.motivScutire = ''; e.scutireTip = null; e.scutireSubTip = null; e.scutireStart = null; e.scutireEnd = null;
       saveState(); render(); showToast('Scutire anulată.');
     });
   });

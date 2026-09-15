@@ -325,6 +325,7 @@
    ============================================================ */
 
 const STORAGE_KEY = 'catalog_efs_state_v1';
+const UI_STORAGE_KEY = 'catalog_efs_ui_v1';
 
 let state = {
   settings: { titlu: 'Catalogul meu EFS' },
@@ -379,6 +380,22 @@ async function loadState(){
     console.log('Nicio dată salvată anterior pe acest dispozitiv, pornim de la zero.');
   }
   migreazaDate();
+  loadUIState();
+}
+// ține minte tab-ul curent și selecțiile (clasă/elev/probă) din fiecare secțiune,
+// ca la redeschidere să continui exact de unde ai rămas
+function loadUIState(){
+  try{
+    const raw = localStorage.getItem(UI_STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed.currentTab) currentTab = parsed.currentTab;
+      if(parsed.ui) ui = Object.assign(ui, parsed.ui);
+    }
+  }catch(e){ /* nimic salvat încă, pornim cu valorile implicite */ }
+}
+function saveUIState(){
+  try{ localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({currentTab, ui})); }catch(e){}
 }
 // aduce datele mai vechi la formatele noi (probe cu o singură clasă -> listă de clase; tip de notare implicit; note cu moment implicit)
 function migreazaDate(){
@@ -545,6 +562,7 @@ function render(){
     showToast(ok ? 'Salvat ✓' : 'Nu am putut salva.');
   });
   renderTab();
+  saveUIState();
 }
 
 function renderTab(){
@@ -673,7 +691,7 @@ function renderSinteza(main){
       <table>
         <thead><tr>
           <th style="position:sticky; left:0; background:var(--card);">Elev</th>
-          ${probeClasa.map(p=>`<th>${escapeHtml(p.nume)}<br><span style="font-weight:400; text-transform:none; font-size:11px;">${formatDataRo(p.data)}</span></th>`).join('')}
+          ${probeClasa.map(p=>`<th>${escapeHtml(p.nume)}</th>`).join('')}
           <th>Medie</th>
         </tr></thead>
         <tbody>
@@ -692,6 +710,7 @@ function renderSinteza(main){
                 const numeric = parseFloat(String(rec.valoare).replace(',','.'));
                 if(!isNaN(numeric) && numeric>=1 && numeric<=10) noteNumerice.push(numeric);
               }
+              afisaj += `<br><span style="font-size:10px; color:var(--muted);">${formatDataRo(rec.data)}</span>`;
               return escapeHtmlKeepPill(afisaj);
             });
             const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
@@ -752,10 +771,11 @@ function genereazaRaportClasa(claseId){
       const rec = notaPentruSinteza(e.id, p.id);
       if(!rec) return '—';
       const eticheta = rec.moment==='final' ? 'F' : 'I';
-      if(rec.notaCalculata!=null){ noteNumerice.push(rec.notaCalculata); return `${rec.valoare} [${eticheta}] (${rec.notaCalculata})`; }
+      const dataStr = formatDataRo(rec.data);
+      if(rec.notaCalculata!=null){ noteNumerice.push(rec.notaCalculata); return `${rec.valoare} [${eticheta}, ${dataStr}] (${rec.notaCalculata})`; }
       const numeric = parseFloat(String(rec.valoare).replace(',','.'));
       if(!isNaN(numeric) && numeric>=1 && numeric<=10) noteNumerice.push(numeric);
-      return `${rec.valoare} [${eticheta}]`;
+      return `${rec.valoare} [${eticheta}, ${dataStr}]`;
     });
     const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
     return `<tr>
@@ -1280,9 +1300,22 @@ function renderNotare(main){
   const barem = (probaSelectata && tipNotare==='barem') ? findBaremForProba(probaSelectata.nume) : null;
   const moment = ui.notareMoment;
 
+  // scrie/șterge imediat în state.note, la fiecare modificare — nimic nu se pierde dacă schimbi tab-ul
+  function upsertNota(eleviId, valoare, notaCalculata){
+    let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment);
+    if(valoare===''){
+      if(rec) state.note = state.note.filter(n=>n!==rec);
+    } else if(rec){
+      rec.valoare = valoare; rec.notaCalculata = notaCalculata;
+    } else {
+      state.note.push({id:uid(), eleviId, probaId:ui.notareProba, moment, valoare, notaCalculata, data:todayISO()});
+    }
+    saveState();
+  }
+
   main.innerHTML = `
     <h2>Notare</h2>
-    <p class="tab-desc">Alege clasa, proba și momentul testării, apoi treci rapid notele pentru fiecare elev.</p>
+    <p class="tab-desc">Alege clasa, proba și momentul testării. Fiecare notă se salvează automat, imediat ce o scrii.</p>
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -1352,9 +1385,7 @@ function renderNotare(main){
         </tbody>
       </table>
     </div>
-    <div class="top-actions" style="justify-content:flex-start; margin-top:14px;">
-      <button class="btn btn-primary" id="btn-save-note">Salvează notele</button>
-    </div>
+    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată — nu mai există buton de „Salvează”.</p>
     `}
   `;
   document.getElementById('select-notare-clasa').addEventListener('change', e=>{ ui.notareClasa = e.target.value; ui.notareProba = null; render(); });
@@ -1369,21 +1400,28 @@ function renderNotare(main){
     saveState();
     currentTab = 'bareme'; render();
   });
-  if(barem){
-    main.querySelectorAll('.grade-input').forEach(inp=>{
-      inp.addEventListener('input', ()=>{
-        const nota = calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, inp.value);
-        const cell = main.querySelector(`[data-nota-for="${inp.dataset.elev}"]`);
-        if(cell) cell.textContent = nota!=null ? nota : '—';
-      });
+  // notă directă / barem: salvare automată pe fiecare tastă + actualizare live a pastilei cu nota
+  main.querySelectorAll('.grade-input').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const val = inp.value.trim();
+      const notaCalc = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
+      if(barem){
+        const cell = main.querySelector(`.nota-calc[data-nota-for="${inp.dataset.elev}"]`);
+        if(cell) cell.textContent = notaCalc!=null ? notaCalc : '—';
+      }
+      upsertNota(inp.dataset.elev, val, notaCalc);
     });
-  }
+  });
+  // calificativ: salvare automată la fiecare selecție
   if(tipNotare==='calificativ'){
     main.querySelectorAll('.calificativ-input').forEach(sel=>{
       sel.addEventListener('change', ()=>{
-        const nota = sel.value ? notaDinCalificativ(sel.value) : null;
-        const cell = main.querySelector(`[data-nota-for="${sel.dataset.elev}"]`);
-        if(cell) cell.textContent = nota!=null ? nota : '—';
+        const val = sel.value;
+        const notaCalc = val ? notaDinCalificativ(val) : null;
+        const cell = main.querySelector(`.nota-calc-calif[data-nota-for="${sel.dataset.elev}"]`);
+        if(cell) cell.textContent = notaCalc!=null ? notaCalc : '—';
+        upsertNota(sel.dataset.elev, val, notaCalc);
+        render();
       });
     });
   }
@@ -1395,7 +1433,7 @@ function renderNotare(main){
         ev.preventDefault();
         const urmator = campuriNotare[idx+1];
         if(urmator){ urmator.focus(); urmator.select(); }
-        else{ inp.blur(); }
+        else{ inp.blur(); render(); }
       }
     });
   });
@@ -1408,49 +1446,6 @@ function renderNotare(main){
       saveState(); render(); showToast('Notă ștearsă.');
     });
   });
-  const btnSave = document.getElementById('btn-save-note');
-  if(btnSave){
-    btnSave.addEventListener('click', ()=>{
-      let salvate = 0, sterse = 0;
-      if(tipNotare==='calificativ'){
-        main.querySelectorAll('.calificativ-input').forEach(sel=>{
-          const val = sel.value;
-          const eleviId = sel.dataset.elev;
-          const rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment);
-          if(val===''){
-            if(rec){ state.note = state.note.filter(n=>n!==rec); sterse++; }
-            return;
-          }
-          const notaCalculata = notaDinCalificativ(val);
-          if(rec){ rec.valoare = val; rec.notaCalculata = notaCalculata; } else {
-            state.note.push({id:uid(), eleviId, probaId:ui.notareProba, moment, valoare:val, notaCalculata, data:todayISO()});
-          }
-          salvate++;
-        });
-      } else {
-        main.querySelectorAll('.grade-input').forEach(inp=>{
-          const val = inp.value.trim();
-          const eleviId = inp.dataset.elev;
-          const rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment);
-          if(val===''){
-            if(rec){ state.note = state.note.filter(n=>n!==rec); sterse++; }
-            return;
-          }
-          const notaCalculata = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
-          if(rec){ rec.valoare = val; rec.notaCalculata = notaCalculata; } else {
-            state.note.push({id:uid(), eleviId, probaId:ui.notareProba, moment, valoare:val, notaCalculata, data:todayISO()});
-          }
-          salvate++;
-        });
-      }
-      saveState();
-      const mesaje = [];
-      if(salvate) mesaje.push(`${salvate} salvate`);
-      if(sterse) mesaje.push(`${sterse} șterse`);
-      showToast(mesaje.length ? mesaje.join(', ') + '.' : 'Nimic de salvat.');
-      render();
-    });
-  }
 }
 
 /* ================= TAB: ABSENȚE ================= */
@@ -1465,6 +1460,11 @@ function labelStare(stare){
   if(stare==='motivat') return 'absent motivat';
   if(stare==='nemotivat') return 'absent nemotivat';
   return 'prezent';
+}
+function starePillHTML(stare){
+  if(stare==='motivat') return '<span class="pill pill-yellow">Absent motivat</span>';
+  if(stare==='nemotivat') return '<span class="pill pill-danger">Absent nemotivat</span>';
+  return '<span class="pill pill-ok">Prezent</span>';
 }
 function toateObservatiile(){
   return [...OBSERVATII_PREDEFINITE, ...state.observatiiCustom];
@@ -1526,7 +1526,7 @@ function renderAbsente(main){
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Elev</th><th>Absent</th><th>Motivat</th><th>Observație</th><th>Total absențe</th></tr></thead>
+        <thead><tr><th>Elev</th><th>Stare</th><th>Absent</th><th>Motivat</th><th>Observație</th><th>Total absențe</th></tr></thead>
         <tbody>
           ${lista.map(e=>{
             const rec = state.absente.find(a=>a.eleviId===e.id && a.data===ui.absenteData);
@@ -1538,6 +1538,7 @@ function renderAbsente(main){
             const total = state.absente.filter(a=>a.eleviId===e.id && a.stare!=='prezent').length;
             return `<tr data-row-elev="${e.id}">
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${e.scutit?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''}</td>
+              <td class="stare-badge-cell">${starePillHTML(stare)}</td>
               <td style="text-align:center;">
                 <input type="checkbox" class="chk-absent" data-elev="${e.id}" ${esteAbsent?'checked':''} style="width:22px; height:22px; cursor:pointer;"/>
               </td>
@@ -1605,24 +1606,28 @@ function renderAbsente(main){
       const eleviId = chk.dataset.elev;
       const row = main.querySelector(`tr[data-row-elev="${eleviId}"]`);
       const chkMotivat = row.querySelector('.chk-motivat');
+      let stareNoua;
       if(chk.checked){
         chkMotivat.disabled = false;
-        upsertAbsenta(eleviId, {stare: chkMotivat.checked ? 'motivat' : 'nemotivat'});
+        stareNoua = chkMotivat.checked ? 'motivat' : 'nemotivat';
       } else {
         chkMotivat.checked = false;
         chkMotivat.disabled = true;
-        upsertAbsenta(eleviId, {stare:'prezent'});
+        stareNoua = 'prezent';
       }
-      const totalCell = row.children[4];
-      totalCell.innerHTML = totalBadgeHTML(eleviId);
+      upsertAbsenta(eleviId, {stare: stareNoua});
+      row.children[1].innerHTML = starePillHTML(stareNoua);
+      row.children[5].innerHTML = totalBadgeHTML(eleviId);
     });
   });
   main.querySelectorAll('.chk-motivat').forEach(chk=>{
     chk.addEventListener('change', ()=>{
       const eleviId = chk.dataset.elev;
-      upsertAbsenta(eleviId, {stare: chk.checked ? 'motivat' : 'nemotivat'});
+      const stareNoua = chk.checked ? 'motivat' : 'nemotivat';
+      upsertAbsenta(eleviId, {stare: stareNoua});
       const row = main.querySelector(`tr[data-row-elev="${eleviId}"]`);
-      row.children[4].innerHTML = totalBadgeHTML(eleviId);
+      row.children[1].innerHTML = starePillHTML(stareNoua);
+      row.children[5].innerHTML = totalBadgeHTML(eleviId);
     });
   });
   main.querySelectorAll('.select-observatie').forEach(sel=>{

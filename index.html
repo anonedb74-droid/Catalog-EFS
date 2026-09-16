@@ -436,6 +436,17 @@ function esteScutitActiv(e){
   }
   return true; // totală anuală sau parțială -> activă până e anulată manual
 }
+// scutirea PARȚIALĂ (permanentă sau temporară) nu blochează notarea — elevul poate fi notat
+// la probele pe care profesorul consideră că le poate efectua. Doar scutirea TOTALĂ blochează.
+function blocheazaNotarea(e){
+  if(!esteScutitActiv(e)) return false;
+  if(e.scutireTip==='partiala') return false;
+  if(e.scutireTip==='temporara' && e.scutireSubTip==='partiala') return false;
+  return true;
+}
+function scutirePartialaActiva(e){
+  return esteScutitActiv(e) && !blocheazaNotarea(e);
+}
 function scutirePillHTML(e){
   if(!e.scutit || !e.scutireTip) return '—';
   const activa = esteScutitActiv(e);
@@ -738,7 +749,7 @@ function renderSinteza(main){
           ${lista.map(e=>{
             const noteNumerice = [];
             const celule = probeClasa.map(p=>{
-              if(esteScutitActiv(e)) return '<span class="exempt-note">scutit</span>';
+              if(blocheazaNotarea(e)) return '<span class="exempt-note">scutit</span>';
               const rec = notaPentruSinteza(e.id, p.id);
               if(!rec) return '<span style="color:var(--muted);">—</span>';
               const eticheta = rec.moment==='final' ? 'F' : 'I';
@@ -755,7 +766,7 @@ function renderSinteza(main){
             });
             const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
             return `<tr>
-              <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?'<span class="pill pill-blue" style="margin-left:4px; padding:1px 6px;">parțial</span>':''}</td>
               ${celule.map(c=>`<td>${c}</td>`).join('')}
               <td><strong>${medie}</strong></td>
             </tr>`;
@@ -807,7 +818,7 @@ function genereazaRaportClasa(claseId){
   const randuriNote = lista.map(e=>{
     const noteNumerice = [];
     const celule = probeClasa.map(p=>{
-      if(esteScutitActiv(e)) return 'scutit';
+      if(blocheazaNotarea(e)) return 'scutit';
       const rec = notaPentruSinteza(e.id, p.id);
       if(!rec) return '—';
       const eticheta = rec.moment==='final' ? 'F' : 'I';
@@ -915,13 +926,14 @@ function renderElevi(main){
   main.innerHTML = `
     <h2>Elevi</h2>
     <p class="tab-desc">Gestionează lista de elevi pentru fiecare clasă.</p>
-    <div class="row" style="margin-bottom:16px;">
+    <div class="row" style="margin-bottom:16px; align-items:flex-end;">
       <div class="field">
         <label>Clasă</label>
         <select id="select-elevi-clasa">
           ${state.clase.map(c=>`<option value="${c.id}" ${c.id===ui.eleviClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
         </select>
       </div>
+      <span class="pill pill-ok">${lista.length} elev${lista.length===1?'':'i'}</span>
     </div>
 
     <div class="card">
@@ -964,12 +976,13 @@ Georgescu Mihai"></textarea>
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă lista de mai sus, dintr-o dată sau elev cu elev.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nume</th><th>Prenume</th><th>Sex</th><th>Înălțime (cm)</th><th>Greutate (kg)</th><th>IMC</th><th>Scutit medical</th><th></th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Nume</th><th>Prenume</th><th>Sex</th><th>Înălțime (cm)</th><th>Greutate (kg)</th><th>IMC</th><th>Scutit medical</th><th></th></tr></thead>
         <tbody>
-          ${lista.map(e=>{
+          ${lista.map((e,idx)=>{
             const imc = (e.inaltime && e.greutate) ? (e.greutate / ((e.inaltime/100)*(e.inaltime/100))).toFixed(1) : '—';
             return `
             <tr>
+              <td style="color:var(--muted); text-align:center;">${idx+1}</td>
               <td class="student-name">${escapeHtml(e.nume)}</td>
               <td>${escapeHtml(e.prenume)}</td>
               <td>
@@ -1389,19 +1402,22 @@ function renderNotare(main){
       probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Elev</th><th>${barem ? (barem.directie==='desc'?'Timp':'Rezultat') : tipNotare==='calificativ' ? 'Calificativ' : 'Notă'}</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>${barem ? (barem.directie==='desc'?'Timp':'Rezultat') : tipNotare==='calificativ' ? 'Calificativ' : 'Notă'}</th></tr></thead>
         <tbody>
-          ${lista.map(e=>{
+          ${lista.map((e,idx)=>{
+            const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
             const existing = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment===moment);
-            if(esteScutitActiv(e)){
-              return `<tr><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td><span class="exempt-note">Scutit medical</span></td></tr>`;
+            if(blocheazaNotarea(e)){
+              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''}`;
             const an = claseAn(e.claseId);
             if(tipNotare==='calificativ'){
               const valExist = existing ? existing.valoare : '';
               const notaExist = valExist ? notaDinCalificativ(valExist) : null;
               return `<tr>
-                <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+                ${numarOrdine}
+                <td class="student-name">${numeCuTagPartial}</td>
                 <td style="display:flex; align-items:center; gap:8px;">
                   <select class="calificativ-input" data-elev="${e.id}">
                     <option value="">—</option>
@@ -1414,7 +1430,8 @@ function renderNotare(main){
             }
             const notaInit = barem ? calculeazaNota(barem, an, e.sex, existing ? existing.valoare : '') : null;
             return `<tr>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              ${numarOrdine}
+              <td class="student-name">${numeCuTagPartial}</td>
               <td style="display:flex; align-items:center; gap:8px;">
                 <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
                 ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}">${notaInit!=null?notaInit:'—'}</span>` : ''}
@@ -1566,9 +1583,9 @@ function renderAbsente(main){
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Elev</th><th>Stare</th><th>Absent</th><th>Motivat</th><th>Observație</th><th>Total absențe</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>Stare</th><th>Absent</th><th>Motivat</th><th>Observație</th><th>Total absențe</th></tr></thead>
         <tbody>
-          ${lista.map(e=>{
+          ${lista.map((e,idx)=>{
             const rec = state.absente.find(a=>a.eleviId===e.id && a.data===ui.absenteData);
             const stare = rec ? rec.stare : 'prezent';
             const esteAbsent = stare!=='prezent';
@@ -1577,6 +1594,7 @@ function renderAbsente(main){
             const esteCustom = nota && !toateObservatiile().includes(nota);
             const total = state.absente.filter(a=>a.eleviId===e.id && a.stare!=='prezent').length;
             return `<tr data-row-elev="${e.id}">
+              <td style="color:var(--muted); text-align:center;">${idx+1}</td>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''}</td>
               <td class="stare-badge-cell">${starePillHTML(stare)}</td>
               <td style="text-align:center;">
@@ -1656,8 +1674,8 @@ function renderAbsente(main){
         stareNoua = 'prezent';
       }
       upsertAbsenta(eleviId, {stare: stareNoua});
-      row.children[1].innerHTML = starePillHTML(stareNoua);
-      row.children[5].innerHTML = totalBadgeHTML(eleviId);
+      row.children[2].innerHTML = starePillHTML(stareNoua);
+      row.children[6].innerHTML = totalBadgeHTML(eleviId);
     });
   });
   main.querySelectorAll('.chk-motivat').forEach(chk=>{
@@ -1666,8 +1684,8 @@ function renderAbsente(main){
       const stareNoua = chk.checked ? 'motivat' : 'nemotivat';
       upsertAbsenta(eleviId, {stare: stareNoua});
       const row = main.querySelector(`tr[data-row-elev="${eleviId}"]`);
-      row.children[1].innerHTML = starePillHTML(stareNoua);
-      row.children[5].innerHTML = totalBadgeHTML(eleviId);
+      row.children[2].innerHTML = starePillHTML(stareNoua);
+      row.children[6].innerHTML = totalBadgeHTML(eleviId);
     });
   });
   main.querySelectorAll('.select-observatie').forEach(sel=>{

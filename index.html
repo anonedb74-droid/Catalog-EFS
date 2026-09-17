@@ -578,15 +578,15 @@ const ICONS = {
 };
 
 const TABS = [
-  {id:'clase', label:'Clase'},
+  {id:'absente', label:'Absențe'},
+  {id:'notare', label:'Notare'},
   {id:'sinteza', label:'Sinteză'},
-  {id:'elevi', label:'Elevi'},
   {id:'probe', label:'Probe'},
   {id:'bareme', label:'Bareme'},
-  {id:'notare', label:'Notare'},
-  {id:'absente', label:'Absențe'},
-  {id:'istoric', label:'Istoric elev'},
+  {id:'clase', label:'Clase'},
+  {id:'elevi', label:'Elevi'},
   {id:'practica', label:'Practică'},
+  {id:'istoric', label:'Istoric elev'},
   {id:'scutiri', label:'Scutiri'},
 ];
 
@@ -1112,12 +1112,12 @@ Georgescu Mihai"></textarea>
   main.querySelectorAll('.btn-edit-elev').forEach(b=>{
     b.addEventListener('click', ()=>{
       const el = state.elevi.find(e=>e.id===b.dataset.elev);
-      const numeNou = prompt('Nume:', el.nume);
-      if(numeNou===null) return; // renunțat
-      const prenumeNou = prompt('Prenume:', el.prenume);
-      if(prenumeNou===null) return;
-      el.nume = capitalizeazaNume(numeNou.trim()) || el.nume;
-      el.prenume = capitalizeazaNume(prenumeNou.trim()) || el.prenume;
+      const numeComplet = prompt('Nume și prenume:', `${el.nume} ${el.prenume}`);
+      if(numeComplet===null) return; // renunțat
+      const parti = numeComplet.trim().split(/\s+/);
+      if(parti.length===0 || !parti[0]) return showToast('Numele nu poate fi gol.');
+      el.nume = capitalizeazaNume(parti[0]);
+      el.prenume = capitalizeazaNume(parti.slice(1).join(' ')) || el.prenume;
       saveState(); render(); showToast('Elev actualizat.');
     });
   });

@@ -995,9 +995,9 @@ Georgescu Mihai"></textarea>
                   <option value="F" ${e.sex==='F'?'selected':''}>Fată</option>
                 </select>
               </td>
-              <td><input type="number" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
-              <td><input type="number" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
-              <td style="color:var(--muted);">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:10px; padding:1px 6px;">${catIMC.eticheta}</span>` : ''}</td>
+              <td><input type="number" inputmode="decimal" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
+              <td><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
+              <td style="color:var(--muted);" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:10px; padding:1px 6px;">${catIMC.eticheta}</span>` : ''}</td>
               <td>${scutirePillHTML(e)}</td>
               <td><button class="btn btn-danger" data-del-elev="${e.id}">${ICONS.trash}</button></td>
             </tr>
@@ -1009,18 +1009,40 @@ Georgescu Mihai"></textarea>
   document.getElementById('select-elevi-clasa').addEventListener('change', (e)=>{
     ui.eleviClasa = e.target.value; render();
   });
+  function actualizeazaIMC(eleviId){
+    const el = state.elevi.find(e=>e.id===eleviId);
+    const imc = (el.inaltime && el.greutate) ? (el.greutate / ((el.inaltime/100)*(el.inaltime/100))).toFixed(1) : '—';
+    const cat = imc!=='—' ? categorieIMC(parseFloat(imc), claseAn(el.claseId), el.sex) : null;
+    const celula = main.querySelector(`[data-imc-for="${eleviId}"]`);
+    if(celula) celula.innerHTML = `${imc}${cat ? `<br><span class="pill ${cat.clasa}" style="font-size:10px; padding:1px 6px;">${cat.eticheta}</span>` : ''}`;
+  }
   main.querySelectorAll('.input-inaltime').forEach(inp=>{
-    inp.addEventListener('change', ()=>{
+    inp.addEventListener('input', ()=>{
       const e = state.elevi.find(e=>e.id===inp.dataset.elev);
       e.inaltime = inp.value ? parseFloat(inp.value) : null;
-      saveState(); render();
+      saveState();
+      actualizeazaIMC(inp.dataset.elev);
     });
   });
   main.querySelectorAll('.input-greutate').forEach(inp=>{
-    inp.addEventListener('change', ()=>{
+    inp.addEventListener('input', ()=>{
       const e = state.elevi.find(e=>e.id===inp.dataset.elev);
       e.greutate = inp.value ? parseFloat(inp.value) : null;
-      saveState(); render();
+      saveState();
+      actualizeazaIMC(inp.dataset.elev);
+    });
+  });
+  // Enter -> trece la aceeași căsuță (înălțime sau greutate) a elevului următor
+  ['.input-inaltime', '.input-greutate'].forEach(selectorClasa=>{
+    const campuri = Array.from(main.querySelectorAll(selectorClasa));
+    campuri.forEach((inp, idx)=>{
+      inp.addEventListener('keydown', (ev)=>{
+        if(ev.key==='Enter'){
+          ev.preventDefault();
+          const urmator = campuri[idx+1];
+          if(urmator){ urmator.focus(); urmator.select(); } else { inp.blur(); }
+        }
+      });
     });
   });
   document.getElementById('btn-add-elev').addEventListener('click', ()=>{
@@ -1450,11 +1472,11 @@ function renderNotare(main){
             const notaFinal = barem ? calculeazaNota(barem, an, e.sex, recFinal ? recFinal.valoare : '') : null;
 
             function celulaMoment(rec, nota, momentStr){
-              return `<td style="display:flex; align-items:center; gap:6px;">
-                <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" data-moment="${momentStr}" value="${rec ? escapeHtml(rec.valoare) : ''}" placeholder="—" style="width:74px;"/>
-                ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}" data-moment-for="${momentStr}">${nota!=null?nota:'—'}</span>` : ''}
-                ${rec ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" data-moment="${momentStr}" title="Șterge" style="padding:4px 8px; min-height:30px;">${ICONS.trash}</button>` : ''}
-              </td>`;
+              return `<td style="padding:4px 6px;"><div style="display:flex; align-items:center; gap:5px; white-space:nowrap;">
+                <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" data-moment="${momentStr}" value="${rec ? escapeHtml(rec.valoare) : ''}" placeholder="—" style="width:58px; min-height:32px; padding:4px 6px;"/>
+                ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nota!=null?nota:'—'}</span>` : ''}
+                ${rec ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" data-moment="${momentStr}" title="Șterge" style="padding:3px 6px; min-height:28px;">${ICONS.trash}</button>` : ''}
+              </div></td>`;
             }
 
             const diferentaHTML = calculeazaDiferentaHTML(recInitial ? recInitial.valoare : '', recFinal ? recFinal.valoare : '', barem);
@@ -1489,23 +1511,23 @@ function renderNotare(main){
               return `<tr>
                 ${numarOrdine}
                 <td class="student-name">${numeCuTagPartial}</td>
-                <td style="display:flex; align-items:center; gap:8px;">
+                <td><div style="display:flex; align-items:center; gap:8px;">
                   <select class="calificativ-input" data-elev="${e.id}">
                     <option value="">—</option>
                     ${CALIFICATIVE.map(c=>`<option value="${c.cod}" title="${escapeHtml(c.label)}" ${valExist===c.cod?'selected':''}>${c.cod}</option>`).join('')}
                   </select>
                   <span class="pill pill-ok nota-calc-calif" data-nota-for="${e.id}">${notaExist!=null?notaExist:'—'}</span>
                   ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
-                </td>
+                </div></td>
               </tr>`;
             }
             return `<tr>
               ${numarOrdine}
               <td class="student-name">${numeCuTagPartial}</td>
-              <td style="display:flex; align-items:center; gap:8px;">
+              <td><div style="display:flex; align-items:center; gap:8px;">
                 <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
                 ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
-              </td>
+              </div></td>
             </tr>`;
           }).join('')}
         </tbody>

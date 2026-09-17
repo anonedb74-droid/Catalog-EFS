@@ -854,11 +854,13 @@ function genereazaRaportClasa(claseId){
 
   const randuriAntropo = lista.map(e=>{
     const imc = (e.inaltime && e.greutate) ? (e.greutate / ((e.inaltime/100)*(e.inaltime/100))).toFixed(1) : '—';
+    const catIMC = imc!=='—' ? categorieIMC(parseFloat(imc), claseAn(e.claseId), e.sex) : null;
     return `<tr>
       <td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
       <td>${e.inaltime || '—'}</td>
       <td>${e.greutate || '—'}</td>
       <td>${imc}</td>
+      <td>${catIMC ? catIMC.eticheta : '—'}</td>
     </tr>`;
   }).join('');
 
@@ -900,8 +902,9 @@ function genereazaRaportClasa(claseId){
   </table>
 
   <h2>Date antropometrice</h2>
+  <p style="font-size:11px; color:#888;">Categoria IMC e orientativă, pe grupe de vârstă și sex — nu înlocuiește o evaluare medicală.</p>
   <table>
-    <thead><tr><th>Elev</th><th>Înălțime (cm)</th><th>Greutate (kg)</th><th>IMC</th></tr></thead>
+    <thead><tr><th>Elev</th><th>Înălțime (cm)</th><th>Greutate (kg)</th><th>IMC</th><th>Categorie</th></tr></thead>
     <tbody>${randuriAntropo}</tbody>
   </table>
 </body></html>`;
@@ -980,6 +983,7 @@ Georgescu Mihai"></textarea>
         <tbody>
           ${lista.map((e,idx)=>{
             const imc = (e.inaltime && e.greutate) ? (e.greutate / ((e.inaltime/100)*(e.inaltime/100))).toFixed(1) : '—';
+            const catIMC = imc!=='—' ? categorieIMC(parseFloat(imc), claseAn(e.claseId), e.sex) : null;
             return `
             <tr>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
@@ -993,7 +997,7 @@ Georgescu Mihai"></textarea>
               </td>
               <td><input type="number" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
               <td><input type="number" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
-              <td style="color:var(--muted);">${imc}</td>
+              <td style="color:var(--muted);">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:10px; padding:1px 6px;">${catIMC.eticheta}</span>` : ''}</td>
               <td>${scutirePillHTML(e)}</td>
               <td><button class="btn btn-danger" data-del-elev="${e.id}">${ICONS.trash}</button></td>
             </tr>
@@ -1195,6 +1199,22 @@ function claseAn(claseId){
   const c = state.clase.find(c=>c.id===claseId);
   return (c && c.an) ? c.an : 'IX';
 }
+// Praguri orientative de IMC pe vârstă (an de studiu) și sex, aproximate după curbele de creștere
+// standard pentru adolescenți (14-18 ani). Sunt un reper general, nu un diagnostic medical.
+const IMC_PRAGURI = {
+  IX:  { M:{sub:16.5, sup:22.6, obez:26.4}, F:{sub:16.3, sup:23.4, obez:27.8} },
+  X:   { M:{sub:17.0, sup:23.2, obez:27.4}, F:{sub:16.9, sup:23.9, obez:28.5} },
+  XI:  { M:{sub:17.5, sup:23.9, obez:28.2}, F:{sub:17.3, sup:24.3, obez:29.1} },
+  XII: { M:{sub:17.9, sup:24.5, obez:28.9}, F:{sub:17.7, sup:24.7, obez:29.6} },
+};
+function categorieIMC(imc, an, sex){
+  const p = IMC_PRAGURI[an] && IMC_PRAGURI[an][sex];
+  if(!p || imc==null || isNaN(imc)) return null;
+  if(imc < p.sub) return {eticheta:'Subponderal', clasa:'pill-blue'};
+  if(imc < p.sup) return {eticheta:'Normal', clasa:'pill-ok'};
+  if(imc < p.obez) return {eticheta:'Supraponderal', clasa:'pill-yellow'};
+  return {eticheta:'Obez', clasa:'pill-danger'};
+}
 function findBaremForProba(probaNume){
   if(!probaNume) return null;
   const target = probaNume.trim().toLowerCase();
@@ -1219,6 +1239,16 @@ function calculeazaNota(barem, an, sex, valoareStr){
   }
   // rezultat mai slab decât toate pragurile definite -> nota minimă din barem (4), nu sub ea
   return 4;
+}
+// diferența dintre testul inițial și cel final, ca pastilă colorată (verde = progres, roșu = regres)
+function calculeazaDiferentaHTML(valoareInitiala, valoareFinala, barem){
+  const vI = valoareInitiala!=='' && valoareInitiala!=null ? parseFloat(String(valoareInitiala).replace(',','.')) : NaN;
+  const vF = valoareFinala!=='' && valoareFinala!=null ? parseFloat(String(valoareFinala).replace(',','.')) : NaN;
+  if(isNaN(vI) || isNaN(vF)) return '<span style="color:var(--muted);">—</span>';
+  const diff = (barem && barem.directie==='asc') ? (vF - vI) : (vI - vF); // implicit: valoare mai mică (timp) = mai bine
+  const bun = diff>0, rau = diff<0;
+  const semn = diff>0 ? '+' : '';
+  return `<span class="pill ${bun?'pill-ok':rau?'pill-danger':'pill-ghost'}">${semn}${diff.toFixed(2).replace('.',',')}</span>`;
 }
 
 /* ================= TAB: BAREME ================= */
@@ -1352,23 +1382,24 @@ function renderNotare(main){
   const tipNotare = probaSelectata ? (probaSelectata.tipNotare || 'nota') : 'nota';
   const barem = (probaSelectata && tipNotare==='barem') ? findBaremForProba(probaSelectata.nume) : null;
   const moment = ui.notareMoment;
+  const afisareDubla = tipNotare==='barem'; // la probele cu barem, arătăm inițial + final unul lângă altul
 
   // scrie/șterge imediat în state.note, la fiecare modificare — nimic nu se pierde dacă schimbi tab-ul
-  function upsertNota(eleviId, valoare, notaCalculata){
-    let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment);
+  function upsertNota(eleviId, momentInregistrare, valoare, notaCalculata){
+    let rec = state.note.find(n=>n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===momentInregistrare);
     if(valoare===''){
       if(rec) state.note = state.note.filter(n=>n!==rec);
     } else if(rec){
       rec.valoare = valoare; rec.notaCalculata = notaCalculata;
     } else {
-      state.note.push({id:uid(), eleviId, probaId:ui.notareProba, moment, valoare, notaCalculata, data:todayISO()});
+      state.note.push({id:uid(), eleviId, probaId:ui.notareProba, moment:momentInregistrare, valoare, notaCalculata, data:todayISO()});
     }
     saveState();
   }
 
   main.innerHTML = `
     <h2>Notare</h2>
-    <p class="tab-desc">Alege clasa, proba și momentul testării. Fiecare notă se salvează automat, imediat ce o scrii.</p>
+    <p class="tab-desc">${afisareDubla ? 'Alege clasa și proba — introduci testarea inițială și cea finală una lângă alta, ca să vezi diferența imediat.' : 'Alege clasa, proba și momentul testării. Fiecare notă se salvează automat, imediat ce o scrii.'}</p>
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -1383,26 +1414,67 @@ function renderNotare(main){
             probeDisponibile.map(p=>`<option value="${p.id}" ${p.id===ui.notareProba?'selected':''}>${escapeHtml(p.nume)} — ${formatDataRo(p.data)}</option>`).join('')}
         </select>
       </div>
+      ${!afisareDubla ? `
       <div class="field">
         <label>Moment testare</label>
         <select id="select-notare-moment">
           <option value="initial" ${moment==='initial'?'selected':''}>Testare inițială</option>
           <option value="final" ${moment==='final'?'selected':''}>Testare finală</option>
         </select>
-      </div>
+      </div>` : ''}
     </div>
     ${probaSelectata && tipNotare==='barem' && !barem ? `
       <div class="card" style="background:#FBEBD3; border-color:#E3A23C;">
-        Nu există un barem definit pentru „${escapeHtml(probaSelectata.nume)}” — introduci direct nota, sau
+        Nu există un barem definit pentru „${escapeHtml(probaSelectata.nume)}” — introduci direct timpul/rezultatul, sau
         <button class="btn btn-ghost" id="btn-jump-barem" style="margin-left:6px;">creează un barem acum</button>
-        ca să-ți calculeze automat nota din timp. Baremul e același pentru testarea inițială și cea finală.
+        ca să-ți calculeze automat nota. Baremul e același pentru testarea inițială și cea finală.
       </div>
     ` : ''}
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') :
-      probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
+      probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') :
+      afisareDubla ? `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nr.</th><th>Elev</th><th>${barem ? (barem.directie==='desc'?'Timp':'Rezultat') : tipNotare==='calificativ' ? 'Calificativ' : 'Notă'}</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>Test inițial</th><th>Test final</th><th>Diferență</th></tr></thead>
+        <tbody>
+          ${lista.map((e,idx)=>{
+            const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
+            if(blocheazaNotarea(e)){
+              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="3"><span class="exempt-note">Scutit medical</span></td></tr>`;
+            }
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''}`;
+            const an = claseAn(e.claseId);
+            const recInitial = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='initial');
+            const recFinal = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='final');
+            const notaInitial = barem ? calculeazaNota(barem, an, e.sex, recInitial ? recInitial.valoare : '') : null;
+            const notaFinal = barem ? calculeazaNota(barem, an, e.sex, recFinal ? recFinal.valoare : '') : null;
+
+            function celulaMoment(rec, nota, momentStr){
+              return `<td style="display:flex; align-items:center; gap:6px;">
+                <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" data-moment="${momentStr}" value="${rec ? escapeHtml(rec.valoare) : ''}" placeholder="—" style="width:74px;"/>
+                ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}" data-moment-for="${momentStr}">${nota!=null?nota:'—'}</span>` : ''}
+                ${rec ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" data-moment="${momentStr}" title="Șterge" style="padding:4px 8px; min-height:30px;">${ICONS.trash}</button>` : ''}
+              </td>`;
+            }
+
+            const diferentaHTML = calculeazaDiferentaHTML(recInitial ? recInitial.valoare : '', recFinal ? recFinal.valoare : '', barem);
+
+            return `<tr>
+              ${numarOrdine}
+              <td class="student-name">${numeCuTagPartial}</td>
+              ${celulaMoment(recInitial, notaInitial, 'initial')}
+              ${celulaMoment(recFinal, notaFinal, 'final')}
+              <td data-diff-for="${e.id}">${diferentaHTML}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată — nu mai există buton de „Salvează”.</p>
+    ` : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>${tipNotare==='calificativ' ? 'Calificativ' : 'Notă'}</th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
@@ -1411,7 +1483,6 @@ function renderNotare(main){
               return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
             const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''}`;
-            const an = claseAn(e.claseId);
             if(tipNotare==='calificativ'){
               const valExist = existing ? existing.valoare : '';
               const notaExist = valExist ? notaDinCalificativ(valExist) : null;
@@ -1428,13 +1499,11 @@ function renderNotare(main){
                 </td>
               </tr>`;
             }
-            const notaInit = barem ? calculeazaNota(barem, an, e.sex, existing ? existing.valoare : '') : null;
             return `<tr>
               ${numarOrdine}
               <td class="student-name">${numeCuTagPartial}</td>
               <td style="display:flex; align-items:center; gap:8px;">
-                <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
-                ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}">${notaInit!=null?notaInit:'—'}</span>` : ''}
+                <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
                 ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
               </td>
             </tr>`;
@@ -1448,7 +1517,8 @@ function renderNotare(main){
   document.getElementById('select-notare-clasa').addEventListener('change', e=>{ ui.notareClasa = e.target.value; ui.notareProba = null; render(); });
   const selProba = document.getElementById('select-notare-proba');
   if(selProba) selProba.addEventListener('change', e=>{ ui.notareProba = e.target.value; render(); });
-  document.getElementById('select-notare-moment').addEventListener('change', e=>{ ui.notareMoment = e.target.value; render(); });
+  const selMoment = document.getElementById('select-notare-moment');
+  if(selMoment) selMoment.addEventListener('change', e=>{ ui.notareMoment = e.target.value; render(); });
   const btnJump = document.getElementById('btn-jump-barem');
   if(btnJump) btnJump.addEventListener('click', ()=>{
     const nb = baremNou(probaSelectata.nume, 'desc');
@@ -1457,16 +1527,29 @@ function renderNotare(main){
     saveState();
     currentTab = 'bareme'; render();
   });
-  // notă directă / barem: salvare automată pe fiecare tastă + actualizare live a pastilei cu nota
+  // notă directă / barem: salvare automată pe fiecare tastă + actualizare live a pastilei cu nota (fără să redesenăm tot tabelul, ca să nu pierdem focusul din câmp)
   main.querySelectorAll('.grade-input').forEach(inp=>{
     inp.addEventListener('input', ()=>{
       const val = inp.value.trim();
+      const momentCurent = inp.dataset.moment || moment;
       const notaCalc = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
       if(barem){
-        const cell = main.querySelector(`.nota-calc[data-nota-for="${inp.dataset.elev}"]`);
+        const cell = afisareDubla
+          ? main.querySelector(`.nota-calc[data-nota-for="${inp.dataset.elev}"][data-moment-for="${momentCurent}"]`)
+          : main.querySelector(`.nota-calc[data-nota-for="${inp.dataset.elev}"]`);
         if(cell) cell.textContent = notaCalc!=null ? notaCalc : '—';
       }
-      upsertNota(inp.dataset.elev, val, notaCalc);
+      upsertNota(inp.dataset.elev, momentCurent, val, notaCalc);
+      if(afisareDubla){
+        // recalculăm live pastila de Diferență, fără să redesenăm tabelul (ca să nu pierdem focusul)
+        const rândCurent = inp.closest('tr');
+        const inputInitial = rândCurent.querySelector('.grade-input[data-moment="initial"]');
+        const inputFinal = rândCurent.querySelector('.grade-input[data-moment="final"]');
+        const diffCell = rândCurent.querySelector(`[data-diff-for="${inp.dataset.elev}"]`);
+        if(diffCell && inputInitial && inputFinal){
+          diffCell.innerHTML = calculeazaDiferentaHTML(inputInitial.value.trim(), inputFinal.value.trim(), barem);
+        }
+      }
     });
   });
   // calificativ: salvare automată la fiecare selecție
@@ -1477,12 +1560,13 @@ function renderNotare(main){
         const notaCalc = val ? notaDinCalificativ(val) : null;
         const cell = main.querySelector(`.nota-calc-calif[data-nota-for="${sel.dataset.elev}"]`);
         if(cell) cell.textContent = notaCalc!=null ? notaCalc : '—';
-        upsertNota(sel.dataset.elev, val, notaCalc);
+        upsertNota(sel.dataset.elev, moment, val, notaCalc);
         render();
       });
     });
   }
-  // Enter -> trece la câmpul elevului următor, ca într-un tabel Excel
+  // notă directă simplă (fără barem, fără calificativ) foloseste deja listener-ul general de mai sus
+  // Enter -> trece la câmpul următor, ca într-un tabel Excel
   const campuriNotare = Array.from(main.querySelectorAll('.grade-input[data-elev]'));
   campuriNotare.forEach((inp, idx)=>{
     inp.addEventListener('keydown', (ev)=>{
@@ -1498,8 +1582,9 @@ function renderNotare(main){
   main.querySelectorAll('.btn-sterge-nota').forEach(b=>{
     b.addEventListener('click', ()=>{
       const eleviId = b.dataset.elev;
+      const momentDeSters = b.dataset.moment || moment;
       if(!confirm('Ștergi nota salvată pentru acest elev, la această probă?')) return;
-      state.note = state.note.filter(n=>!(n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===moment));
+      state.note = state.note.filter(n=>!(n.eleviId===eleviId && n.probaId===ui.notareProba && n.moment===momentDeSters));
       saveState(); render(); showToast('Notă ștearsă.');
     });
   });

@@ -351,6 +351,7 @@ let ui = {
   sintezaClasa: null,
   scutiriClasa: null,
   istoricClasa: null, istoricElev: null,
+  practicaClasa: null,
 };
 
 function todayISO(){
@@ -424,7 +425,29 @@ function migreazaDate(){
   (state.note || []).forEach(n=>{
     if(!n.moment) n.moment = 'initial';
   });
+  (state.clase || []).forEach(c=>{
+    if(!c.practica) c.practica = [];
+  });
   if(!state.observatiiCustom) state.observatiiCustom = [];
+}
+// perioada de practică comasată activă AZI pentru o clasă, dacă există (o clasă poate avea mai multe perioade în an)
+function practicaActiva(claseId){
+  const c = state.clase.find(c=>c.id===claseId);
+  if(!c || !c.practica || !c.practica.length) return null;
+  const azi = todayISO();
+  return c.practica.find(p=>azi>=p.start && azi<=p.end) || null;
+}
+// bannerul de atenționare afișat în orice secțiune unde e selectată o clasă aflată în practică
+function bannerPracticaHTML(claseId){
+  const p = practicaActiva(claseId);
+  if(!p) return '';
+  return `<div class="card" style="background:#FBEBD3; border-color:#E3A23C; display:flex; align-items:center; gap:10px;">
+    <span style="font-size:20px;">🧳</span>
+    <div>
+      <strong>Clasa este în practică comasată</strong> (${formatDataRo(p.start)} – ${formatDataRo(p.end)})${p.nume ? ' — '+escapeHtml(p.nume) : ''}.
+      Poți nota sau bifa în continuare, doar ai grijă că elevii nu sunt fizic la oră.
+    </div>
+  </div>`;
 }
 // scutirea e activă azi? (o scutire temporară expiră automat singură, elevul redevine apt)
 function esteScutitActiv(e){
@@ -547,9 +570,11 @@ const ICONS = {
   bareme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16"/><path d="M6 20V10l4-6 4 6v10"/><path d="M6 14h8"/><path d="M17 20v-7l2-3 2 3v7"/></svg>',
   sinteza: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.2"/><rect x="14" y="3" width="7" height="5" rx="1.2"/><rect x="14" y="12" width="7" height="9" rx="1.2"/><rect x="3" y="16" width="7" height="5" rx="1.2"/></svg>',
   istoric: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+  practica: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M3 12h18"/></svg>',
   save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/><path d="M7 21v-8h10v8"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 000-2l2-1.5-2-3.4-2.3.9a7.7 7.7 0 00-1.7-1L15 3h-6l-.4 2.9a7.7 7.7 0 00-1.7 1l-2.3-.9-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.5 2 3.4 2.3-.9c.5.4 1.1.8 1.7 1L9 21h6l.4-2.9c.6-.2 1.2-.6 1.7-1l2.3.9 2-3.4z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>',
 };
 
 const TABS = [
@@ -561,6 +586,7 @@ const TABS = [
   {id:'notare', label:'Notare'},
   {id:'absente', label:'Absențe'},
   {id:'istoric', label:'Istoric elev'},
+  {id:'practica', label:'Practică'},
   {id:'scutiri', label:'Scutiri'},
 ];
 
@@ -626,6 +652,7 @@ function renderTab(){
   if(currentTab==='notare') return renderNotare(main);
   if(currentTab==='absente') return renderAbsente(main);
   if(currentTab==='istoric') return renderIstoric(main);
+  if(currentTab==='practica') return renderPractica(main);
   if(currentTab==='scutiri') return renderScutiri(main);
 }
 
@@ -723,6 +750,7 @@ function renderSinteza(main){
   main.innerHTML = `
     <h2>Sinteză</h2>
     <p class="tab-desc">O imagine de ansamblu pe clasă: toate probele, notele, absențele și observațiile.</p>
+    ${bannerPracticaHTML(claseId)}
     <div class="row" style="margin-bottom:16px; align-items:flex-end;">
       <div class="field">
         <label>Clasă</label>
@@ -929,6 +957,7 @@ function renderElevi(main){
   main.innerHTML = `
     <h2>Elevi</h2>
     <p class="tab-desc">Gestionează lista de elevi pentru fiecare clasă.</p>
+    ${bannerPracticaHTML(ui.eleviClasa)}
     <div class="row" style="margin-bottom:16px; align-items:flex-end;">
       <div class="field">
         <label>Clasă</label>
@@ -988,7 +1017,9 @@ Georgescu Mihai"></textarea>
             <tr>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
               <td class="student-name">${escapeHtml(e.nume)}</td>
-              <td>${escapeHtml(e.prenume)}</td>
+              <td>${escapeHtml(e.prenume)}
+                <button class="btn btn-ghost btn-edit-elev" data-elev="${e.id}" title="Editează numele" style="padding:3px 7px; min-height:26px; margin-left:4px;">${ICONS.edit}</button>
+              </td>
               <td>
                 <select data-sex-elev="${e.id}" style="min-height:34px; padding:4px 8px;">
                   <option value="M" ${e.sex==='M'?'selected':''}>Băiat</option>
@@ -1076,6 +1107,18 @@ Georgescu Mihai"></textarea>
     sel.addEventListener('change', ()=>{
       const e = state.elevi.find(e=>e.id===sel.dataset.sexElev);
       e.sex = sel.value; saveState();
+    });
+  });
+  main.querySelectorAll('.btn-edit-elev').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const el = state.elevi.find(e=>e.id===b.dataset.elev);
+      const numeNou = prompt('Nume:', el.nume);
+      if(numeNou===null) return; // renunțat
+      const prenumeNou = prompt('Prenume:', el.prenume);
+      if(prenumeNou===null) return;
+      el.nume = capitalizeazaNume(numeNou.trim()) || el.nume;
+      el.prenume = capitalizeazaNume(prenumeNou.trim()) || el.prenume;
+      saveState(); render(); showToast('Elev actualizat.');
     });
   });
   main.querySelectorAll('[data-del-elev]').forEach(b=>{
@@ -1422,6 +1465,7 @@ function renderNotare(main){
   main.innerHTML = `
     <h2>Notare</h2>
     <p class="tab-desc">${afisareDubla ? 'Alege clasa și proba — introduci testarea inițială și cea finală una lângă alta, ca să vezi diferența imediat.' : 'Alege clasa, proba și momentul testării. Fiecare notă se salvează automat, imediat ce o scrii.'}</p>
+    ${bannerPracticaHTML(ui.notareClasa)}
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -1653,6 +1697,7 @@ function renderAbsente(main){
   main.innerHTML = `
     <h2>Absențe</h2>
     <p class="tab-desc">Bifează rapid absențele. Alege o observație din listă (sau scrie una proprie). Se salvează automat, imediat.</p>
+    ${bannerPracticaHTML(ui.absenteClasa)}
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -1834,6 +1879,7 @@ function renderIstoric(main){
   main.innerHTML = `
     <h2>Istoric elev</h2>
     <p class="tab-desc">Alege clasa și elevul ca să vezi tot istoricul: absențe, observații, cu data fiecăreia și totalul cumulat.</p>
+    ${bannerPracticaHTML(ui.istoricClasa)}
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -1925,6 +1971,90 @@ function renderIstoric(main){
       if(!confirm('Ștergi complet această înregistrare (absență/observație)?')) return;
       state.absente = state.absente.filter(a=>a.id!==b.dataset.delIstoric);
       saveState(); render(); showToast('Înregistrare ștearsă.');
+    });
+  });
+}
+
+/* ================= TAB: PRACTICĂ COMASATĂ ================= */
+function renderPractica(main){
+  if(state.clase.length===0){
+    main.innerHTML = `<h2>Practică comasată</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    return;
+  }
+  if(!ui.practicaClasa || !state.clase.find(c=>c.id===ui.practicaClasa)) ui.practicaClasa = state.clase[0].id;
+  const clasa = state.clase.find(c=>c.id===ui.practicaClasa);
+  const perioade = [...(clasa.practica||[])].sort((a,b)=>a.start.localeCompare(b.start));
+  const azi = todayISO();
+
+  main.innerHTML = `
+    <h2>Practică comasată</h2>
+    <p class="tab-desc">Trece perioadele în care clasa e la agenți economici, nu la școală. O clasă poate avea mai multe perioade în an — le adaugi pe rând mai jos.</p>
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field">
+        <label>Clasă</label>
+        <select id="select-practica-clasa">
+          ${state.clase.map(c=>`<option value="${c.id}" ${c.id===ui.practicaClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="field">
+          <label>De la</label>
+          <input type="date" id="input-practica-start" value="${todayISO()}"/>
+        </div>
+        <div class="field">
+          <label>Până la</label>
+          <input type="date" id="input-practica-end" value="${todayISO()}"/>
+        </div>
+        <div class="field" style="flex:1; min-width:200px;">
+          <label>Motiv / agent economic (opțional)</label>
+          <input type="text" id="input-practica-motiv" placeholder="ex: SC Exemplu SRL"/>
+        </div>
+        <button class="btn btn-primary" id="btn-add-practica">+ Adaugă perioadă</button>
+      </div>
+    </div>
+
+    ${perioade.length===0 ? emptyState('Nicio perioadă de practică pentru această clasă.', 'Adaugă una mai sus.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>De la</th><th>Până la</th><th>Motiv</th><th>Stare</th><th></th></tr></thead>
+        <tbody>
+          ${perioade.map(p=>{
+            let stare;
+            if(azi<p.start) stare = '<span class="pill pill-blue">urmează</span>';
+            else if(azi>p.end) stare = '<span class="pill pill-ghost">încheiată</span>';
+            else stare = '<span class="pill pill-yellow">activă acum</span>';
+            return `<tr>
+              <td>${formatDataRo(p.start)}</td>
+              <td>${formatDataRo(p.end)}</td>
+              <td>${escapeHtml(p.nume) || '—'}</td>
+              <td>${stare}</td>
+              <td><button class="btn btn-danger" data-del-practica="${p.id}">${ICONS.trash}</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  `;
+  document.getElementById('select-practica-clasa').addEventListener('change', e=>{
+    ui.practicaClasa = e.target.value; render();
+  });
+  document.getElementById('btn-add-practica').addEventListener('click', ()=>{
+    const start = document.getElementById('input-practica-start').value;
+    const end = document.getElementById('input-practica-end').value;
+    const nume = document.getElementById('input-practica-motiv').value.trim();
+    if(!start || !end) return showToast('Completează ambele date.');
+    if(end<start) return showToast('Data „până la” nu poate fi înainte de „de la”.');
+    clasa.practica.push({id:uid(), start, end, nume});
+    saveState(); render(); showToast('Perioadă adăugată.');
+  });
+  main.querySelectorAll('[data-del-practica]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(!confirm('Ștergi această perioadă de practică?')) return;
+      clasa.practica = clasa.practica.filter(p=>p.id!==b.dataset.delPractica);
+      saveState(); render(); showToast('Perioadă ștearsă.');
     });
   });
 }

@@ -1232,30 +1232,30 @@ Georgescu Mihai"></textarea>
 
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă lista de mai sus, dintr-o dată sau elev cu elev.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
-      <table>
-        <thead><tr><th>Nr.</th><th>Cod</th><th>Nume</th><th>Prenume</th><th>Sex</th><th>Data nașterii</th><th>Înălțime (cm)</th><th>Greutate (kg)</th><th>IMC</th><th>Scutit medical</th><th></th></tr></thead>
+      <table style="font-size:13px;">
+        <thead><tr><th style="padding:6px 5px;">Nr.</th><th style="padding:6px 5px;">Cod</th><th style="padding:6px 5px;">Nume</th><th style="padding:6px 5px;">Prenume</th><th style="padding:6px 5px;">Sex</th><th style="padding:6px 5px;">Data nașterii</th><th style="padding:6px 5px;">Înălțime</th><th style="padding:6px 5px;">Greutate</th><th style="padding:6px 5px;">IMC</th><th style="padding:6px 5px;">Scutit medical</th><th></th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             const imc = (e.inaltime && e.greutate) ? (e.greutate / ((e.inaltime/100)*(e.inaltime/100))).toFixed(1) : '—';
             const catIMC = imc!=='—' ? categorieIMC(parseFloat(imc), claseAn(e.claseId), e.sex) : null;
             return `
             <tr>
-              <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-              <td style="color:var(--muted); font-size:12px; white-space:nowrap;">${escapeHtml(e.codUnic||'—')}</td>
-              <td class="student-name"><input type="text" class="input-nume-elev" autocapitalize="words" data-elev="${e.id}" value="${escapeHtml(e.nume)}" style="min-width:110px; font-weight:600;"/></td>
-              <td><input type="text" class="input-prenume-elev" autocapitalize="words" data-elev="${e.id}" value="${escapeHtml(e.prenume)}" style="min-width:110px;"/></td>
-              <td>
-                <select data-sex-elev="${e.id}" style="min-height:34px; padding:4px 8px;">
+              <td style="color:var(--muted); text-align:center; width:28px; padding:5px;">${idx+1}</td>
+              <td style="color:var(--muted); font-size:11px; white-space:nowrap; width:95px; padding:5px;">${escapeHtml(e.codUnic||'—')}</td>
+              <td class="student-name" style="padding:5px;"><input type="text" class="input-nume-elev" autocapitalize="words" data-elev="${e.id}" value="${escapeHtml(e.nume)}" style="width:100px; font-weight:600; min-height:30px; padding:3px 5px;"/></td>
+              <td style="padding:5px;"><input type="text" class="input-prenume-elev" autocapitalize="words" data-elev="${e.id}" value="${escapeHtml(e.prenume)}" style="width:100px; min-height:30px; padding:3px 5px;"/></td>
+              <td style="padding:5px;">
+                <select data-sex-elev="${e.id}" style="min-height:30px; padding:3px 5px; font-size:13px;">
                   <option value="M" ${e.sex==='M'?'selected':''}>Băiat</option>
                   <option value="F" ${e.sex==='F'?'selected':''}>Fată</option>
                 </select>
               </td>
-              <td><input type="date" class="input-data-nasterii" data-elev="${e.id}" value="${e.dataNasterii||''}" style="min-height:34px; padding:4px 6px;"/></td>
-              <td><input type="number" inputmode="decimal" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
-              <td><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:80px; min-height:34px; padding:4px 8px;"/></td>
-              <td style="color:var(--muted);" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:10px; padding:1px 6px;">${catIMC.eticheta}</span>` : ''}</td>
-              <td>${scutirePillHTML(e)}<br><span class="pill pill-ghost" style="margin-top:3px;">Scutiri: ${e.scutit?1:0}</span></td>
-              <td><button class="btn btn-danger" data-del-elev="${e.id}">${ICONS.trash}</button></td>
+              <td style="padding:5px;"><input type="date" class="input-data-nasterii" data-elev="${e.id}" value="${e.dataNasterii||''}" style="min-height:30px; padding:3px 4px; width:118px; font-size:12px;"/></td>
+              <td style="padding:5px;"><input type="number" inputmode="decimal" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:60px; min-height:30px; padding:3px 5px;"/></td>
+              <td style="padding:5px;"><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:60px; min-height:30px; padding:3px 5px;"/></td>
+              <td style="color:var(--muted); padding:5px;" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:10px; padding:1px 6px;">${catIMC.eticheta}</span>` : ''}</td>
+              <td style="padding:5px;">${scutirePillHTML(e)}<br><span class="pill pill-ghost" style="margin-top:3px;">Scutiri: ${e.scutit?1:0}</span></td>
+              <td style="padding:5px;"><button class="btn btn-danger" data-del-elev="${e.id}" style="padding:5px 8px; min-height:30px;">${ICONS.trash}</button></td>
             </tr>
           `;}).join('')}
         </tbody>
@@ -1335,6 +1335,13 @@ Georgescu Mihai"></textarea>
     });
   });
   main.querySelectorAll('.input-nume-elev').forEach(inp=>{
+    // salvăm la fiecare literă tastată (imediat, brut) — nu depindem de „ieșirea din câmp",
+    // care pare să nu se declanșeze sigur pe unele tablete
+    inp.addEventListener('input', ()=>{
+      const el = state.elevi.find(e=>e.id===inp.dataset.elev);
+      if(inp.value.trim()) el.nume = inp.value.trim();
+      saveState();
+    });
     inp.addEventListener('change', ()=>{
       const el = state.elevi.find(e=>e.id===inp.dataset.elev);
       const val = capitalizeazaNume(inp.value.trim());
@@ -1344,6 +1351,11 @@ Georgescu Mihai"></textarea>
     });
   });
   main.querySelectorAll('.input-prenume-elev').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const el = state.elevi.find(e=>e.id===inp.dataset.elev);
+      if(inp.value.trim()) el.prenume = inp.value.trim();
+      saveState();
+    });
     inp.addEventListener('change', ()=>{
       const el = state.elevi.find(e=>e.id===inp.dataset.elev);
       const val = capitalizeazaNume(inp.value.trim());

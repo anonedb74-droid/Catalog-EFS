@@ -365,9 +365,9 @@ function uid(){
 function escapeHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-// pune automat majusculă la începutul fiecărui cuvânt dintr-un nume (funcționează cu diacritice și nume compuse cu cratimă)
+// numele elevilor se afișează mereu cu majuscule, indiferent cum le tastezi
 function capitalizeazaNume(s){
-  return String(s ?? '').toLowerCase().replace(/(^|[\s-])\p{L}/gu, m => m.toUpperCase());
+  return String(s ?? '').trim().toUpperCase();
 }
 
 /* ---------------- STORAGE ----------------
@@ -427,6 +427,9 @@ function migreazaDate(){
     if(e.scutireEnd===undefined) e.scutireEnd = null;
     if(e.dataNasterii===undefined) e.dataNasterii = null;
     if(!e.codUnic) e.codUnic = genereazaCodElev();
+    // numele elevilor se afișează mereu cu majuscule — trecem automat și numele mai vechi
+    if(e.nume) e.nume = capitalizeazaNume(e.nume);
+    if(e.prenume) e.prenume = capitalizeazaNume(e.prenume);
   });
   (state.note || []).forEach(n=>{
     if(!n.moment) n.moment = 'initial';
@@ -1200,7 +1203,7 @@ function renderElevi(main){
         (ex: <i>Popescu Andrei M</i>) — dacă nu specifici, se aplică sexul implicit ales mai jos.
       </div>
       <div class="field" style="margin-bottom:10px;">
-        <textarea id="bulk-elevi-text" rows="6" autocapitalize="words" style="width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px;"
+        <textarea id="bulk-elevi-text" rows="6" autocapitalize="characters" style="width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; text-transform:uppercase;"
           placeholder="Popescu Andrei M
 Ionescu Maria F
 Vasile Ana
@@ -1221,8 +1224,8 @@ Georgescu Mihai"></textarea>
     <div class="card">
       <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Sau adaugă un singur elev</div>
       <div class="row">
-        <div class="field"><label>Nume</label><input type="text" id="new-elev-nume" autocapitalize="words" placeholder="Popescu"/></div>
-        <div class="field"><label>Prenume</label><input type="text" id="new-elev-prenume" autocapitalize="words" placeholder="Andrei"/></div>
+        <div class="field"><label>Nume</label><input type="text" id="new-elev-nume" autocapitalize="characters" style="text-transform:uppercase;" placeholder="Popescu"/></div>
+        <div class="field"><label>Prenume</label><input type="text" id="new-elev-prenume" autocapitalize="characters" style="text-transform:uppercase;" placeholder="Andrei"/></div>
         <div class="field"><label>Sex</label>
           <select id="new-elev-sex"><option value="M">Băiat</option><option value="F">Fată</option></select>
         </div>
@@ -1233,29 +1236,29 @@ Georgescu Mihai"></textarea>
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă lista de mai sus, dintr-o dată sau elev cu elev.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table style="font-size:13px;">
-        <thead><tr><th style="padding:6px 5px;">Nr.</th><th style="padding:6px 5px;">Cod</th><th style="padding:6px 5px;">Nume</th><th style="padding:6px 5px;">Prenume</th><th style="padding:6px 5px;">Sex</th><th style="padding:6px 5px;">Data nașterii</th><th style="padding:6px 5px;">Înălțime</th><th style="padding:6px 5px;">Greutate</th><th style="padding:6px 5px;">IMC</th><th style="padding:6px 5px;">Scutit medical</th><th></th></tr></thead>
+        <thead><tr><th style="padding:5px 3px;">Nr.</th><th style="padding:5px 3px;">Cod</th><th style="padding:5px 3px;">Nume</th><th style="padding:5px 3px;">Prenume</th><th style="padding:5px 3px;">Sex</th><th style="padding:5px 3px;">Naștere</th><th style="padding:5px 3px;">Î.</th><th style="padding:5px 3px;">G.</th><th style="padding:5px 3px;">IMC</th><th style="padding:5px 3px;">Scutit</th><th></th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             const imc = (e.inaltime && e.greutate) ? (e.greutate / ((e.inaltime/100)*(e.inaltime/100))).toFixed(1) : '—';
             const catIMC = imc!=='—' ? categorieIMC(parseFloat(imc), claseAn(e.claseId), e.sex) : null;
             return `
             <tr>
-              <td style="color:var(--muted); text-align:center; width:28px; padding:5px;">${idx+1}</td>
-              <td style="color:var(--muted); font-size:11px; white-space:nowrap; width:95px; padding:5px;">${escapeHtml(e.codUnic||'—')}</td>
-              <td class="student-name" style="padding:5px;"><input type="text" class="input-nume-elev" autocapitalize="words" data-elev="${e.id}" value="${escapeHtml(e.nume)}" style="width:100px; font-weight:600; min-height:30px; padding:3px 5px;"/></td>
-              <td style="padding:5px;"><input type="text" class="input-prenume-elev" autocapitalize="words" data-elev="${e.id}" value="${escapeHtml(e.prenume)}" style="width:100px; min-height:30px; padding:3px 5px;"/></td>
-              <td style="padding:5px;">
-                <select data-sex-elev="${e.id}" style="min-height:30px; padding:3px 5px; font-size:13px;">
-                  <option value="M" ${e.sex==='M'?'selected':''}>Băiat</option>
-                  <option value="F" ${e.sex==='F'?'selected':''}>Fată</option>
+              <td style="color:var(--muted); text-align:center; width:22px; padding:4px 3px; font-size:11px;">${idx+1}</td>
+              <td style="color:var(--muted); font-size:9px; white-space:nowrap; width:56px; padding:4px 3px;">${escapeHtml(e.codUnic||'—')}</td>
+              <td class="student-name" style="padding:4px 3px;"><input type="text" class="input-nume-elev" autocapitalize="characters" data-elev="${e.id}" value="${escapeHtml(e.nume)}" style="width:150px; font-weight:700; min-height:30px; padding:3px 5px; text-transform:uppercase; font-size:12px;"/></td>
+              <td style="padding:4px 3px;"><input type="text" class="input-prenume-elev" autocapitalize="characters" data-elev="${e.id}" value="${escapeHtml(e.prenume)}" style="width:130px; min-height:30px; padding:3px 5px; text-transform:uppercase; font-size:12px;"/></td>
+              <td style="padding:4px 3px;">
+                <select data-sex-elev="${e.id}" style="min-height:30px; padding:3px 2px; font-size:12px; width:56px;">
+                  <option value="M" ${e.sex==='M'?'selected':''}>M</option>
+                  <option value="F" ${e.sex==='F'?'selected':''}>F</option>
                 </select>
               </td>
-              <td style="padding:5px;"><input type="date" class="input-data-nasterii" data-elev="${e.id}" value="${e.dataNasterii||''}" style="min-height:30px; padding:3px 4px; width:118px; font-size:12px;"/></td>
-              <td style="padding:5px;"><input type="number" inputmode="decimal" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:60px; min-height:30px; padding:3px 5px;"/></td>
-              <td style="padding:5px;"><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:60px; min-height:30px; padding:3px 5px;"/></td>
-              <td style="color:var(--muted); padding:5px;" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:10px; padding:1px 6px;">${catIMC.eticheta}</span>` : ''}</td>
-              <td style="padding:5px;">${scutirePillHTML(e)}<br><span class="pill pill-ghost" style="margin-top:3px;">Scutiri: ${e.scutit?1:0}</span></td>
-              <td style="padding:5px;"><button class="btn btn-danger" data-del-elev="${e.id}" style="padding:5px 8px; min-height:30px;">${ICONS.trash}</button></td>
+              <td style="padding:4px 3px;"><input type="date" class="input-data-nasterii" data-elev="${e.id}" value="${e.dataNasterii||''}" style="min-height:30px; padding:2px 2px; width:88px; font-size:10px;"/></td>
+              <td style="padding:4px 3px;"><input type="number" inputmode="decimal" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:44px; min-height:30px; padding:3px 3px; font-size:12px;"/></td>
+              <td style="padding:4px 3px;"><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:44px; min-height:30px; padding:3px 3px; font-size:12px;"/></td>
+              <td style="color:var(--muted); padding:4px 3px; font-size:11px;" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:9px; padding:0px 4px;">${catIMC.eticheta}</span>` : ''}</td>
+              <td style="padding:4px 3px; font-size:10px;">${scutirePillHTML(e)}<br><span class="pill pill-ghost" style="margin-top:2px; font-size:9px; padding:0 4px;">${e.scutit?1:0}</span></td>
+              <td style="padding:4px 3px;"><button class="btn btn-danger" data-del-elev="${e.id}" style="padding:4px 6px; min-height:28px;">${ICONS.trash}</button></td>
             </tr>
           `;}).join('')}
         </tbody>
@@ -1335,11 +1338,11 @@ Georgescu Mihai"></textarea>
     });
   });
   main.querySelectorAll('.input-nume-elev').forEach(inp=>{
-    // salvăm la fiecare literă tastată (imediat, brut) — nu depindem de „ieșirea din câmp",
+    // salvăm la fiecare literă tastată (imediat, cu majuscule) — nu depindem de „ieșirea din câmp",
     // care pare să nu se declanșeze sigur pe unele tablete
     inp.addEventListener('input', ()=>{
       const el = state.elevi.find(e=>e.id===inp.dataset.elev);
-      if(inp.value.trim()) el.nume = inp.value.trim();
+      if(inp.value.trim()) el.nume = capitalizeazaNume(inp.value);
       saveState();
     });
     inp.addEventListener('change', ()=>{
@@ -1353,7 +1356,7 @@ Georgescu Mihai"></textarea>
   main.querySelectorAll('.input-prenume-elev').forEach(inp=>{
     inp.addEventListener('input', ()=>{
       const el = state.elevi.find(e=>e.id===inp.dataset.elev);
-      if(inp.value.trim()) el.prenume = inp.value.trim();
+      if(inp.value.trim()) el.prenume = capitalizeazaNume(inp.value);
       saveState();
     });
     inp.addEventListener('change', ()=>{

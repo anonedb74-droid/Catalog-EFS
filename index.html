@@ -400,6 +400,9 @@ function loadUIState(){
       if(parsed.ui) ui = Object.assign(ui, parsed.ui);
     }
   }catch(e){ /* nimic salvat încă, pornim cu valorile implicite */ }
+  // data la Absențe se actualizează mereu la ziua curentă la o deschidere nouă a aplicației,
+  // indiferent pe ce dată ai rămas ultima oară
+  ui.absenteData = todayISO();
 }
 function saveUIState(){
   try{ localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({currentTab, ui})); }catch(e){}
@@ -1016,10 +1019,8 @@ Georgescu Mihai"></textarea>
             return `
             <tr>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-              <td class="student-name">${escapeHtml(e.nume)}</td>
-              <td>${escapeHtml(e.prenume)}
-                <button class="btn btn-ghost btn-edit-elev" data-elev="${e.id}" title="Editează numele" style="padding:3px 7px; min-height:26px; margin-left:4px;">${ICONS.edit}</button>
-              </td>
+              <td class="student-name"><input type="text" class="input-nume-elev" autocapitalize="words" data-elev="${e.id}" value="${escapeHtml(e.nume)}" style="min-width:110px; font-weight:600;"/></td>
+              <td><input type="text" class="input-prenume-elev" autocapitalize="words" data-elev="${e.id}" value="${escapeHtml(e.prenume)}" style="min-width:110px;"/></td>
               <td>
                 <select data-sex-elev="${e.id}" style="min-height:34px; padding:4px 8px;">
                   <option value="M" ${e.sex==='M'?'selected':''}>Băiat</option>
@@ -1109,16 +1110,22 @@ Georgescu Mihai"></textarea>
       e.sex = sel.value; saveState();
     });
   });
-  main.querySelectorAll('.btn-edit-elev').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const el = state.elevi.find(e=>e.id===b.dataset.elev);
-      const numeComplet = prompt('Nume și prenume:', `${el.nume} ${el.prenume}`);
-      if(numeComplet===null) return; // renunțat
-      const parti = numeComplet.trim().split(/\s+/);
-      if(parti.length===0 || !parti[0]) return showToast('Numele nu poate fi gol.');
-      el.nume = capitalizeazaNume(parti[0]);
-      el.prenume = capitalizeazaNume(parti.slice(1).join(' ')) || el.prenume;
-      saveState(); render(); showToast('Elev actualizat.');
+  main.querySelectorAll('.input-nume-elev').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const el = state.elevi.find(e=>e.id===inp.dataset.elev);
+      const val = capitalizeazaNume(inp.value.trim());
+      if(!val) { inp.value = el.nume; return showToast('Numele nu poate fi gol.'); }
+      el.nume = val; inp.value = val;
+      saveState(); showToast('Actualizat.');
+    });
+  });
+  main.querySelectorAll('.input-prenume-elev').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const el = state.elevi.find(e=>e.id===inp.dataset.elev);
+      const val = capitalizeazaNume(inp.value.trim());
+      if(!val) { inp.value = el.prenume; return showToast('Prenumele nu poate fi gol.'); }
+      el.prenume = val; inp.value = val;
+      saveState(); showToast('Actualizat.');
     });
   });
   main.querySelectorAll('[data-del-elev]').forEach(b=>{
@@ -1477,7 +1484,7 @@ function renderNotare(main){
         <label>Probă</label>
         <select id="select-notare-proba" ${probeDisponibile.length===0?'disabled':''}>
           ${probeDisponibile.length===0 ? '<option>Nicio probă pentru această clasă</option>' :
-            probeDisponibile.map(p=>`<option value="${p.id}" ${p.id===ui.notareProba?'selected':''}>${escapeHtml(p.nume)} — ${formatDataRo(p.data)}</option>`).join('')}
+            probeDisponibile.map(p=>`<option value="${p.id}" ${p.id===ui.notareProba?'selected':''}>${escapeHtml(p.nume)}</option>`).join('')}
         </select>
       </div>
       ${!afisareDubla ? `

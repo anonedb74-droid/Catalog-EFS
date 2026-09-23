@@ -706,7 +706,18 @@ function formatDataRo(iso){
 }
 
 /* ================= RENDER PRINCIPAL ================= */
+let ultimaZiCunoscuta = todayISO();
+function verificaSchimbareaZilei(){
+  const azi = todayISO();
+  if(azi !== ultimaZiCunoscuta){
+    // a trecut cel puțin o zi (ex. tableta a rămas deschisă peste noapte) —
+    // aducem data din Absențe automat pe ziua nouă
+    ultimaZiCunoscuta = azi;
+    ui.absenteData = azi;
+  }
+}
 function render(){
+  verificaSchimbareaZilei();
   const app = document.getElementById('app');
   app.innerHTML = `
     <header>
@@ -2201,6 +2212,12 @@ function renderAbsente(main){
     <h2>Absențe</h2>
     <p class="tab-desc">Bifează rapid absențele. Alege o observație din listă (sau scrie una proprie). Se salvează automat, imediat.</p>
     ${bannerPracticaHTML(ui.absenteClasa)}
+    ${ui.absenteData !== todayISO() ? `
+      <div class="card" style="background:#F6DCDA; border-color:var(--danger); display:flex; align-items:center; gap:10px; justify-content:space-between;">
+        <div>⚠️ <strong>Atenție:</strong> lucrezi pe data de <strong>${formatDataRo(ui.absenteData)}</strong>, nu pe ziua de azi (${formatDataRo(todayISO())}). Orice bifezi acum se înregistrează pe data veche.</div>
+        <button class="btn btn-primary" id="btn-sari-la-azi" style="white-space:nowrap;">Sari la azi</button>
+      </div>
+    ` : ''}
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -2304,6 +2321,8 @@ function renderAbsente(main){
     if(lista) lista.style.display = lista.style.display==='none' ? 'block' : 'none';
   });
   document.getElementById('input-absente-data').addEventListener('change', e=>{ ui.absenteData = e.target.value; render(); });
+  const btnSariLaAzi = document.getElementById('btn-sari-la-azi');
+  if(btnSariLaAzi) btnSariLaAzi.addEventListener('click', ()=>{ ui.absenteData = todayISO(); render(); });
 
   document.getElementById('btn-add-observatie').addEventListener('click', ()=>{
     const inp = document.getElementById('input-observatie-noua');

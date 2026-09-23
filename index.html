@@ -358,6 +358,7 @@ let ui = {
   istoricClasa: null, istoricElev: null,
   practicaClasa: null,
   pppClasa: null, pppProba: null,
+  obsPunctajSelectat: '__absenta_goala__',
 };
 
 function todayISO(){
@@ -2233,34 +2234,30 @@ function renderAbsente(main){
 
     <div class="card">
       <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Observații și punctaj (pentru Participarea activă — PPP)</div>
-      <p class="tab-desc" style="margin-top:-4px;">Fiecare observație scade un număr de puncte din nota de Participare (pornește de la 10, per modul). Poți schimba oricând punctajul.</p>
-      <div class="card" style="padding:0; overflow-x:auto; margin-bottom:14px;">
-        <table>
-          <thead><tr><th>Observație</th><th>Puncte scăzute</th><th></th></tr></thead>
-          <tbody>
-            ${OBSERVATII_PREDEFINITE.map(o=>`
-              <tr>
-                <td>${escapeHtml(o)}</td>
-                <td><input type="number" step="0.5" min="0" class="input-puncte-observatie" data-obs="${escapeHtml(o)}" value="${state.puncteObservatii[o]!=null?state.puncteObservatii[o]:1}" style="width:70px;"/></td>
-                <td></td>
-              </tr>
-            `).join('')}
-            ${state.observatiiCustom.map((o,idx)=>`
-              <tr>
-                <td>${escapeHtml(o)}</td>
-                <td><input type="number" step="0.5" min="0" class="input-puncte-observatie" data-obs="${escapeHtml(o)}" value="${state.puncteObservatii[o]!=null?state.puncteObservatii[o]:1}" style="width:70px;"/></td>
-                <td><button data-del-observatie="${idx}" class="btn btn-ghost" title="Șterge din listă">✕</button></td>
-              </tr>
-            `).join('')}
-            <tr>
-              <td><i>Absență nemotivată fără nicio observație scrisă</i></td>
-              <td><input type="number" step="0.5" min="0" id="input-puncte-absenta-goala" value="${state.puncteAbsentaGoala}" style="width:70px;"/></td>
-              <td></td>
-            </tr>
-          </tbody>
-        </table>
+      <p class="tab-desc" style="margin-top:-4px;">Fiecare observație scade un număr de puncte din nota de Participare (pornește de la 10, per modul). Alege una și modifică-i punctajul.</p>
+      <div class="row" style="align-items:flex-end;">
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Observație</label>
+          <select id="select-observatie-punctaj">
+            <option value="__absenta_goala__" ${ui.obsPunctajSelectat==='__absenta_goala__'?'selected':''}>Absență nemotivată fără observație</option>
+            <optgroup label="Predefinite">
+              ${OBSERVATII_PREDEFINITE.map(o=>`<option value="${escapeHtml(o)}" ${ui.obsPunctajSelectat===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}
+            </optgroup>
+            ${state.observatiiCustom.length ? `<optgroup label="Proprii">
+              ${state.observatiiCustom.map(o=>`<option value="${escapeHtml(o)}" ${ui.obsPunctajSelectat===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}
+            </optgroup>` : ''}
+          </select>
+        </div>
+        <div class="field">
+          <label>Puncte</label>
+          <input type="number" step="0.5" min="0" id="input-puncte-selectat" value="${
+            (()=>{ const sel = ui.obsPunctajSelectat||'__absenta_goala__'; return sel==='__absenta_goala__' ? state.puncteAbsentaGoala : (state.puncteObservatii[sel]!=null?state.puncteObservatii[sel]:1); })()
+          }" style="width:80px;"/>
+        </div>
+        <button class="btn btn-secondary" id="btn-salveaza-puncte-obs">Salvează punctajul</button>
+        ${(ui.obsPunctajSelectat && ui.obsPunctajSelectat!=='__absenta_goala__' && state.observatiiCustom.includes(ui.obsPunctajSelectat)) ? `<button class="btn btn-danger" id="btn-sterge-obs-selectata">✕ Șterge din listă</button>` : ''}
       </div>
-      <div class="row">
+      <div class="row" style="margin-top:14px;">
         <div class="field" style="flex:1; min-width:220px;">
           <label>Observație nouă</label>
           <input type="text" id="input-observatie-noua" placeholder="ex: A plecat fără voie de la oră"/>
@@ -2334,25 +2331,27 @@ function renderAbsente(main){
     state.puncteObservatii[text] = parseFloat(puncteInp.value) || 0;
     saveState(); render(); showToast('Observație adăugată la listă.');
   });
-  main.querySelectorAll('[data-del-observatie]').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const idx = parseInt(b.dataset.delObservatie, 10);
-      if(!confirm('Ștergi această observație din listă? (nu afectează observațiile deja salvate la elevi)')) return;
-      const [textSters] = state.observatiiCustom.splice(idx,1);
-      if(textSters) delete state.puncteObservatii[textSters];
-      saveState(); render(); showToast('Observație ștearsă din listă.');
-    });
+  document.getElementById('select-observatie-punctaj').addEventListener('change', (e)=>{
+    ui.obsPunctajSelectat = e.target.value; render();
   });
-  main.querySelectorAll('.input-puncte-observatie').forEach(inp=>{
-    inp.addEventListener('change', ()=>{
-      state.puncteObservatii[inp.dataset.obs] = parseFloat(inp.value) || 0;
-      saveState(); showToast('Punctaj actualizat.');
-    });
-  });
-  document.getElementById('input-puncte-absenta-goala').addEventListener('change', (e)=>{
-    state.puncteAbsentaGoala = parseFloat(e.target.value) || 0;
+  document.getElementById('btn-salveaza-puncte-obs').addEventListener('click', ()=>{
+    const sel = ui.obsPunctajSelectat || '__absenta_goala__';
+    const valoare = parseFloat(document.getElementById('input-puncte-selectat').value) || 0;
+    if(sel==='__absenta_goala__'){ state.puncteAbsentaGoala = valoare; }
+    else { state.puncteObservatii[sel] = valoare; }
     saveState(); showToast('Punctaj actualizat.');
   });
+  const btnStergeObsSelectata = document.getElementById('btn-sterge-obs-selectata');
+  if(btnStergeObsSelectata){
+    btnStergeObsSelectata.addEventListener('click', ()=>{
+      const sel = ui.obsPunctajSelectat;
+      if(!confirm('Ștergi această observație din listă? (nu afectează observațiile deja salvate la elevi)')) return;
+      state.observatiiCustom = state.observatiiCustom.filter(o=>o!==sel);
+      delete state.puncteObservatii[sel];
+      ui.obsPunctajSelectat = '__absenta_goala__';
+      saveState(); render(); showToast('Observație ștearsă din listă.');
+    });
+  }
 
   function upsertAbsenta(eleviId, patch){
     let rec = state.absente.find(a=>a.eleviId===eleviId && a.data===ui.absenteData);

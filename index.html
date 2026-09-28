@@ -342,7 +342,8 @@ let state = {
   module: [],     // {id, nume, start, end} — perioadele anului școlar (5 module), pentru calculul Participării active (PPP)
   puncteObservatii: {},  // { "textul observației": puncte de scăzut din 10 } — editabil de profesor
   puncteAbsentaGoala: 2,  // puncte scăzute pentru absență nemotivată fără nicio observație scrisă
-  pppPonderi: { performanta: 50, progres: 30, participare: 20 }  // procentele din formula PPP, editabile
+  pppPonderi: { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false },  // procentele din formula PPP, editabile
+  tehnicaExecutie: []  // {id, eleviId, probaId, valoare} — nota de corectitudine tehnică, dată manual de profesor, o dată per probă
 };
 
 const ANI = ['IX','X','XI','XII'];
@@ -452,7 +453,10 @@ function migreazaDate(){
   if(!state.settings.urmatorulCodElev) state.settings.urmatorulCodElev = 1;
   if(!state.observatiiCustom) state.observatiiCustom = [];
   if(!state.module) state.module = [];
-  if(!state.pppPonderi) state.pppPonderi = { performanta: 50, progres: 30, participare: 20 };
+  if(!state.pppPonderi) state.pppPonderi = { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false };
+  if(state.pppPonderi.tehnica===undefined) state.pppPonderi.tehnica = 35;
+  if(state.pppPonderi.participareActiva===undefined) state.pppPonderi.participareActiva = false;
+  if(!state.tehnicaExecutie) state.tehnicaExecutie = [];
   if(state.puncteAbsentaGoala===undefined || state.puncteAbsentaGoala===null) state.puncteAbsentaGoala = 2;
   if(!state.puncteObservatii) state.puncteObservatii = {};
   // punctaje implicite pentru cele 5 observații predefinite — se completează doar dacă lipsesc,
@@ -492,6 +496,9 @@ function calculeazaParticipare(eleviId, modul){
   return Math.max(0, 10 - puncteScazute);
 }
 // calculul complet PPP pentru un elev, la o probă: Performanță 50% + Progres 30% + Participare 20%
+function gasesteTehnica(eleviId, probaId){
+  return state.tehnicaExecutie.find(t=>t.eleviId===eleviId && t.probaId===probaId) || null;
+}
 function calculeazaPPP(eleviId, probaId){
   const recInitial = state.note.find(n=>n.eleviId===eleviId && n.probaId===probaId && n.moment==='initial');
   const recFinal = state.note.find(n=>n.eleviId===eleviId && n.probaId===probaId && n.moment==='final');
@@ -509,9 +516,13 @@ function calculeazaPPP(eleviId, probaId){
   const recPentruModul = recFinal || recInitial;
   const modul = moduleDupaData(recPentruModul.data);
   const participare = modul ? calculeazaParticipare(eleviId, modul) : null;
+  const tehnicaRec = gasesteTehnica(eleviId, probaId);
+  const tehnica = tehnicaRec ? tehnicaRec.valoare : null;
   const p = state.pppPonderi;
-  const notaFinala = performanta*(p.performanta/100) + progres*(p.progres/100) + (participare!=null ? participare : performanta)*(p.participare/100);
-  return { performanta, progres, participare, modul, notaFinala: Math.round(notaFinala*100)/100 };
+  if(tehnica==null) return { performanta, progres, participare, tehnica: null, modul, notaFinala: null }; // lipsește tehnica -> nu putem calcula nota finală
+  let notaFinala = performanta*(p.performanta/100) + progres*(p.progres/100) + tehnica*(p.tehnica/100);
+  if(p.participareActiva) notaFinala += (participare!=null ? participare : performanta)*(p.participare/100);
+  return { performanta, progres, participare, tehnica, modul, notaFinala: Math.round(notaFinala*100)/100 };
 }
 // generează un cod unic secvențial pentru un elev nou, legat de anul școlar curent (ex: EFS2026-001)
 function genereazaCodElev(){
@@ -936,21 +947,29 @@ function renderPPP(main){
     ui.pppProba = probeDisponibile.length ? probeDisponibile[0].id : null;
   }
   const lista = eleviDinClasa(ui.pppClasa);
+  const pn = state.pppPonderi;
 
   main.innerHTML = `
-    <h2>PPP — Performanță, Progres, Participare activă</h2>
-    <p class="tab-desc">Nota finală = Performanță×${state.pppPonderi.performanta}% + Progres×${state.pppPonderi.progres}% + Participare×${state.pppPonderi.participare}%, după modelul tău. Are nevoie de testare inițială + finală (pentru Progres) și de module definite (pentru Participare).</p>
+    <h2>PPP — Performanță, Progres, Tehnică, Participare</h2>
+    <p class="tab-desc">Nota finală = Performanță×${pn.performanta}% + Progres×${pn.progres}% + Tehnică×${pn.tehnica}%${pn.participareActiva ? ` + Participare×${pn.participare}%` : ''}. Participarea e ${pn.participareActiva ? 'inclusă' : '<b>exclusă</b> din nota finală (doar informativă)'} — o poți activa/dezactiva mai jos.</p>
     <div class="card">
       <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Procentele formulei</div>
       <div class="row" style="align-items:flex-end;">
-        <div class="field"><label>Performanță %</label><input type="number" min="0" max="100" step="1" id="input-pondere-performanta" value="${state.pppPonderi.performanta}" style="width:80px;"/></div>
-        <div class="field"><label>Progres %</label><input type="number" min="0" max="100" step="1" id="input-pondere-progres" value="${state.pppPonderi.progres}" style="width:80px;"/></div>
-        <div class="field"><label>Participare %</label><input type="number" min="0" max="100" step="1" id="input-pondere-participare" value="${state.pppPonderi.participare}" style="width:80px;"/></div>
+        <div class="field"><label>Performanță %</label><input type="number" min="0" max="100" step="1" id="input-pondere-performanta" value="${pn.performanta}" style="width:80px;"/></div>
+        <div class="field"><label>Progres %</label><input type="number" min="0" max="100" step="1" id="input-pondere-progres" value="${pn.progres}" style="width:80px;"/></div>
+        <div class="field"><label>Tehnică %</label><input type="number" min="0" max="100" step="1" id="input-pondere-tehnica" value="${pn.tehnica}" style="width:80px;"/></div>
+      </div>
+      <div class="row" style="align-items:flex-end; margin-top:10px;">
+        <div class="field" style="flex-direction:row; align-items:center; gap:8px; display:flex;">
+          <input type="checkbox" id="chk-participare-activa" ${pn.participareActiva?'checked':''} style="width:20px; height:20px;"/>
+          <label style="margin:0;">Includ Participarea în nota finală</label>
+        </div>
+        <div class="field"><label>Participare %</label><input type="number" min="0" max="100" step="1" id="input-pondere-participare" value="${pn.participare}" style="width:80px;" ${pn.participareActiva?'':'disabled'}/></div>
         <button class="btn btn-secondary" id="btn-salveaza-ponderi">Salvează procentele</button>
         <span id="suma-ponderi-info" style="font-size:13px; color:var(--muted);"></span>
       </div>
     </div>
-    ${state.module.length===0 ? `<div class="card" style="background:#FBEBD3; border-color:#E3A23C;">Nu ai definit încă module — Participarea activă nu poate fi calculată. Adaugă-le în tabul „Module”.</div>` : ''}
+    ${state.module.length===0 ? `<div class="card" style="background:#FBEBD3; border-color:#E3A23C;">Nu ai definit încă module — Participarea activă nu poate fi calculată (dacă e inclusă în formulă). Adaugă module în tabul „Module”.</div>` : ''}
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -970,24 +989,27 @@ function renderPPP(main){
       probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nr.</th><th>Elev</th><th>Performanță</th><th>Progres</th><th>Participare</th><th>Modul</th><th>Nota PPP</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>Performanță</th><th>Progres</th><th>Tehnică</th><th>Participare</th><th>Modul</th><th>Nota PPP</th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             if(blocheazaNotarea(e)){
-              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="5"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="6"><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
             const r = calculeazaPPP(e.id, ui.pppProba);
+            const tehnicaRec = gasesteTehnica(e.id, ui.pppProba);
+            const inputTehnica = `<input type="number" min="1" max="10" step="0.5" class="input-tehnica" data-elev="${e.id}" value="${tehnicaRec?tehnicaRec.valoare:''}" placeholder="—" style="width:60px;"/>`;
             if(!r){
-              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="5" style="color:var(--muted);">Fără notă la această probă</td></tr>`;
+              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="6" style="color:var(--muted);">Fără notă la această probă (Performanță/Progres)</td></tr>`;
             }
             return `<tr>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
               <td>${r.performanta.toFixed(2)}</td>
               <td>${r.progres.toFixed(2)}</td>
+              <td>${inputTehnica}</td>
               <td>${r.participare!=null ? r.participare.toFixed(2) : '<span style="color:var(--muted);">—</span>'}</td>
               <td style="font-size:12px; color:var(--muted);">${r.modul ? escapeHtml(r.modul.nume) : '—'}</td>
-              <td><strong class="pill pill-ok" style="font-size:14px;">${r.notaFinala.toFixed(2)}</strong></td>
+              <td>${r.notaFinala!=null ? `<strong class="pill pill-ok" style="font-size:14px;">${r.notaFinala.toFixed(2)}</strong>` : '<span style="color:var(--muted); font-size:12px;">completează Tehnica</span>'}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -999,25 +1021,52 @@ function renderPPP(main){
   const selProba = document.getElementById('select-ppp-proba');
   if(selProba) selProba.addEventListener('change', e=>{ ui.pppProba = e.target.value; render(); });
 
+  document.getElementById('chk-participare-activa').addEventListener('change', (e)=>{
+    document.getElementById('input-pondere-participare').disabled = !e.target.checked;
+    actualizeazaSumaInfo();
+  });
+
   function actualizeazaSumaInfo(){
+    const activaParticiparea = document.getElementById('chk-participare-activa').checked;
     const s = (parseFloat(document.getElementById('input-pondere-performanta').value)||0)
             + (parseFloat(document.getElementById('input-pondere-progres').value)||0)
-            + (parseFloat(document.getElementById('input-pondere-participare').value)||0);
+            + (parseFloat(document.getElementById('input-pondere-tehnica').value)||0)
+            + (activaParticiparea ? (parseFloat(document.getElementById('input-pondere-participare').value)||0) : 0);
     const info = document.getElementById('suma-ponderi-info');
     info.textContent = `Total: ${s}%`;
     info.style.color = s===100 ? 'var(--ok)' : 'var(--danger)';
   }
-  ['input-pondere-performanta','input-pondere-progres','input-pondere-participare'].forEach(id=>{
+  ['input-pondere-performanta','input-pondere-progres','input-pondere-tehnica','input-pondere-participare'].forEach(id=>{
     document.getElementById(id).addEventListener('input', actualizeazaSumaInfo);
   });
   actualizeazaSumaInfo();
   document.getElementById('btn-salveaza-ponderi').addEventListener('click', ()=>{
     const perf = parseFloat(document.getElementById('input-pondere-performanta').value)||0;
     const prog = parseFloat(document.getElementById('input-pondere-progres').value)||0;
+    const tehn = parseFloat(document.getElementById('input-pondere-tehnica').value)||0;
     const part = parseFloat(document.getElementById('input-pondere-participare').value)||0;
-    if(perf+prog+part!==100) return showToast('Procentele trebuie să însumeze 100%.');
-    state.pppPonderi = { performanta:perf, progres:prog, participare:part };
+    const participareActiva = document.getElementById('chk-participare-activa').checked;
+    const suma = perf+prog+tehn+(participareActiva?part:0);
+    if(suma!==100) return showToast('Procentele componentelor active trebuie să însumeze 100%.');
+    state.pppPonderi = { performanta:perf, progres:prog, tehnica:tehn, participare:part, participareActiva };
     saveState(); render(); showToast('Procente salvate.');
+  });
+
+  main.querySelectorAll('.input-tehnica').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const eleviId = inp.dataset.elev;
+      const val = inp.value.trim();
+      let rec = state.tehnicaExecutie.find(t=>t.eleviId===eleviId && t.probaId===ui.pppProba);
+      if(val===''){
+        if(rec) state.tehnicaExecutie = state.tehnicaExecutie.filter(t=>t!==rec);
+      } else {
+        const valoare = Math.max(1, Math.min(10, parseFloat(val.replace(',','.'))||1));
+        if(rec){ rec.valoare = valoare; } else {
+          state.tehnicaExecutie.push({id:uid(), eleviId, probaId:ui.pppProba, valoare});
+        }
+      }
+      saveState(); render();
+    });
   });
 }
 

@@ -2026,6 +2026,12 @@ function renderNotare(main){
     saveState();
   }
 
+  // câmpul de Tehnică (corectitudinea execuției): notă 1-10 dată de profesor, o singură dată per probă
+  function celulaTehnica(eleviId){
+    const t = gasesteTehnica(eleviId, ui.notareProba);
+    return `<td style="padding:4px 6px;"><input type="number" inputmode="decimal" min="1" max="10" step="0.5" class="input-tehnica-notare" data-elev="${eleviId}" value="${t?t.valoare:''}" placeholder="—" style="width:58px; min-height:32px; padding:4px 6px;"/></td>`;
+  }
+
   main.innerHTML = `
     <h2>Notare</h2>
     <p class="tab-desc">${afisareDubla ? 'Alege clasa și proba — introduci testarea inițială și cea finală una lângă alta, ca să vezi diferența imediat.' : 'Alege clasa, proba și momentul testării. Fiecare notă se salvează automat, imediat ce o scrii.'}</p>
@@ -2065,12 +2071,12 @@ function renderNotare(main){
       afisareDubla ? `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nr.</th><th>Elev</th><th>Test inițial</th><th>Test final</th><th>Diferență</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>Test inițial</th><th>Test final</th><th>Diferență</th><th>Tehnică</th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
             if(blocheazaNotarea(e)){
-              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="3"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="4"><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
             const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''}`;
             const an = claseAn(e.claseId);
@@ -2095,22 +2101,23 @@ function renderNotare(main){
               ${celulaMoment(recInitial, notaInitial, 'initial')}
               ${celulaMoment(recFinal, notaFinal, 'final')}
               <td data-diff-for="${e.id}">${diferentaHTML}</td>
+              ${celulaTehnica(e.id)}
             </tr>`;
           }).join('')}
         </tbody>
       </table>
     </div>
-    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată — nu mai există buton de „Salvează”.</p>
+    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată. <b>Tehnică</b> = nota ta (1-10) pentru corectitudinea execuției, dată o singură dată per probă; intră în calculul PPP.</p>
     ` : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nr.</th><th>Elev</th><th>${tipNotare==='calificativ' ? 'Calificativ' : 'Notă'}</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>${tipNotare==='calificativ' ? 'Calificativ' : 'Notă'}</th><th>Tehnică</th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
             const existing = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment===moment);
             if(blocheazaNotarea(e)){
-              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="2"><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
             const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''}`;
             if(tipNotare==='calificativ'){
@@ -2127,6 +2134,7 @@ function renderNotare(main){
                   <span class="pill pill-ok nota-calc-calif" data-nota-for="${e.id}">${notaExist!=null?notaExist:'—'}</span>
                   ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
                 </div></td>
+                ${celulaTehnica(e.id)}
               </tr>`;
             }
             return `<tr>
@@ -2136,12 +2144,13 @@ function renderNotare(main){
                 <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
                 ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
               </div></td>
+              ${celulaTehnica(e.id)}
             </tr>`;
           }).join('')}
         </tbody>
       </table>
     </div>
-    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată — nu mai există buton de „Salvează”.</p>
+    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată. <b>Tehnică</b> = nota ta (1-10) pentru corectitudinea execuției, dată o singură dată per probă; intră în calculul PPP.</p>
     `}
   `;
   document.getElementById('select-notare-clasa').addEventListener('change', e=>{ ui.notareClasa = e.target.value; ui.notareProba = null; render(); });
@@ -2195,9 +2204,32 @@ function renderNotare(main){
       });
     });
   }
+  // Tehnică: salvare automată la fiecare modificare (fără redesenare, ca să nu pierdem focusul)
+  main.querySelectorAll('.input-tehnica-notare').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const eleviId = inp.dataset.elev;
+      const val = inp.value.trim();
+      let rec = state.tehnicaExecutie.find(t=>t.eleviId===eleviId && t.probaId===ui.notareProba);
+      if(val===''){
+        if(rec) state.tehnicaExecutie = state.tehnicaExecutie.filter(t=>t!==rec);
+      } else {
+        const num = parseFloat(val.replace(',','.'));
+        if(isNaN(num)) return;
+        const valoare = Math.max(1, Math.min(10, num));
+        if(rec) rec.valoare = valoare;
+        else state.tehnicaExecutie.push({id:uid(), eleviId, probaId:ui.notareProba, valoare});
+      }
+      saveState();
+    });
+    // la ieșirea din câmp, afișăm valoarea efectiv salvată (limitată la 1-10)
+    inp.addEventListener('change', ()=>{
+      const t = gasesteTehnica(inp.dataset.elev, ui.notareProba);
+      inp.value = t ? t.valoare : '';
+    });
+  });
   // notă directă simplă (fără barem, fără calificativ) foloseste deja listener-ul general de mai sus
-  // Enter -> trece la câmpul următor, ca într-un tabel Excel
-  const campuriNotare = Array.from(main.querySelectorAll('.grade-input[data-elev]'));
+  // Enter -> trece la câmpul următor, ca într-un tabel Excel (include și câmpul de Tehnică)
+  const campuriNotare = Array.from(main.querySelectorAll('.grade-input[data-elev], .input-tehnica-notare[data-elev]'));
   campuriNotare.forEach((inp, idx)=>{
     inp.addEventListener('keydown', (ev)=>{
       if(ev.key==='Enter'){

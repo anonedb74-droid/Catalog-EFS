@@ -343,7 +343,8 @@ let state = {
   puncteObservatii: {},  // { "textul observației": puncte de scăzut din 10 } — editabil de profesor
   puncteAbsentaGoala: 2,  // puncte scăzute pentru absență nemotivată fără nicio observație scrisă
   pppPonderi: { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false },  // procentele din formula PPP, editabile
-  tehnicaExecutie: []  // {id, eleviId, probaId, valoare} — nota de corectitudine tehnică, dată manual de profesor, o dată per probă
+  tehnicaExecutie: [],  // {id, eleviId, probaId, valoare} — nota de corectitudine tehnică, dată manual de profesor, o dată per probă
+  pppAfisareCatalog: true  // în tabul PPP arată și nota rotunjită pentru catalog (comutator)
 };
 
 const ANI = ['IX','X','XI','XII'];
@@ -457,6 +458,7 @@ function migreazaDate(){
   if(state.pppPonderi.tehnica===undefined) state.pppPonderi.tehnica = 35;
   if(state.pppPonderi.participareActiva===undefined) state.pppPonderi.participareActiva = false;
   if(!state.tehnicaExecutie) state.tehnicaExecutie = [];
+  if(state.pppAfisareCatalog===undefined) state.pppAfisareCatalog = true;
   if(state.puncteAbsentaGoala===undefined || state.puncteAbsentaGoala===null) state.puncteAbsentaGoala = 2;
   if(!state.puncteObservatii) state.puncteObservatii = {};
   // punctaje implicite pentru cele 5 observații predefinite — se completează doar dacă lipsesc,
@@ -496,6 +498,10 @@ function calculeazaParticipare(eleviId, modul){
   return Math.max(0, 10 - puncteScazute);
 }
 // calculul complet PPP pentru un elev, la o probă: Performanță 50% + Progres 30% + Participare 20%
+// rotunjire pentru catalog: de la ,50 în sus se urcă (9,50 → 10; 9,49 → 9); se pornește de la valoarea afișată (2 zecimale)
+function notaPentruCatalog(nota){
+  return Math.floor(nota + 0.5 + 1e-9);
+}
 function gasesteTehnica(eleviId, probaId){
   return state.tehnicaExecutie.find(t=>t.eleviId===eleviId && t.probaId===probaId) || null;
 }
@@ -969,6 +975,12 @@ function renderPPP(main){
         <span id="suma-ponderi-info" style="font-size:13px; color:var(--muted);"></span>
       </div>
     </div>
+    <div class="row" style="margin-bottom:12px; align-items:center;">
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer;">
+        <input type="checkbox" id="chk-afisare-catalog" ${state.pppAfisareCatalog?'checked':''} style="width:20px; height:20px;"/>
+        Arată nota rotunjită pentru catalog (de la ,50 în sus) — cea exactă rămâne dedesubt
+      </label>
+    </div>
     ${state.module.length===0 ? `<div class="card" style="background:#FBEBD3; border-color:#E3A23C;">Nu ai definit încă module — Participarea activă nu poate fi calculată (dacă e inclusă în formulă). Adaugă module în tabul „Module”.</div>` : ''}
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
@@ -989,7 +1001,7 @@ function renderPPP(main){
       probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nr.</th><th>Elev</th><th>Performanță</th><th>Progres</th><th>Tehnică</th><th>Participare</th><th>Modul</th><th>Nota PPP</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>Performanță</th><th>Progres</th><th>Tehnică</th><th>Participare</th><th>Modul</th><th>${state.pppAfisareCatalog ? 'Catalog · PPP' : 'Nota PPP'}</th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             if(blocheazaNotarea(e)){
@@ -1009,7 +1021,10 @@ function renderPPP(main){
               <td>${inputTehnica}</td>
               <td>${r.participare!=null ? r.participare.toFixed(2) : '<span style="color:var(--muted);">—</span>'}</td>
               <td style="font-size:12px; color:var(--muted);">${r.modul ? escapeHtml(r.modul.nume) : '—'}</td>
-              <td>${r.notaFinala!=null ? `<strong class="pill pill-ok" style="font-size:14px;">${r.notaFinala.toFixed(2)}</strong>` : '<span style="color:var(--muted); font-size:12px;">completează Tehnica</span>'}</td>
+              <td>${r.notaFinala==null ? '<span style="color:var(--muted); font-size:12px;">completează Tehnica</span>'
+      : state.pppAfisareCatalog
+        ? `<div class="nota-catalog-cell" style="display:flex; flex-direction:column; align-items:center; gap:2px;"><strong class="pill pill-ok" style="font-size:16px;">${notaPentruCatalog(r.notaFinala)}</strong><span style="font-size:11px; color:var(--muted);">${r.notaFinala.toFixed(2)}</span></div>`
+        : `<strong class="pill pill-ok" style="font-size:14px;">${r.notaFinala.toFixed(2)}</strong>`}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1024,6 +1039,10 @@ function renderPPP(main){
   document.getElementById('chk-participare-activa').addEventListener('change', (e)=>{
     document.getElementById('input-pondere-participare').disabled = !e.target.checked;
     actualizeazaSumaInfo();
+  });
+
+  document.getElementById('chk-afisare-catalog').addEventListener('change', (e)=>{
+    state.pppAfisareCatalog = e.target.checked; saveState(); render();
   });
 
   function actualizeazaSumaInfo(){

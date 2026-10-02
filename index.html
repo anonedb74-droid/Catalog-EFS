@@ -257,6 +257,7 @@
   .pill-ok{background:#DCEBDF; color:var(--ok);}
   .pill-blue{background:#D9E6F5; color:#1D5A9E;}
   .pill-ghost{background:#EDEBE3; color:var(--muted);}
+  .pill-purple{background:#EAE0F5; color:#6B3FA0;}
   .class-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px;}
   .class-card{
     background:var(--card);
@@ -331,7 +332,7 @@ const STORAGE_KEY = 'catalog_efs_state_v1';
 const UI_STORAGE_KEY = 'catalog_efs_ui_v1';
 
 let state = {
-  settings: { titlu: 'Catalogul meu EFS', anScolar: '2026-2027', urmatorulCodElev: 1 },
+  settings: { titlu: 'Catalogul meu EFS', anScolar: '2026-2027', urmatorulCodElev: 1, taburiAscunse: [] },
   clase: [],      // {id, nume, an: 'IX'|'X'|'XI'|'XII'}
   elevi: [],      // {id, claseId, nume, prenume, sex, scutit, motivScutire}
   probe: [],      // {id, nume, claseId ('all' sau id clasă), data}
@@ -360,6 +361,7 @@ let ui = {
   istoricClasa: null, istoricElev: null,
   practicaClasa: null,
   pppClasa: null, pppProba: null,
+  combinatClasa: null, combinatModul: null, combinatProbe: [], combinatSursa: 'performanta',
   obsPunctajSelectat: '__absenta_goala__',
 };
 
@@ -434,6 +436,8 @@ function migreazaDate(){
     if(e.scutireStart===undefined) e.scutireStart = null;
     if(e.scutireEnd===undefined) e.scutireEnd = null;
     if(e.dataNasterii===undefined) e.dataNasterii = null;
+    if(e.ces===undefined) e.ces = false;
+    if(e.cesDetalii===undefined) e.cesDetalii = '';
     if(!e.codUnic) e.codUnic = genereazaCodElev();
     // numele elevilor se afișează mereu cu majuscule — trecem automat și numele mai vechi
     if(e.nume) e.nume = capitalizeazaNume(e.nume);
@@ -453,6 +457,7 @@ function migreazaDate(){
   if(!state.settings.anScolar) state.settings.anScolar = '2026-2027';
   if(!state.settings.urmatorulCodElev) state.settings.urmatorulCodElev = 1;
   if(!state.observatiiCustom) state.observatiiCustom = [];
+  if(!state.settings.taburiAscunse) state.settings.taburiAscunse = [];
   if(!state.module) state.module = [];
   if(!state.pppPonderi) state.pppPonderi = { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false };
   if(state.pppPonderi.tehnica===undefined) state.pppPonderi.tehnica = 35;
@@ -581,6 +586,11 @@ function blocheazaNotarea(e){
 function scutirePartialaActiva(e){
   return esteScutitActiv(e) && !blocheazaNotarea(e);
 }
+// eticheta CES (cerințe educaționale speciale) — elevul e notat normal, doar marcat vizual, peste tot
+function cesTagHTML(e){
+  if(!e || !e.ces) return '';
+  return `<span class="pill pill-purple" title="${escapeHtml(e.cesDetalii||'')}" style="margin-left:4px; padding:1px 6px;">CES</span>`;
+}
 function scutirePillHTML(e){
   if(!e.scutit || !e.scutireTip) return '—';
   const activa = esteScutitActiv(e);
@@ -690,14 +700,17 @@ const ICONS = {
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1.2"/><rect x="13" y="3" width="8" height="5" rx="1.2"/><rect x="13" y="10" width="8" height="11" rx="1.2"/><rect x="3" y="13" width="8" height="8" rx="1.2"/></svg>',
   module: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>',
   ppp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>',
+  combinat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="5"/><circle cx="15" cy="15" r="5"/></svg>',
 };
 
+function tabsVizibile(){ return TABS.filter(t=>!(state.settings.taburiAscunse||[]).includes(t.id)); }
 const TABS = [
   {id:'dashboard', label:'Dashboard'},
   {id:'absente', label:'Absențe'},
   {id:'notare', label:'Notare'},
   {id:'sinteza', label:'Sinteză'},
-  {id:'ppp', label:'PPP'},
+  {id:'ppp', label:'PPT'},
+  {id:'combinat', label:'Combinat'},
   {id:'probe', label:'Probe'},
   {id:'bareme', label:'Bareme'},
   {id:'module', label:'Module'},
@@ -736,6 +749,10 @@ function verificaSchimbareaZilei(){
 }
 function render(){
   verificaSchimbareaZilei();
+  // dacă tab-ul curent a fost ascuns între timp, trecem pe primul tab vizibil
+  if(!tabsVizibile().find(t=>t.id===currentTab)){
+    currentTab = tabsVizibile().length ? tabsVizibile()[0].id : 'dashboard';
+  }
   const app = document.getElementById('app');
   app.innerHTML = `
     <header>
@@ -751,12 +768,12 @@ function render(){
     </header>
     <div class="body-wrap">
       <nav class="sidebar">
-        ${TABS.map(t=>`<button data-tab="${t.id}" class="${currentTab===t.id?'active':''}">${ICONS[t.id]}<span>${t.label}</span></button>`).join('')}
+        ${tabsVizibile().map(t=>`<button data-tab="${t.id}" class="${currentTab===t.id?'active':''}">${ICONS[t.id]}<span>${t.label}</span></button>`).join('')}
       </nav>
       <main id="main"></main>
     </div>
     <nav class="bottombar">
-      ${TABS.map(t=>`<button data-tab="${t.id}" class="${currentTab===t.id?'active':''}">${ICONS[t.id]}<span>${t.label}</span></button>`).join('')}
+      ${tabsVizibile().map(t=>`<button data-tab="${t.id}" class="${currentTab===t.id?'active':''}">${ICONS[t.id]}<span>${t.label}</span></button>`).join('')}
     </nav>
   `;
   document.querySelectorAll('[data-tab]').forEach(b=>{
@@ -788,6 +805,7 @@ function renderTab(){
   if(currentTab==='arhiva') return renderArhiva(main);
   if(currentTab==='module') return renderModule(main);
   if(currentTab==='ppp') return renderPPP(main);
+  if(currentTab==='combinat') return renderCombinat(main);
 }
 
 /* ================= TAB: ARHIVĂ ================= */
@@ -882,7 +900,7 @@ function renderModule(main){
   const azi = todayISO();
   main.innerHTML = `
     <h2>Module</h2>
-    <p class="tab-desc">Împarte anul școlar pe module (ex: 5 module a ~7 săptămâni). Aplicația folosește aceste perioade ca să știe ce notă de Participare activă (PPP) se aplică unei probe, în funcție de data ei.</p>
+    <p class="tab-desc">Împarte anul școlar pe module (ex: 5 module a ~7 săptămâni). Aplicația folosește aceste perioade ca să știe ce notă de Participare activă (PPT) se aplică unei probe, în funcție de data ei.</p>
     <div class="card">
       <div class="row">
         <div class="field" style="flex:1; min-width:160px;">
@@ -944,7 +962,7 @@ function renderModule(main){
 /* ================= TAB: PPP (Performanță + Progres + Participare activă) ================= */
 function renderPPP(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>PPP</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>PPT</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
     return;
   }
   if(!ui.pppClasa || !claseActive().find(c=>c.id===ui.pppClasa)) ui.pppClasa = claseActive()[0].id;
@@ -956,7 +974,7 @@ function renderPPP(main){
   const pn = state.pppPonderi;
 
   main.innerHTML = `
-    <h2>PPP — Performanță, Progres, Tehnică, Participare</h2>
+    <h2>PPT — Performanță, Progres, Tehnică de execuție</h2>
     <p class="tab-desc">Nota finală = Performanță×${pn.performanta}% + Progres×${pn.progres}% + Tehnică×${pn.tehnica}%${pn.participareActiva ? ` + Participare×${pn.participare}%` : ''}. Participarea e ${pn.participareActiva ? 'inclusă' : '<b>exclusă</b> din nota finală (doar informativă)'} — o poți activa/dezactiva mai jos.</p>
     <div class="card">
       <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Procentele formulei</div>
@@ -1001,21 +1019,21 @@ function renderPPP(main){
       probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nr.</th><th>Elev</th><th>Performanță</th><th>Progres</th><th>Tehnică</th><th>Participare</th><th>Modul</th><th>${state.pppAfisareCatalog ? 'Catalog · PPP' : 'Nota PPP'}</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>Performanță</th><th>Progres</th><th>Tehnică</th><th>Participare</th><th>Modul</th><th>${state.pppAfisareCatalog ? 'Catalog · PPT' : 'Nota PPT'}</th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             if(blocheazaNotarea(e)){
-              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="6"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="6"><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
             const r = calculeazaPPP(e.id, ui.pppProba);
             const tehnicaRec = gasesteTehnica(e.id, ui.pppProba);
             const inputTehnica = `<input type="number" min="1" max="10" step="0.5" class="input-tehnica" data-elev="${e.id}" value="${tehnicaRec?tehnicaRec.valoare:''}" placeholder="—" style="width:60px;"/>`;
             if(!r){
-              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="6" style="color:var(--muted);">Fără notă la această probă (Performanță/Progres)</td></tr>`;
+              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="6" style="color:var(--muted);">Fără notă la această probă (Performanță/Progres)</td></tr>`;
             }
             return `<tr>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
               <td>${r.performanta.toFixed(2)}</td>
               <td>${r.progres.toFixed(2)}</td>
               <td>${inputTehnica}</td>
@@ -1084,6 +1102,119 @@ function renderPPP(main){
           state.tehnicaExecutie.push({id:uid(), eleviId, probaId:ui.pppProba, valoare});
         }
       }
+      saveState(); render();
+    });
+  });
+}
+
+/* ================= TAB: COMBINAT (media mai multor probe într-o singură notă, doar de vizualizare) ================= */
+function renderCombinat(main){
+  if(claseActive().length===0){
+    main.innerHTML = `<h2>Combinat</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    return;
+  }
+  if(!ui.combinatClasa || !claseActive().find(c=>c.id===ui.combinatClasa)) ui.combinatClasa = claseActive()[0].id;
+  const moduleClasa = [...state.module].sort((a,b)=>a.start.localeCompare(b.start));
+  if(ui.combinatModul && !moduleClasa.find(m=>m.id===ui.combinatModul)) ui.combinatModul = null;
+
+  // probele clasei, eventual filtrate la modulul ales (după data probei)
+  const toateProbeleClasei = state.probe.filter(p=>probaSeAplicaClasei(p, ui.combinatClasa));
+  const modulAles = ui.combinatModul ? moduleClasa.find(m=>m.id===ui.combinatModul) : null;
+  const probeDisponibile = (modulAles
+    ? toateProbeleClasei.filter(p=>p.data>=modulAles.start && p.data<=modulAles.end)
+    : toateProbeleClasei
+  ).sort((a,b)=>a.data.localeCompare(b.data));
+
+  // dacă s-a schimbat clasa/modulul, scoatem din selecție probele care nu mai sunt disponibile
+  ui.combinatProbe = ui.combinatProbe.filter(id=>probeDisponibile.find(p=>p.id===id));
+  const lista = eleviDinClasa(ui.combinatClasa);
+
+  main.innerHTML = `
+    <h2>Combinat</h2>
+    <p class="tab-desc">Alege două sau mai multe probe din același modul și vezi media lor, pe loc — nu se salvează nicio combinație, e doar o vedere rapidă pentru catalog.</p>
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field">
+        <label>Clasă</label>
+        <select id="select-combinat-clasa">
+          ${claseActive().map(c=>`<option value="${c.id}" ${c.id===ui.combinatClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Modul</label>
+        <select id="select-combinat-modul">
+          <option value="">Toate (fără filtru)</option>
+          ${moduleClasa.map(m=>`<option value="${m.id}" ${m.id===ui.combinatModul?'selected':''}>${escapeHtml(m.nume)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Sursa notei</label>
+        <select id="select-combinat-sursa">
+          <option value="performanta" ${ui.combinatSursa==='performanta'?'selected':''}>Doar Performanța (barem)</option>
+          <option value="ppt" ${ui.combinatSursa==='ppt'?'selected':''}>Nota PPT completă</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Probe de combinat</div>
+      ${probeDisponibile.length===0 ? `<div class="tab-desc" style="margin:0;">Nicio probă disponibilă ${modulAles?'în acest modul':''} pentru această clasă.</div>` : `
+      <div style="display:flex; flex-wrap:wrap; gap:6px 16px;">
+        ${probeDisponibile.map(p=>`
+          <label style="display:flex; align-items:center; gap:7px; font-size:14px; cursor:pointer;">
+            <input type="checkbox" class="chk-combinat-proba" value="${p.id}" ${ui.combinatProbe.includes(p.id)?'checked':''} style="width:18px; height:18px;"/>
+            ${escapeHtml(p.nume)} <span style="color:var(--muted); font-size:12px;">(${formatDataRo(p.data)})</span>
+          </label>
+        `).join('')}
+      </div>`}
+    </div>
+    ${ui.combinatProbe.length<2 ? emptyState('Bifează cel puțin două probe.', 'Media apare automat de îndată ce ai două sau mai multe bifate.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Nr.</th><th>Elev</th>${ui.combinatProbe.map(id=>{const p=probeDisponibile.find(pp=>pp.id===id); return `<th>${escapeHtml(p?p.nume:'—')}</th>`;}).join('')}<th>Notă combinată</th></tr></thead>
+        <tbody>
+          ${lista.map((e,idx)=>{
+            if(blocheazaNotarea(e)){
+              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="${ui.combinatProbe.length+1}"><span class="exempt-note">Scutit medical</span></td></tr>`;
+            }
+            const valori = []; // {nume, valoare}
+            const celule = ui.combinatProbe.map(probaId=>{
+              const p = probeDisponibile.find(pp=>pp.id===probaId);
+              const r = calculeazaPPP(e.id, probaId);
+              let v = null;
+              if(r){
+                if(ui.combinatSursa==='performanta') v = r.performanta;
+                else v = r.notaFinala; // null dacă lipsește Tehnica
+              }
+              if(v!=null){ valori.push({nume: p?p.nume:'—', valoare: v}); return v.toFixed(2); }
+              return '<span style="color:var(--muted);">—</span>';
+            });
+            let notaCombinataHTML;
+            if(valori.length===0){
+              notaCombinataHTML = '<span style="color:var(--muted); font-size:12px;">fără notă la nicio probă</span>';
+            } else {
+              const medie = valori.reduce((a,b)=>a+b.valoare,0)/valori.length;
+              const incompleta = valori.length < ui.combinatProbe.length;
+              notaCombinataHTML = `<strong class="pill pill-ok" style="font-size:14px;">${medie.toFixed(2)}</strong>`
+                + (incompleta ? `<br><span style="font-size:11px; color:var(--muted);">doar din ${valori.map(v=>escapeHtml(v.nume)).join(' + ')}</span>` : '');
+            }
+            return `<tr>
+              <td style="color:var(--muted); text-align:center;">${idx+1}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
+              ${celule.map(c=>`<td>${c}</td>`).join('')}
+              <td>${notaCombinataHTML}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    `}
+  `;
+  document.getElementById('select-combinat-clasa').addEventListener('change', e=>{ ui.combinatClasa = e.target.value; ui.combinatProbe = []; render(); });
+  document.getElementById('select-combinat-modul').addEventListener('change', e=>{ ui.combinatModul = e.target.value || null; render(); });
+  document.getElementById('select-combinat-sursa').addEventListener('change', e=>{ ui.combinatSursa = e.target.value; saveState(); render(); });
+  main.querySelectorAll('.chk-combinat-proba').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      if(chk.checked){ if(!ui.combinatProbe.includes(chk.value)) ui.combinatProbe.push(chk.value); }
+      else { ui.combinatProbe = ui.combinatProbe.filter(id=>id!==chk.value); }
       saveState(); render();
     });
   });
@@ -1237,7 +1368,7 @@ function renderSinteza(main){
             });
             const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
             return `<tr>
-              <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?'<span class="pill pill-blue" style="margin-left:4px; padding:1px 6px;">parțial</span>':''}</td>
+              <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?'<span class="pill pill-blue" style="margin-left:4px; padding:1px 6px;">parțial</span>':''} ${cesTagHTML(e)}</td>
               ${celule.map(c=>`<td>${c}</td>`).join('')}
               <td><strong>${medie}</strong></td>
             </tr>`;
@@ -1261,7 +1392,7 @@ function renderSinteza(main){
                                        .map(a=>`${formatDataRo(a.data)} (${labelStare(a.stare)}): ${escapeHtml(a.nota)}`)
                                        .join('<br>');
             return `<tr>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
               <td>${motivate>0?`<span class="pill pill-yellow">${motivate}</span>`:'—'}</td>
               <td>${nemotivate>0?`<span class="pill pill-danger">${nemotivate}</span>`:'—'}</td>
               <td style="font-size:13px;">${observatii || '<span style="color:var(--muted);">—</span>'}</td>
@@ -1304,7 +1435,7 @@ function genereazaRaportClasa(claseId){
     });
     const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
     return `<tr>
-      <td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+      <td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${e.ces ? '<span style="color:#6B3FA0; font-weight:700;"> (CES)</span>' : ''}</td>
       ${celule.map(c=>`<td>${escapeHtml(String(c))}</td>`).join('')}
       <td><strong>${medie}</strong></td>
     </tr>`;
@@ -1319,7 +1450,7 @@ function genereazaRaportClasa(claseId){
                                .map(a=>`${formatDataRo(a.data)} (${labelStare(a.stare)}): ${a.nota}`)
                                .join('; ');
     return `<tr>
-      <td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+      <td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${e.ces ? '<span style="color:#6B3FA0; font-weight:700;"> (CES)</span>' : ''}</td>
       <td>${motivate}</td>
       <td>${nemotivate}</td>
       <td>${escapeHtml(observatii)}</td>
@@ -1429,11 +1560,11 @@ function genereazaRaportExcelClasa(claseId){
   });
 
   // Foaia 3: Date antropometrice
-  const antetAntropo = ['Elev', 'Cod unic', 'Data nașterii', 'Înălțime (cm)', 'Greutate (kg)', 'IMC', 'Categorie'];
+  const antetAntropo = ['Elev', 'Cod unic', 'Data nașterii', 'Înălțime (cm)', 'Greutate (kg)', 'IMC', 'Categorie', 'CES'];
   const randuriAntropo = lista.map(e=>{
     const imc = (e.inaltime && e.greutate) ? Number((e.greutate / ((e.inaltime/100)*(e.inaltime/100))).toFixed(1)) : '';
     const catIMC = imc!=='' ? categorieIMC(imc, claseAn(e.claseId), e.sex) : null;
-    return [`${e.nume} ${e.prenume}`, e.codUnic||'', e.dataNasterii ? formatDataRo(e.dataNasterii) : '', e.inaltime||'', e.greutate||'', imc, catIMC ? catIMC.eticheta : ''];
+    return [`${e.nume} ${e.prenume}`, e.codUnic||'', e.dataNasterii ? formatDataRo(e.dataNasterii) : '', e.inaltime||'', e.greutate||'', imc, catIMC ? catIMC.eticheta : '', e.ces ? (e.cesDetalii||'Da') : ''];
   });
 
   const wb = XLSX.utils.book_new();
@@ -1448,13 +1579,14 @@ function genereazaRaportExcelGeneral(){
   if(typeof XLSX==='undefined'){ showToast('Nu am putut încărca motorul de Excel — verifică internetul și încearcă din nou.'); return; }
 
   // Foaia 1: Elevi
-  const antetElevi = ['Cod unic', 'Nume', 'Prenume', 'Clasă', 'An', 'Sex', 'Data nașterii', 'Înălțime', 'Greutate', 'Scutire'];
+  const antetElevi = ['Cod unic', 'Nume', 'Prenume', 'Clasă', 'An', 'Sex', 'Data nașterii', 'Înălțime', 'Greutate', 'Scutire', 'CES'];
   const randuriElevi = state.elevi.map(e=>{
     const c = state.clase.find(cl=>cl.id===e.claseId);
     return [
       e.codUnic||'', e.nume, e.prenume, c?c.nume:'—', c?c.an:'—', e.sex==='M'?'Băiat':'Fată',
       e.dataNasterii?formatDataRo(e.dataNasterii):'', e.inaltime||'', e.greutate||'',
-      esteScutitActiv(e) ? (e.scutireTip==='partiala'?'Parțială':e.scutireTip==='temporara'?'Temporară':'Totală anuală') : ''
+      esteScutitActiv(e) ? (e.scutireTip==='partiala'?'Parțială':e.scutireTip==='temporara'?'Temporară':'Totală anuală') : '',
+      e.ces ? (e.cesDetalii||'Da') : ''
     ];
   });
 
@@ -1571,7 +1703,7 @@ Georgescu Mihai"></textarea>
               <td style="padding:4px 3px;"><input type="number" inputmode="decimal" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:44px; min-height:30px; padding:3px 3px; font-size:12px;"/></td>
               <td style="padding:4px 3px;"><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:44px; min-height:30px; padding:3px 3px; font-size:12px;"/></td>
               <td style="color:var(--muted); padding:4px 3px; font-size:11px;" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:9px; padding:0px 4px;">${catIMC.eticheta}</span>` : ''}</td>
-              <td style="padding:4px 3px; font-size:10px;">${scutirePillHTML(e)}<br><span class="pill pill-ghost" style="margin-top:2px; font-size:9px; padding:0 4px;">${e.scutit?1:0}</span></td>
+              <td style="padding:4px 3px; font-size:10px;">${scutirePillHTML(e)}<br><span class="pill pill-ghost" style="margin-top:2px; font-size:9px; padding:0 4px;">${e.scutit?1:0}</span>${e.ces?`<br>${cesTagHTML(e)}`:''}</td>
               <td style="padding:4px 3px;"><button class="btn btn-danger" data-del-elev="${e.id}" style="padding:4px 6px; min-height:28px;">${ICONS.trash}</button></td>
             </tr>
           `;}).join('')}
@@ -2095,9 +2227,9 @@ function renderNotare(main){
           ${lista.map((e,idx)=>{
             const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
             if(blocheazaNotarea(e)){
-              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="4"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="4"><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
-            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''}`;
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}`;
             const an = claseAn(e.claseId);
             const recInitial = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='initial');
             const recFinal = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='final');
@@ -2126,7 +2258,7 @@ function renderNotare(main){
         </tbody>
       </table>
     </div>
-    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată. <b>Tehnică</b> = nota ta (1-10) pentru corectitudinea execuției, dată o singură dată per probă; intră în calculul PPP.</p>
+    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată. <b>Tehnică</b> = nota ta (1-10) pentru corectitudinea execuției, dată o singură dată per probă; intră în calculul PPT.</p>
     ` : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
@@ -2136,9 +2268,9 @@ function renderNotare(main){
             const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
             const existing = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment===moment);
             if(blocheazaNotarea(e)){
-              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td colspan="2"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="2"><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
-            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''}`;
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}`;
             if(tipNotare==='calificativ'){
               const valExist = existing ? existing.valoare : '';
               const notaExist = valExist ? notaDinCalificativ(valExist) : null;
@@ -2169,7 +2301,7 @@ function renderNotare(main){
         </tbody>
       </table>
     </div>
-    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată. <b>Tehnică</b> = nota ta (1-10) pentru corectitudinea execuției, dată o singură dată per probă; intră în calculul PPP.</p>
+    <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată. <b>Tehnică</b> = nota ta (1-10) pentru corectitudinea execuției, dată o singură dată per probă; intră în calculul PPT.</p>
     `}
   `;
   document.getElementById('select-notare-clasa').addEventListener('change', e=>{ ui.notareClasa = e.target.value; ui.notareProba = null; render(); });
@@ -2333,7 +2465,7 @@ function renderAbsente(main){
     </div>
 
     <div class="card">
-      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Observații și punctaj (pentru Participarea activă — PPP)</div>
+      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Observații și punctaj (pentru Participarea activă — PPT)</div>
       <p class="tab-desc" style="margin-top:-4px;">Fiecare observație scade un număr de puncte din nota de Participare (pornește de la 10, per modul). Alege una și modifică-i punctajul.</p>
       <div class="row" style="align-items:flex-end;">
         <div class="field" style="flex:1; min-width:220px;">
@@ -2385,7 +2517,7 @@ function renderAbsente(main){
             const total = state.absente.filter(a=>a.eleviId===e.id && a.stare!=='prezent').length;
             return `<tr data-row-elev="${e.id}">
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''} ${cesTagHTML(e)}</td>
               <td class="stare-badge-cell">${starePillHTML(stare)}</td>
               <td style="text-align:center;">
                 <input type="checkbox" class="chk-absent" data-elev="${e.id}" ${esteAbsent?'checked':''} style="width:22px; height:22px; cursor:pointer;"/>
@@ -2578,6 +2710,7 @@ function renderIstoric(main){
           <span class="pill pill-danger">Nemotivate: ${totalNemotivate}</span>
           <span class="pill pill-ok">Total absențe: ${totalMotivate+totalNemotivate}</span>
           ${esteScutitActiv(elev) ? scutirePillHTML(elev) : ''}
+          ${cesTagHTML(elev)}
         </div>
         ${inregistrari.length===0 ? emptyState('Niciun eveniment înregistrat.', 'Absențele și observațiile pentru acest elev vor apărea aici, pe măsură ce le adaugi în tabul „Absențe”.') : `
         <p class="tab-desc" style="margin-top:-6px;">Poți corecta direct aici starea sau observația unei zile trecute, sau șterge complet o înregistrare greșită.</p>
@@ -2697,6 +2830,7 @@ function genereazaRaportElev(eleviId){
     <div><b>Înălțime / Greutate:</b> ${e.inaltime||'—'} cm / ${e.greutate||'—'} kg</div>
     <div><b>IMC:</b> ${imc}${catIMC ? ' — '+catIMC.eticheta : ''}</div>
     <div><b>Scutire medicală:</b> ${esteScutitActiv(e) ? (e.scutireTip==='partiala' ? 'Parțială' : e.scutireTip==='temporara' ? 'Temporară' : 'Totală anuală') : 'Nu'}</div>
+    <div><b>CES:</b> ${e.ces ? `Da${e.cesDetalii ? ' — '+escapeHtml(e.cesDetalii) : ''}` : 'Nu'}</div>
   </div>
 
   <h2>Note pe probe</h2>
@@ -2813,6 +2947,8 @@ function renderScutiri(main){
   }
   if(!ui.scutireTipNou) ui.scutireTipNou = 'totala_anuala';
   const eleviNescutitiClasa = ui.scutiriClasa ? eleviDinClasa(ui.scutiriClasa).filter(e=>!(e.scutit && e.scutireTip)) : [];
+  const eleviCes = state.elevi.filter(e=>e.ces);
+  const eleviNeCesClasa = ui.scutiriClasa ? eleviDinClasa(ui.scutiriClasa).filter(e=>!e.ces) : [];
   main.innerHTML = `
     <h2>Scutiri medicale</h2>
     <p class="tab-desc">Vezi toți elevii scutiți, indiferent de clasă, și gestionează scutirile. Gestionarea se face doar aici.</p>
@@ -2875,7 +3011,7 @@ function renderScutiri(main){
         <tbody>
           ${scutiti.map(e=>`
             <tr>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
               <td>${escapeHtml(claseNume(e.claseId))}</td>
               <td>${scutirePillHTML(e)}</td>
               <td>${escapeHtml(e.motivScutire) || '—'}</td>
@@ -2885,9 +3021,60 @@ function renderScutiri(main){
         </tbody>
       </table>
     </div>`}
+
+    <h2 style="margin-top:28px;">Elevi cu CES</h2>
+    <p class="tab-desc">Cerințe educaționale speciale — elevul <b>nu e scutit</b>, primește notă normal, dar apare marcat cu o pastilă mov în toate secțiunile, ca să-l tratezi diferit la oră.</p>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="min-width:220px;">
+          <label>Elev (din clasa aleasă mai sus)</label>
+          <select id="select-ces-elev" ${eleviNeCesClasa.length===0?'disabled':''}>
+            <option value="">${eleviNeCesClasa.length===0 ? 'Niciun elev disponibil' : 'Alege un elev...'}</option>
+            ${eleviNeCesClasa.map(e=>`<option value="${e.id}">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Detalii (opțional)</label>
+          <input type="text" id="input-ces-detalii" placeholder="ex: cerință de ritm propriu, sarcini adaptate"/>
+        </div>
+        <button class="btn btn-primary" id="btn-add-ces">+ Marchează CES</button>
+      </div>
+    </div>
+    ${eleviCes.length===0 ? emptyState('Niciun elev cu CES momentan.', 'Adaugă unul folosind formularul de mai sus.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Elev</th><th>Clasă</th><th>Detalii</th><th></th></tr></thead>
+        <tbody>
+          ${eleviCes.map(e=>`
+            <tr>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
+              <td>${escapeHtml(claseNume(e.claseId))}</td>
+              <td>${escapeHtml(e.cesDetalii) || '—'}</td>
+              <td><button class="btn btn-ghost" data-unces="${e.id}">Anulează CES</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`}
   `;
   document.getElementById('select-scutire-clasa').addEventListener('change', e=>{
     ui.scutiriClasa = e.target.value; render();
+  });
+  document.getElementById('select-ces-elev') && document.getElementById('btn-add-ces').addEventListener('click', ()=>{
+    const id = document.getElementById('select-ces-elev').value;
+    const detalii = document.getElementById('input-ces-detalii').value.trim();
+    if(!id) return showToast('Alege un elev.');
+    const e = state.elevi.find(e=>e.id===id);
+    e.ces = true; e.cesDetalii = detalii;
+    saveState(); render(); showToast('Elev marcat CES.');
+  });
+  main.querySelectorAll('[data-unces]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const e = state.elevi.find(e=>e.id===b.dataset.unces);
+      if(!confirm(`Anulezi marcajul CES pentru ${e.nume} ${e.prenume}?`)) return;
+      e.ces = false; e.cesDetalii = '';
+      saveState(); render(); showToast('Marcaj CES anulat.');
+    });
   });
   document.getElementById('select-scutire-tip').addEventListener('change', e=>{
     ui.scutireTipNou = e.target.value; render();
@@ -2942,6 +3129,19 @@ function openSettingsModal(){
       <div style="font-size:12px; color:var(--muted); margin-top:4px;">Anul școlar e folosit pentru codurile unice noi ale elevilor (ex: EFS2026-001) și pentru a marca clasele noi.</div>
 
       <div style="border-top:1px solid var(--border); margin:18px 0 14px; padding-top:14px;">
+        <div style="font-weight:700; color:var(--infield); margin-bottom:4px;">Secțiuni vizibile</div>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">Debifează ce nu folosești — dispare din bară, dar rămâne aici, mereu la îndemână dacă vrei s-o aduci înapoi.</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; max-height:220px; overflow-y:auto; padding-right:4px;">
+          ${TABS.map(t=>`
+            <label style="display:flex; align-items:center; gap:7px; font-size:14px; cursor:pointer;">
+              <input type="checkbox" class="chk-tab-vizibil" data-tab="${t.id}" ${(state.settings.taburiAscunse||[]).includes(t.id)?'':'checked'} style="width:18px; height:18px;"/>
+              ${escapeHtml(t.label)}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border); margin:18px 0 14px; padding-top:14px;">
         <div style="font-weight:700; color:var(--infield); margin-bottom:4px;">Sincronizare între dispozitive</div>
         <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">
           Datele stau doar pe acest dispozitiv, fără internet. Ca să le ai și pe laptop și pe tabletă,
@@ -2969,6 +3169,8 @@ function openSettingsModal(){
   document.getElementById('modal-save').addEventListener('click', ()=>{
     state.settings.titlu = document.getElementById('modal-titlu').value.trim() || 'Catalogul meu EFS';
     state.settings.anScolar = document.getElementById('modal-an-scolar').value.trim() || state.settings.anScolar;
+    const debifate = Array.from(backdrop.querySelectorAll('.chk-tab-vizibil')).filter(c=>!c.checked).map(c=>c.dataset.tab);
+    state.settings.taburiAscunse = debifate;
     saveState(); backdrop.remove(); render();
   });
   document.getElementById('modal-reset').addEventListener('click', ()=>{

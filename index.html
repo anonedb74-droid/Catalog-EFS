@@ -356,7 +356,7 @@ let ui = {
   notareClasa: null, notareProba: null,
   absenteClasa: null, absenteData: todayISO(),
   baremeSelectat: null, baremeAn: 'IX',
-  sintezaClasa: null,
+  sintezaClasa: null, sintezaTipRaport: 'simplu',
   scutiriClasa: null,
   istoricClasa: null, istoricElev: null,
   practicaClasa: null,
@@ -1331,6 +1331,13 @@ function renderSinteza(main){
           ${claseActive().map(c=>`<option value="${c.id}" ${c.id===claseId?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
         </select>
       </div>
+      <div class="field">
+        <label>Conținut raport</label>
+        <select id="select-sinteza-tip-raport">
+          <option value="simplu" ${(ui.sintezaTipRaport||'simplu')==='simplu'?'selected':''}>Note simple</option>
+          <option value="ppt" ${ui.sintezaTipRaport==='ppt'?'selected':''}>PPT complet (Performanță + Progres + Tehnică)</option>
+        </select>
+      </div>
       <button class="btn btn-secondary" id="btn-raport-clasa">🖨 Printează raport clasă</button>
       <button class="btn btn-secondary" id="btn-raport-excel">📊 Excel clasă</button>
     </div>
@@ -1406,6 +1413,9 @@ function renderSinteza(main){
   document.getElementById('select-sinteza-clasa').addEventListener('change', e=>{
     ui.sintezaClasa = e.target.value; render();
   });
+  document.getElementById('select-sinteza-tip-raport').addEventListener('change', e=>{
+    ui.sintezaTipRaport = e.target.value; saveState();
+  });
   document.getElementById('btn-raport-clasa').addEventListener('click', ()=>{
     genereazaRaportClasa(claseId);
   });
@@ -1420,10 +1430,18 @@ function genereazaRaportClasa(claseId){
   const lista = eleviDinClasa(claseId);
   const probeClasa = state.probe.filter(p=>probaSeAplicaClasei(p, claseId)).sort((a,b)=>a.data.localeCompare(b.data));
 
+  const tipRaport = ui.sintezaTipRaport || 'simplu';
   const randuriNote = lista.map(e=>{
     const noteNumerice = [];
     const celule = probeClasa.map(p=>{
       if(blocheazaNotarea(e)) return 'scutit';
+      if(tipRaport==='ppt'){
+        const r = calculeazaPPP(e.id, p.id);
+        if(!r) return '—';
+        if(r.notaFinala==null) return 'fără Tehnică';
+        noteNumerice.push(r.notaFinala);
+        return `P:${r.performanta.toFixed(1)} Pr:${r.progres.toFixed(1)} T:${r.tehnica.toFixed(1)} = ${r.notaFinala.toFixed(2)}`;
+      }
       const rec = notaPentruSinteza(e.id, p.id);
       if(!rec) return '—';
       const eticheta = rec.moment==='final' ? 'F' : 'I';
@@ -1492,8 +1510,10 @@ function genereazaRaportClasa(claseId){
   <h1>Raport clasă — ${escapeHtml(clasa ? clasa.nume : '')}</h1>
   <div class="sub">Generat la ${formatDataRo(todayISO())}, ora ${new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})}</div>
 
-  <h2>Note pe probe</h2>
-  <p style="font-size:12px; color:#666;">[I] = rezultatul testării inițiale, [F] = rezultatul testării finale (apare finala, dacă există).</p>
+  <h2>${tipRaport==='ppt' ? 'Note pe probe — PPT (Performanță / Progres / Tehnică)' : 'Note pe probe'}</h2>
+  <p style="font-size:12px; color:#666;">${tipRaport==='ppt'
+    ? 'P = Performanță, Pr = Progres, T = Tehnică de execuție (dată de profesor). Formula și procentele curente: Performanță×'+state.pppPonderi.performanta+'% + Progres×'+state.pppPonderi.progres+'% + Tehnică×'+state.pppPonderi.tehnica+'%' + (state.pppPonderi.participareActiva ? ' + Participare×'+state.pppPonderi.participare+'%' : '') + '.'
+    : '[I] = rezultatul testării inițiale, [F] = rezultatul testării finale (apare finala, dacă există).'}</p>
   ${probeClasa.length===0 ? '<p>Nicio probă înregistrată.</p>' : `
   <table>
     <thead><tr><th>Elev</th>${probeClasa.map(p=>`<th>${escapeHtml(p.nume)}</th>`).join('')}<th>Medie</th></tr></thead>
@@ -1529,11 +1549,19 @@ function genereazaRaportExcelClasa(claseId){
   const probeClasa = state.probe.filter(p=>probaSeAplicaClasei(p, claseId)).sort((a,b)=>a.data.localeCompare(b.data));
 
   // Foaia 1: Note pe probe
+  const tipRaport = ui.sintezaTipRaport || 'simplu';
   const antetNote = ['Elev', ...probeClasa.map(p=>p.nume), 'Medie'];
   const randuriNote = lista.map(e=>{
     const noteNumerice = [];
     const celule = probeClasa.map(p=>{
       if(blocheazaNotarea(e)) return 'scutit';
+      if(tipRaport==='ppt'){
+        const r = calculeazaPPP(e.id, p.id);
+        if(!r) return '';
+        if(r.notaFinala==null) return 'fără Tehnică';
+        noteNumerice.push(r.notaFinala);
+        return `P:${r.performanta.toFixed(1)} Pr:${r.progres.toFixed(1)} T:${r.tehnica.toFixed(1)} = ${r.notaFinala.toFixed(2)}`;
+      }
       const rec = notaPentruSinteza(e.id, p.id);
       if(!rec) return '';
       const eticheta = rec.moment==='final' ? 'F' : 'I';
@@ -1568,10 +1596,11 @@ function genereazaRaportExcelClasa(claseId){
   });
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetNote, ...randuriNote]), 'Note');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetNote, ...randuriNote]), tipRaport==='ppt' ? 'Note PPT' : 'Note');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetAbsente, ...randuriAbsente]), 'Absente');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetAntropo, ...randuriAntropo]), 'Antropometrice');
-  XLSX.writeFile(wb, `Raport_${(clasa?clasa.nume:'clasa').replace(/\s+/g,'_')}.xlsx`);
+  const sufixNume = tipRaport==='ppt' ? '_PPT' : '';
+  XLSX.writeFile(wb, `Raport_${(clasa?clasa.nume:'clasa').replace(/\s+/g,'_')}${sufixNume}.xlsx`);
 }
 
 /* ================= RAPORT EXCEL — TOT CATALOGUL ================= */

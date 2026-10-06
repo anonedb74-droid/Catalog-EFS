@@ -339,7 +339,7 @@ const STORAGE_KEY = 'catalog_efs_state_v1';
 const UI_STORAGE_KEY = 'catalog_efs_ui_v1';
 
 let state = {
-  settings: { titlu: 'Catalogul meu EFS', anScolar: '2026-2027', urmatorulCodElev: 1, taburiAscunse: [] },
+  settings: { titlu: 'Catalogul meu EFS', anScolar: '2026-2027', urmatorulCodElev: 1, taburiAscunse: [], ultimulExport: null },
   clase: [],      // {id, nume, an: 'IX'|'X'|'XI'|'XII'}
   elevi: [],      // {id, claseId, nume, prenume, sex, scutit, motivScutire}
   probe: [],      // {id, nume, claseId ('all' sau id clasă), data}
@@ -478,6 +478,7 @@ function migreazaDate(){
   if(!state.planificari) state.planificari = [];
   // migrare: intrările vechi erau legate de an, nu de clasă — le păstrăm needitate, dar de-acum tabul Planificare scrie direct cu claseId
   if(!state.settings.taburiAscunse) state.settings.taburiAscunse = [];
+  if(state.settings.ultimulExport===undefined) state.settings.ultimulExport = null;
   if(!state.module) state.module = [];
   if(!state.pppPonderi) state.pppPonderi = { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false };
   if(state.pppPonderi.tehnica===undefined) state.pppPonderi.tehnica = 35;
@@ -663,17 +664,38 @@ window.addEventListener('beforeunload', ()=>{ saveStateNow(); });
 window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveStateNow(); });
 
 /* ---------------- EXPORT / IMPORT (sincronizare manuală între dispozitive) ---------------- */
-function exportBackup(){
+// întoarce 'share' dacă s-a folosit meniul de distribuire, 'download' dacă a mers pe descărcarea clasică,
+// sau 'cancel' dacă persoana a închis meniul de distribuire fără să aleagă nimic
+async function exportBackup(){
+  const stamp = todayISO();
+  const filename = `catalog-efs-backup-${stamp}.json`;
   const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+
+  // pe tabletă/telefon: încercăm să deschidem meniul de distribuire (ca la o poză pe WhatsApp),
+  // ca să poți alege direct Google Drive, într-un singur tap
+  try{
+    const file = new File([blob], filename, {type:'application/json'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:'Backup Catalog EFS'});
+      return 'share';
+    }
+  }catch(e){
+    // dacă persoana anulează meniul de distribuire (apasă înapoi), nu mai descărcăm și fișierul
+    // clasic, ca să nu pară că s-a întâmplat de două ori
+    if(e && e.name === 'AbortError') return 'cancel';
+    // orice altă eroare -> trecem la descărcarea clasică, mai jos
+  }
+
+  // pe laptop, sau dacă distribuirea nu e disponibilă: descărcarea clasică, în Descărcări
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const stamp = todayISO();
   a.href = url;
-  a.download = `catalog-efs-backup-${stamp}.json`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  return 'download';
 }
 function importBackupFile(file, onDone){
   const reader = new FileReader();
@@ -1439,15 +1461,30 @@ function renderPlanificare(main){
 }
 
 /* ================= TAB: AZI (combină Orar + Planificare + Practică comasată) ================= */
+// câte zile au trecut de la ultimul export de backup (null dacă nu s-a făcut niciodată)
+function zileDeLaUltimulExport(){
+  if(!state.settings.ultimulExport) return null;
+  const azi = new Date(todayISO()+'T12:00:00');
+  const ultim = new Date(state.settings.ultimulExport+'T12:00:00');
+  return Math.round((azi - ultim) / (1000*60*60*24));
+}
 function renderAzi(main){
   const azi = todayISO();
   const ziAzi = ziDinData(azi);
   const esteWeekend = ziAzi==='SA' || ziAzi==='DU';
   const oreAzi = state.orar.filter(o=>o.zi===ziAzi).sort((a,b)=>a.ora-b.ora);
+  const zileExport = zileDeLaUltimulExport();
+  const pragAtentionare = 7; // zile
 
   main.innerHTML = `
     <h2>Azi — ${ZILE_NUME[ziAzi]}, ${formatDataRo(azi)}</h2>
     <p class="tab-desc">Ce ai de lucru azi, pe ore, combinând Orarul, Planificarea și Practica comasată.</p>
+    ${(zileExport===null || zileExport>=pragAtentionare) ? `
+      <div class="card" style="background:#FBEBD3; border-color:#E3A23C; display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
+        <div>💾 ${zileExport===null ? '<strong>N-ai făcut niciodată export de backup.</strong> Dacă pierzi tableta, pierzi tot.' : `<strong>Ultimul backup a fost acum ${zileExport} zile.</strong> Riști să pierzi ce ai adăugat de atunci, dacă se întâmplă ceva cu tableta.`}</div>
+        <button class="btn btn-primary" id="btn-azi-export" style="white-space:nowrap;">Exportă acum</button>
+      </div>
+    ` : ''}
     ${esteWeekend ? emptyState('E weekend — nicio oră programată.', 'Orarul se aplică doar Luni-Vineri.') :
       state.orar.length===0 ? emptyState('N-ai completat încă Orarul.', 'Du-te în tabul „Orar” și adaugă zilele și orele tale.') :
       oreAzi.length===0 ? emptyState(`Nicio oră trecută pentru ${ZILE_NUME[ziAzi]} în Orar.`, 'Adaugă-le în tabul „Orar”.') : `
@@ -1487,6 +1524,15 @@ function renderAzi(main){
       ui.planificareClasa = a.dataset.mergiPlanificareClasa;
       currentTab = 'planificare'; render();
     });
+  });
+  const btnAziExport = document.getElementById('btn-azi-export');
+  if(btnAziExport) btnAziExport.addEventListener('click', async ()=>{
+    const rezultat = await exportBackup();
+    if(rezultat === 'share' || rezultat === 'download'){
+      state.settings.ultimulExport = todayISO();
+      saveState(); render();
+      showToast(rezultat === 'share' ? 'Backup trimis.' : 'Backup descărcat.');
+    }
   });
 }
 
@@ -3477,9 +3523,15 @@ function openSettingsModal(){
     state = { settings:{titlu:state.settings.titlu}, clase:[], elevi:[], probe:[], note:[], absente:[], bareme:[] };
     saveState(); backdrop.remove(); render(); showToast('Toate datele au fost șterse.');
   });
-  document.getElementById('modal-export').addEventListener('click', ()=>{
-    exportBackup();
-    showToast('Backup descărcat.');
+  document.getElementById('modal-export').addEventListener('click', async ()=>{
+    const rezultat = await exportBackup();
+    if(rezultat === 'share' || rezultat === 'download'){
+      state.settings.ultimulExport = todayISO();
+      saveState();
+    }
+    if(rezultat === 'share') showToast('Backup trimis.');
+    else if(rezultat === 'download') showToast('Backup descărcat.');
+    // 'cancel' -> persoana a închis meniul singură, nu mai spunem nimic
   });
   const importInput = document.getElementById('modal-import-input');
   document.getElementById('modal-import-btn').addEventListener('click', ()=> importInput.click());

@@ -600,6 +600,12 @@ function bannerPracticaHTML(claseId){
     </div>
   </div>`;
 }
+// mică etichetă discretă sub numele elevului, în Notare, dacă a fost marcat absent azi
+function absentAziHTML(e){
+  const azi = todayISO();
+  const abs = state.absente.some(a=>a.eleviId===e.id && a.data===azi && a.stare==='absent');
+  return abs ? `<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent azi</div>` : '';
+}
 // scutirea e activă azi? (o scutire temporară expiră automat singură, elevul redevine apt)
 function esteScutitActiv(e){
   if(!e.scutit || !e.scutireTip) return false;
@@ -2683,7 +2689,7 @@ function renderNotare(main){
             if(blocheazaNotarea(e)){
               return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="4"><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
-            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}`;
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${absentAziHTML(e)}`;
             const an = claseAn(e.claseId);
             const recInitial = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='initial');
             const recFinal = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='final');
@@ -2724,7 +2730,7 @@ function renderNotare(main){
             if(blocheazaNotarea(e)){
               return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="2"><span class="exempt-note">Scutit medical</span></td></tr>`;
             }
-            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}`;
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${absentAziHTML(e)}`;
             if(tipNotare==='calificativ'){
               const valExist = existing ? existing.valoare : '';
               const notaExist = valExist ? notaDinCalificativ(valExist) : null;

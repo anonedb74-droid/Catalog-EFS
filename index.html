@@ -839,7 +839,7 @@ function render(){
     </nav>
   `;
   document.querySelectorAll('[data-tab]').forEach(b=>{
-    b.addEventListener('click', ()=>{ currentTab = b.dataset.tab; render(); });
+    b.addEventListener('click', ()=>{ currentTab = b.dataset.tab; ui.aziFisa = null; render(); });
   });
   document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
   document.getElementById('btn-save-now').addEventListener('click', ()=>{
@@ -1481,6 +1481,8 @@ function zileDeLaUltimulExport(){
   return Math.round((azi - ultim) / (1000*60*60*24));
 }
 function renderAzi(main){
+  if(ui.aziFisa && ui.aziFisa.data===todayISO()) return renderFisaOra(main);
+  ui.aziFisa = null;
   const azi = todayISO();
   const ziAzi = ziDinData(azi);
   const esteWeekend = ziAzi==='SA' || ziAzi==='DU';
@@ -1518,17 +1520,26 @@ function renderAzi(main){
         } else {
           continut = `<div style="margin-top:8px; color:var(--muted); font-size:14px;">Nicio planificare pentru azi, la clasa ${escapeHtml(clasa.nume)}. <a href="#" data-mergi-planificare="${clasa.an}" data-mergi-planificare-clasa="${clasa.id}" style="color:var(--track);">Adaugă una →</a></div>`;
         }
-        return `<div class="card" style="border-left:4px solid var(--track);">
+        return `<div class="card card-ora" data-fisa-clasa="${clasa.id}" data-fisa-ora="${o.ora}" style="border-left:4px solid var(--track); cursor:pointer;">
           <div style="display:flex; justify-content:space-between; align-items:baseline;">
             <span style="font-family:'Oswald',sans-serif; font-size:13px; color:var(--muted); text-transform:uppercase;">Ora ${o.ora}</span>
             <span style="font-weight:700; font-size:17px;">${escapeHtml(clasa.nume)}</span>
           </div>
           ${continut}
+          <div style="margin-top:10px; text-align:right; font-size:13px; font-weight:700; color:var(--track);">Deschide fișa orei ›</div>
         </div>`;
       }).join('')}
     </div>
     `}
   `;
+  main.querySelectorAll('.card-ora').forEach(card=>{
+    card.addEventListener('click', (ev)=>{
+      if(ev.target.closest('a')) return;
+      ui.aziFisa = {claseId:card.dataset.fisaClasa, ora:card.dataset.fisaOra, data:azi};
+      render();
+      const m = document.getElementById('main'); if(m) m.scrollTop = 0; window.scrollTo(0,0);
+    });
+  });
   main.querySelectorAll('[data-mergi-planificare]').forEach(a=>{
     a.addEventListener('click', (ev)=>{
       ev.preventDefault();
@@ -1545,6 +1556,97 @@ function renderAzi(main){
       saveState(); render();
       showToast(rezultat === 'share' ? 'Backup trimis.' : 'Backup descărcat.');
     }
+  });
+}
+
+/* ================= FIȘA OREI (din tabul Azi) ================= */
+function renderFisaOra(main){
+  const f = ui.aziFisa;
+  const clasa = state.clase.find(c=>c.id===f.claseId);
+  if(!clasa){ ui.aziFisa = null; return renderAzi(main); }
+  const azi = f.data;
+  const elevi = eleviDinClasa(clasa.id);
+  const practica = practicaActiva(clasa.id);
+  const planuri = state.planificari.filter(p=>p.claseId===clasa.id).sort((a,b)=>a.data.localeCompare(b.data));
+  const plan = planuri.find(p=>p.data===azi);
+  const anterioara = [...planuri].reverse().find(p=>p.data<azi);
+  const urmatoare = planuri.find(p=>p.data>azi);
+  const esteEvaluare = plan && /evaluare/i.test(plan.tema||'');
+  const probeAzi = state.probe.filter(p=>probaSeAplicaClasei(p, clasa.id) && p.data===azi);
+  // elevi care cer atenție
+  const scutiti = elevi.filter(e=>esteScutitActiv(e));
+  const ces = elevi.filter(e=>e.ces);
+  // prezența de azi
+  const absAzi = state.absente.filter(a=>a.claseId===clasa.id && a.data===azi && a.stare==='absent');
+  const numeElev = id=>{ const e=state.elevi.find(x=>x.id===id); return e ? `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}` : '—'; };
+  // ultima oră înregistrată înainte de azi: absenți + observații
+  const dateAnterioare = [...new Set(state.absente.filter(a=>a.claseId===clasa.id && a.data<azi).map(a=>a.data))].sort();
+  const ultimaData = dateAnterioare[dateAnterioare.length-1];
+  const recUltima = ultimaData ? state.absente.filter(a=>a.claseId===clasa.id && a.data===ultimaData) : [];
+  state.notiteOre = state.notiteOre || [];
+  const notita = state.notiteOre.find(n=>n.claseId===clasa.id && n.data===azi);
+  const sect = (titlu, corp)=>`<div class="card"><h3 style="font-size:15px; color:var(--infield); margin:0 0 8px;">${titlu}</h3>${corp}</div>`;
+  const recs = [];
+  if(plan){
+    if(plan.recAfara) recs.push(`<div><b>Afară:</b> ${escapeHtml(plan.recAfara)}</div>`);
+    if(plan.recInterior) recs.push(`<div><b>În clasă/sală:</b> ${escapeHtml(plan.recInterior)}</div>`);
+    if(plan.recMixt) recs.push(`<div><b>Colectiv mixt:</b> ${escapeHtml(plan.recMixt)}</div>`);
+  }
+  main.innerHTML = `
+    <button class="btn btn-ghost" id="btn-fisa-inapoi">‹ Înapoi la Azi</button>
+    <h2 style="margin-top:8px;">${escapeHtml(clasa.nume)} — ora ${escapeHtml(String(f.ora))}</h2>
+    <p class="tab-desc">${ZILE_NUME[ziDinData(azi)]}, ${formatDataRo(azi)} · ${elevi.length} elevi</p>
+    ${bannerPracticaHTML(clasa.id)}
+    ${sect('Lecția de azi', plan ? `
+      <div style="font-size:18px; font-weight:700; color:var(--infield);">${escapeHtml(plan.tema)}</div>
+      ${recs.length?`<div style="margin-top:8px; font-size:14px; display:flex; flex-direction:column; gap:4px;">${recs.join('')}</div>`:''}
+      ${esteEvaluare?`<div style="margin-top:10px;"><span class="pill pill-yellow">Azi e evaluare</span></div>`:''}
+    ` : `<div style="color:var(--muted);">Nicio planificare pentru azi. <a href="#" id="lnk-fisa-plan" style="color:var(--track);">Adaugă una →</a></div>`)}
+    ${probeAzi.length ? sect('Probe programate azi', probeAzi.map(p=>`<div>• ${escapeHtml(p.nume)}</div>`).join('')) : ''}
+    ${sect('Elevi care cer atenție', (!scutiti.length && !ces.length) ? `<div style="color:var(--muted);">Niciun elev scutit sau cu CES.</div>` : `
+      ${scutiti.length ? `<div style="margin-bottom:8px;"><b>Scutiți (${scutiti.length}):</b>${scutiti.map(e=>`<div style="margin-top:4px;">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePillHTML(e)}${e.motivScutire?` <span style="color:var(--muted); font-size:13px;">— ${escapeHtml(e.motivScutire)}</span>`:''}</div>`).join('')}</div>` : ''}
+      ${ces.length ? `<div><b>CES (${ces.length}):</b>${ces.map(e=>`<div style="margin-top:4px;">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${e.cesDetalii?` <span style="color:var(--muted); font-size:13px;">— ${escapeHtml(e.cesDetalii)}</span>`:''}</div>`).join('')}</div>` : ''}
+    `)}
+    ${sect('Prezența', `
+      <div>${absAzi.length ? `<b>Absenți azi (${absAzi.length}):</b> ${absAzi.map(a=>numeElev(a.eleviId)).join(', ')}` : '<span style="color:var(--muted);">Prezența de azi nu e făcută sau nu e niciun absent.</span>'}</div>
+      <div style="margin-top:10px;"><button class="btn btn-primary" id="btn-fisa-prezenta">Fă prezența</button></div>
+    `)}
+    ${ultimaData ? sect(`La ora trecută (${formatDataRo(ultimaData)})`, (()=>{
+      const abs = recUltima.filter(a=>a.stare==='absent').map(a=>numeElev(a.eleviId));
+      const obs = recUltima.filter(a=>a.stare!=='absent' && a.nota).map(a=>`<div style="margin-top:3px;">${numeElev(a.eleviId)} — ${escapeHtml(a.nota)}</div>`);
+      return `${abs.length?`<div><b>Absenți:</b> ${abs.join(', ')}</div>`:'<div style="color:var(--muted);">Niciun absent.</div>'}${obs.length?`<div style="margin-top:8px;"><b>Observații:</b>${obs.join('')}</div>`:''}`;
+    })()) : ''}
+    ${sect('Lecția anterioară și următoarea', `
+      <div style="font-size:14px;"><b>Anterioară:</b> ${anterioara?`${formatDataRo(anterioara.data)} — ${escapeHtml(anterioara.tema)}`:'—'}</div>
+      <div style="font-size:14px; margin-top:4px;"><b>Următoarea:</b> ${urmatoare?`${formatDataRo(urmatoare.data)} — ${escapeHtml(urmatoare.tema)}`:'—'}</div>
+    `)}
+    ${sect('Notiță pentru ora de azi', `
+      <textarea id="txt-fisa-notita" rows="4" style="width:100%;" placeholder="ex: ce a mers bine, ce reiei data viitoare, elevi de urmărit">${escapeHtml(notita?notita.text:'')}</textarea>
+      <div style="font-size:12px; color:var(--muted); margin-top:4px;">Se salvează singură.</div>
+    `)}
+    <div class="row" style="gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" id="btn-fisa-notare">Mergi la Notare</button>
+      <button class="btn btn-secondary" id="btn-fisa-planificare">Planificarea clasei</button>
+    </div>
+  `;
+  document.getElementById('btn-fisa-inapoi').addEventListener('click', ()=>{ ui.aziFisa = null; render(); });
+  document.getElementById('btn-fisa-prezenta').addEventListener('click', ()=>{
+    ui.clasaCurenta = clasa.id; ui.absenteData = azi; currentTab = 'absente'; ui.aziFisa = null; render();
+  });
+  document.getElementById('btn-fisa-notare').addEventListener('click', ()=>{
+    ui.clasaCurenta = clasa.id; currentTab = 'notare'; ui.aziFisa = null; render();
+  });
+  const goPlan = ()=>{ ui.planificareAn = clasa.an; ui.planificareClasa = clasa.id; currentTab = 'planificare'; ui.aziFisa = null; render(); };
+  document.getElementById('btn-fisa-planificare').addEventListener('click', goPlan);
+  const lnk = document.getElementById('lnk-fisa-plan');
+  if(lnk) lnk.addEventListener('click', ev=>{ ev.preventDefault(); goPlan(); });
+  document.getElementById('txt-fisa-notita').addEventListener('input', e=>{
+    const text = e.target.value;
+    let n = state.notiteOre.find(n=>n.claseId===clasa.id && n.data===azi);
+    if(!n){ n = {id:uid(), claseId:clasa.id, data:azi, text:''}; state.notiteOre.push(n); }
+    n.text = text;
+    if(!text.trim()) state.notiteOre = state.notiteOre.filter(x=>x!==n);
+    saveState();
   });
 }
 

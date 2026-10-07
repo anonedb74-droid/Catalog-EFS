@@ -2949,7 +2949,18 @@ function renderAbsente(main){
       const stareNoua = chk.checked ? 'absent' : 'prezent';
       // absent -> observația nu se mai aplică; o golim, ca să nu rămână o valoare veche ascunsă
       upsertAbsenta(eleviId, chk.checked ? {stare: stareNoua, nota: ''} : {stare: stareNoua});
-      render(); // reface rândul, ca să (dez)activeze corect celula de observație
+      // actualizăm doar rândul elevului (fără render() complet, ca pagina să nu sară sus)
+      const row = main.querySelector(`tr[data-row-elev="${eleviId}"]`);
+      if(!row) return;
+      const celule = row.children;
+      celule[2].innerHTML = starePillHTML(stareNoua);
+      celule[5].innerHTML = totalBadgeHTML(eleviId);
+      const sel = row.querySelector('.select-observatie');
+      const custom = row.querySelector('.input-observatie-custom');
+      sel.disabled = chk.checked;
+      custom.disabled = chk.checked;
+      celule[4].style.opacity = chk.checked ? '0.35' : '1';
+      if(chk.checked){ sel.value = ''; custom.value = ''; custom.style.display = 'none'; }
     });
   });
   main.querySelectorAll('.select-observatie').forEach(sel=>{

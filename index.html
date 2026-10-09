@@ -2,11 +2,16 @@
 <html lang="ro">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>Catalog EFS</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#22402C">
 <link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Catalog EFS">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="format-detection" content="telephone=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -330,6 +335,29 @@
     border-radius:11px; background:var(--track); color:#fff;
     font-size:12px; font-weight:700;
   }
+  /* ---------- TELEFON (iPhone / Android) — ecran îngust ---------- */
+  html{-webkit-text-size-adjust:100%;}
+  #app{height:100vh; height:100dvh;}
+  @media (max-width:600px){
+    /* iOS mărește automat pagina când atingi un câmp cu font sub 16px — le facem 16px */
+    input[type=text], input[type=date], input[type=number], input[type=search], select, textarea,
+    input.grade-input, input.calificativ-input, select.calificativ-input{font-size:16px !important;}
+    header{padding:calc(8px + env(safe-area-inset-top)) 12px 8px; }
+    header .title h1{font-size:16px;}
+    #save-indicator{display:none;}
+    header .btn-primary{padding:6px 10px !important;}
+    main{padding:10px 10px calc(90px + env(safe-area-inset-bottom));}
+    /* 18 taburi nu încap pe un telefon: bara de jos devine derulabilă lateral */
+    nav.bottombar{
+      overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+      padding-bottom:env(safe-area-inset-bottom); scrollbar-width:none;
+    }
+    nav.bottombar::-webkit-scrollbar{display:none;}
+    nav.bottombar button{flex:0 0 68px; padding:8px 2px 10px;}
+    nav.bottombar button span{font-size:11px;}
+    .card{padding:10px;}
+    .modal, .modal-content{max-width:100vw;}
+  }
 </style>
 </head>
 <body>
@@ -382,8 +410,10 @@ let ui = {
 };
 
 function todayISO(){
+  // data locală (nu UTC), ca după miezul nopții ora României să nu arate încă ziua precedentă
   const d = new Date();
-  return d.toISOString().slice(0,10);
+  const z = n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
 }
 const ZILE = ['LU','MA','MI','JO','VI'];
 const ZILE_NUME = {LU:'Luni', MA:'Marți', MI:'Miercuri', JO:'Joi', VI:'Vineri', SA:'Sâmbătă', DU:'Duminică'};
@@ -822,6 +852,8 @@ function render(){
     currentTab = tabsVizibile().length ? tabsVizibile()[0].id : 'dashboard';
   }
   const app = document.getElementById('app');
+  const _bb = app.querySelector('nav.bottombar');
+  const _bbScroll = _bb ? _bb.scrollLeft : 0;
   app.innerHTML = `
     <header>
       <div class="title">
@@ -844,6 +876,17 @@ function render(){
       ${tabsVizibile().map(t=>`<button data-tab="${t.id}" class="${currentTab===t.id?'active':''}">${ICONS[t.id]}<span>${t.label}</span></button>`).join('')}
     </nav>
   `;
+  // bara de jos (telefon): păstrăm poziția derulării și ținem tabul activ în câmpul vizual
+  const _nb = app.querySelector('nav.bottombar');
+  if(_nb){
+    _nb.scrollLeft = _bbScroll;
+    const _act = _nb.querySelector('button.active');
+    if(_act){
+      const st = _act.offsetLeft, en = st + _act.offsetWidth;
+      if(st < _nb.scrollLeft) _nb.scrollLeft = st - 8;
+      else if(en > _nb.scrollLeft + _nb.clientWidth) _nb.scrollLeft = en - _nb.clientWidth + 8;
+    }
+  }
   document.querySelectorAll('[data-tab]').forEach(b=>{
     b.addEventListener('click', ()=>{ currentTab = b.dataset.tab; ui.aziFisa = null; render(); });
   });

@@ -14,7 +14,7 @@
 <meta name="format-detection" content="telephone=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="xlsx.full.min.js"></script>
 <style>
   :root{
     --track:#C1440E;
@@ -1548,7 +1548,7 @@ function renderAzi(main){
     ${(zileExport===null || zileExport>=pragAtentionare) ? `
       <div class="card" style="background:#FBEBD3; border-color:#E3A23C; display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
         <div>💾 ${zileExport===null ? '<strong>N-ai făcut niciodată export de backup.</strong> Dacă pierzi tableta, pierzi tot.' : `<strong>Ultimul backup a fost acum ${zileExport} zile.</strong> Riști să pierzi ce ai adăugat de atunci, dacă se întâmplă ceva cu tableta.`}</div>
-        <button class="btn btn-primary" id="btn-azi-export" style="white-space:nowrap;">Exportă acum</button>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;"><button class="btn btn-primary" id="btn-azi-export" style="white-space:nowrap;">Exportă backup</button><button class="btn btn-secondary" id="btn-azi-excel" style="white-space:nowrap;">📊 Exportă Excel</button></div>
       </div>
     ` : ''}
     ${esteWeekend ? emptyState('E weekend — nicio oră programată.', 'Orarul se aplică doar Luni-Vineri.') :
@@ -1600,6 +1600,8 @@ function renderAzi(main){
       currentTab = 'planificare'; render();
     });
   });
+  const btnAziExcel = document.getElementById('btn-azi-excel');
+  if(btnAziExcel) btnAziExcel.addEventListener('click', ()=>genereazaRaportExcelGeneral());
   const btnAziExport = document.getElementById('btn-azi-export');
   if(btnAziExport) btnAziExport.addEventListener('click', async ()=>{
     const rezultat = await exportBackup();
@@ -2021,7 +2023,7 @@ function genereazaRaportClasa(claseId){
 
 /* ================= RAPORT EXCEL PE CLASĂ ================= */
 function genereazaRaportExcelClasa(claseId){
-  if(typeof XLSX==='undefined'){ showToast('Nu am putut încărca motorul de Excel — verifică internetul și încearcă din nou.'); return; }
+  if(typeof XLSX==='undefined'){ showToast('Biblioteca Excel nu s-a încărcat. Deschide aplicația o dată cu internet și încearcă din nou.'); return; }
   const clasa = state.clase.find(c=>c.id===claseId);
   const lista = eleviDinClasa(claseId);
   const probeClasa = state.probe.filter(p=>probaSeAplicaClasei(p, claseId)).sort((a,b)=>a.data.localeCompare(b.data));
@@ -2082,7 +2084,7 @@ function genereazaRaportExcelClasa(claseId){
 
 /* ================= RAPORT EXCEL — TOT CATALOGUL ================= */
 function genereazaRaportExcelGeneral(){
-  if(typeof XLSX==='undefined'){ showToast('Nu am putut încărca motorul de Excel — verifică internetul și încearcă din nou.'); return; }
+  if(typeof XLSX==='undefined'){ showToast('Biblioteca Excel nu s-a încărcat. Deschide aplicația o dată cu internet și încearcă din nou.'); return; }
 
   // Foaia 1: Elevi
   const antetElevi = ['Cod unic', 'Nume', 'Prenume', 'Clasă', 'An', 'Sex', 'Data nașterii', 'Înălțime', 'Greutate', 'Scutire', 'CES'];
@@ -2120,7 +2122,25 @@ function genereazaRaportExcelGeneral(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetElevi, ...randuriElevi]), 'Elevi');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetNote, ...randuriNote]), 'Note');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetAbsente, ...randuriAbsente]), 'Absente');
-  XLSX.writeFile(wb, `Catalog_EFS_${state.settings.anScolar}.xlsx`);
+
+  // Foaia 4: Probe
+  const numeClasa = id => { const c=state.clase.find(cl=>cl.id===id); return c?c.nume:''; };
+  const randuriProbe = state.probe.slice().sort((a,b)=>(a.data||'').localeCompare(b.data||'')).map(p=>[p.nume, p.claseId==='all'?'Toate clasele':numeClasa(p.claseId), p.data?formatDataRo(p.data):'']);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Probă','Clasă','Data'], ...randuriProbe]), 'Probe');
+
+  // Foaia 5: Planificarea lecțiilor (activitatea desfășurată)
+  const randuriPlan = (state.planificari||[]).slice().sort((a,b)=>(a.data||'').localeCompare(b.data||'')).map(p=>[
+    p.data?formatDataRo(p.data):'', p.data?ZILE_NUME[ziDinData(p.data)]||'':'', p.claseId?numeClasa(p.claseId):(p.an?('Anul '+p.an):''), p.tema||'', p.recAfara||'', p.recInterior||'', p.recMixt||''
+  ]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Data','Ziua','Clasa','Tema','Afară','Interior','Mixt'], ...randuriPlan]), 'Planificare lectii');
+
+  // Foaia 6: Orar
+  const ordineZi = {LU:1,MA:2,MI:3,JO:4,VI:5,SA:6,DU:7};
+  const randuriOrar = (state.orar||[]).slice().sort((a,b)=>(ordineZi[a.zi]-ordineZi[b.zi])||(a.ora-b.ora)).map(o=>[ZILE_NUME[o.zi]||o.zi, o.ora, numeClasa(o.claseId)]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Ziua','Ora','Clasa'], ...randuriOrar]), 'Orar');
+
+  XLSX.writeFile(wb, `Catalog_EFS_${state.settings.anScolar}_${todayISO()}.xlsx`);
+  showToast('Excel exportat.');
 }
 
 // notele de mai sus pot conține deja un <span> pill — nu îl mai scăpăm prin escapeHtml a doua oară
@@ -3679,6 +3699,14 @@ function openSettingsModal(){
           <button class="btn btn-secondary" id="modal-import-btn">⭱ Importă backup</button>
           <input type="file" id="modal-import-input" accept="application/json" style="display:none;"/>
         </div>
+        <div style="font-weight:700; color:var(--infield); margin:14px 0 4px;">Export Excel (pentru citit și justificare)</div>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">
+          Un fișier Excel nou, cu tot catalogul până azi: elevi, note, absențe, probe, planificarea lecțiilor și orarul.
+          E pentru tine; pentru readucerea datelor în aplicație folosește backup-ul de mai sus.
+        </div>
+        <div class="row">
+          <button class="btn btn-secondary" id="modal-export-excel">📊 Exportă Excel</button>
+        </div>
       </div>
 
       <div class="row" style="justify-content:space-between; margin-top:6px;">
@@ -3705,6 +3733,7 @@ function openSettingsModal(){
     state = { settings:{titlu:state.settings.titlu}, clase:[], elevi:[], probe:[], note:[], absente:[], bareme:[] };
     saveState(); backdrop.remove(); render(); showToast('Toate datele au fost șterse.');
   });
+  document.getElementById('modal-export-excel').addEventListener('click', ()=>genereazaRaportExcelGeneral());
   document.getElementById('modal-export').addEventListener('click', async ()=>{
     const rezultat = await exportBackup();
     if(rezultat === 'share' || rezultat === 'download'){

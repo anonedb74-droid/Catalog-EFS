@@ -2139,6 +2139,62 @@ function genereazaRaportExcelGeneral(){
   const randuriOrar = (state.orar||[]).slice().sort((a,b)=>(ordineZi[a.zi]-ordineZi[b.zi])||(a.ora-b.ora)).map(o=>[ZILE_NUME[o.zi]||o.zi, o.ora, numeClasa(o.claseId)]);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Ziua','Ora','Clasa'], ...randuriOrar]), 'Orar');
 
+  // Foaia 7: PPT — nota pe componente, per elev și probă
+  const f2 = x => x==null ? '' : Math.round(x*100)/100;
+  const randuriPPT = [];
+  state.elevi.forEach(e=>{
+    const c = state.clase.find(cl=>cl.id===e.claseId);
+    state.probe.filter(p=>p.claseId==='all' || p.claseId===e.claseId).forEach(p=>{
+      const r = calculeazaPPP(e.id, p.id); if(!r) return;
+      randuriPPT.push([`${e.nume} ${e.prenume}`, c?c.nume:'—', p.nume, f2(r.performanta), f2(r.progres), f2(r.tehnica), f2(r.participare), r.modul?r.modul.nume:'', r.notaFinala==null?'fără Tehnică':r.notaFinala]);
+    });
+  });
+  const pp = state.pppPonderi||{};
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    [`Ponderi: Performanță ${pp.performanta}% · Progres ${pp.progres}% · Tehnică ${pp.tehnica}%${pp.participareActiva?` · Participare ${pp.participare}%`:''}`], [],
+    ['Elev','Clasă','Probă','Performanță','Progres','Tehnică','Participare','Modul','Notă finală'], ...randuriPPT]), 'PPT');
+
+  // Foaia 8: Tehnica execuției
+  const randuriTeh = (state.tehnicaExecutie||[]).map(t=>{
+    const e = state.elevi.find(el=>el.id===t.eleviId), p = state.probe.find(pr=>pr.id===t.probaId);
+    const c = e ? state.clase.find(cl=>cl.id===e.claseId) : null;
+    return [e?`${e.nume} ${e.prenume}`:'—', c?c.nume:'—', p?p.nume:'—', t.valoare];
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Elev','Clasă','Probă','Notă tehnică'], ...randuriTeh]), 'Tehnica');
+
+  // Foaia 9: Notițe de la ore
+  const randuriNotite = (state.notiteOre||[]).filter(n=>n.text && n.text.trim()).sort((a,b)=>(a.data||'').localeCompare(b.data||''))
+    .map(n=>[n.data?formatDataRo(n.data):'', n.data?ZILE_NUME[ziDinData(n.data)]||'':'', numeClasa(n.claseId), n.text]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Data','Ziua','Clasa','Notiță'], ...randuriNotite]), 'Notite ore');
+
+  // Foaia 10: Scutiri și CES
+  const tipScutire = e => e.scutireTip==='partiala'?'Parțială':e.scutireTip==='temporara'?'Temporară':e.scutireTip?'Totală anuală':'';
+  const randuriScut = state.elevi.filter(e=>e.scutireTip || e.scutit || e.ces).map(e=>[
+    `${e.nume} ${e.prenume}`, numeClasa(e.claseId), tipScutire(e), e.scutireSubTip||'', e.scutireStart?formatDataRo(e.scutireStart):'', e.scutireEnd?formatDataRo(e.scutireEnd):'',
+    esteScutitActiv(e)?'Da':'Nu', e.motivScutire||'', e.ces?(e.cesDetalii||'Da'):'']);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Elev','Clasă','Scutire','Detaliu','De la','Până la','Activă azi','Motiv','CES'], ...randuriScut]), 'Scutiri');
+
+  // Foaia 11: Practică comasată
+  const randuriPract = [];
+  state.clase.forEach(c=>(c.practica||[]).forEach(p=>randuriPract.push([c.nume, p.nume||'', p.start?formatDataRo(p.start):'', p.end?formatDataRo(p.end):''])));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Clasa','Perioada','De la','Până la'], ...randuriPract]), 'Practica');
+
+  // Foaia 12: Module
+  const randuriMod = (state.module||[]).map(m=>[m.nume, m.start?formatDataRo(m.start):'', m.end?formatDataRo(m.end):'']);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Modul','De la','Până la'], ...randuriMod]), 'Module');
+
+  // Foaia 13: Bareme
+  const randuriBar = [];
+  (state.bareme||[]).forEach(b=>Object.keys(b.praguri||{}).forEach(an=>['M','F'].forEach(sx=>{
+    const pr = b.praguri[an] && b.praguri[an][sx]; if(!pr) return;
+    randuriBar.push([b.nume, b.directie==='asc'?'mai mult = mai bine':'mai puțin = mai bine', an, sx==='M'?'Băieți':'Fete', ...[9,8,7,6,5,4].map(n=>pr[n]==null?'':pr[n])]);
+  })));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Barem','Sens','An','Sex','Prag 9','Prag 8','Prag 7','Prag 6','Prag 5','Prag 4'], ...randuriBar]), 'Bareme');
+
+  // Foaia 14: Clase
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Clasa','An de studiu','Arhivată','Nr. elevi'],
+    ...state.clase.map(c=>[c.nume, c.an, c.arhivata?'Da':'', state.elevi.filter(e=>e.claseId===c.id).length])]), 'Clase');
+
   XLSX.writeFile(wb, `Catalog_EFS_${state.settings.anScolar}_${todayISO()}.xlsx`);
   showToast('Excel exportat.');
 }

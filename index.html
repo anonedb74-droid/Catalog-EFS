@@ -361,6 +361,29 @@
     .modal{width:calc(100vw - 24px); padding:16px;}
     .modal div[style*="max-height:220px"]{max-height:none !important; overflow:visible !important;}
   }
+  /* ---------- ORAR TABEL + ORA CURENTĂ + STARE NOTARE ---------- */
+  table.orar-grid{border-collapse:collapse; width:100%;}
+  table.orar-grid th, table.orar-grid td{border:1px solid var(--border); padding:4px 5px; text-align:center;}
+  table.orar-grid th.ora-col{text-align:left; white-space:nowrap; background:var(--chalk);}
+  table.orar-grid th.ora-col small{display:block; font-weight:400; color:var(--muted); font-size:11px;}
+  table.orar-grid select{min-height:34px; padding:4px 6px; width:100%; min-width:74px; font-weight:700;}
+  .orar-azi-col{background:#FFF9E5;}
+  table.orar-grid td.orar-now{background:#FFE08A; box-shadow:inset 0 0 0 3px var(--track);}
+  table.orar-grid th.orar-now{background:var(--track); color:#fff;}
+  table.orar-grid th.orar-now small{color:#fff;}
+  .card-ora.ora-acum{box-shadow:0 0 0 3px var(--track); background:#FFF9E5;}
+  #azi-acum{background:var(--infield); color:#fff; border-color:var(--infield); font-size:15px;}
+  .stare-cell{text-align:center; font-weight:700; cursor:pointer; white-space:nowrap; user-select:none;}
+  td.stare-na{color:var(--muted); cursor:default; font-weight:400;}
+  .stare-zero{background:#F3E1DF; color:#8A2A22;}
+  .stare-partial{background:#FBEBD3; color:#8A5A10;}
+  .stare-aproape{background:#E3EFDD; color:#2C5A2C;}
+  .stare-fin{background:#2E7D32; color:#fff;}
+  .legenda-stare{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; font-size:12px;}
+  .legenda-stare .stare-cell{padding:2px 8px; border-radius:10px; cursor:default;}
+  #lbl-clasa-notata{display:flex; align-items:center; gap:10px; padding:10px 12px; border:2px solid var(--border); border-radius:10px; margin-bottom:12px; background:#fff; font-weight:600; cursor:pointer;}
+  #lbl-clasa-notata.notata-ok{background:#E3EFDD; border-color:#2E7D32; color:#1B5E20;}
+  #lbl-clasa-notata input{width:24px; height:24px; flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -385,6 +408,8 @@ let state = {
   absente: [],    // {id, eleviId, claseId, data, stare} stare: 'prezent'|'absent'
   bareme: [],     // {id, nume, directie:'desc'|'asc', praguri:{IX:{M:{9..4},F:{9..4}}, X:{...}, XI:{...}, XII:{...}}}
   observatiiCustom: [],  // observații suplimentare adăugate de profesor, pe lângă cele predefinite
+  noteCurente: [],   // {id, eleviId, claseId, data, valoare, motiv, detalii, obs} — note curente, în afara probelor
+  notareFinalizata: [], // {claseId, probaId} — clasa bifată ca „notată” la o probă
   module: [],     // {id, nume, start, end} — perioadele anului școlar (5 module), pentru calculul Participării active (PPP)
   puncteObservatii: {},  // { "textul observației": puncte de scăzut din 10 } — editabil de profesor
   puncteAbsentaGoala: 2,  // puncte scăzute pentru fiecare absență (punctaj fix, uniform — observația nu se mai aplică la absență)
@@ -525,6 +550,8 @@ function migreazaDate(){
   if(!state.settings.taburiAscunse) state.settings.taburiAscunse = [];
   if(state.settings.ultimulExport===undefined) state.settings.ultimulExport = null;
   if(!state.module) state.module = [];
+  if(!state.noteCurente) state.noteCurente = [];
+  if(!state.notareFinalizata) state.notareFinalizata = [];
   if(!state.pppPonderi) state.pppPonderi = { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false };
   if(state.pppPonderi.tehnica===undefined) state.pppPonderi.tehnica = 35;
   if(state.pppPonderi.participareActiva===undefined) state.pppPonderi.participareActiva = false;
@@ -777,6 +804,7 @@ function showToast(msg){
 
 /* ---------------- ICONS (inline SVG, stroke style) ---------------- */
 const ICONS = {
+  curente: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>',
   clase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg>',
   elevi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M15 20c0-2.6 1-4.6 3-5.5"/></svg>',
   probe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/><path d="M12 2v3"/></svg>',
@@ -809,6 +837,7 @@ const TABS = [
   {id:'planificare', label:'Planificare'},
   {id:'absente', label:'Absențe'},
   {id:'notare', label:'Notare'},
+  {id:'curente', label:'Note curente'},
   {id:'sinteza', label:'Sinteză'},
   {id:'ppp', label:'PPT'},
   {id:'combinat', label:'Combinat'},
@@ -839,6 +868,139 @@ function formatDataRo(iso){
 
 /* ================= RENDER PRINCIPAL ================= */
 let ultimaZiCunoscuta = todayISO();
+
+/* ---------------- PROGRAMUL ORELOR + ORA CURENTĂ ---------------- */
+const PROGRAM_ORE_IMPLICIT = [['07:40','08:30'],['08:35','09:25'],['09:30','10:20'],['10:30','11:20'],['11:25','12:15'],['12:20','13:10'],['13:15','14:05']];
+function programOre(){
+  const pr = state.settings && state.settings.programOre;
+  return (Array.isArray(pr) && pr.length) ? pr : PROGRAM_ORE_IMPLICIT;
+}
+function minuteDinOra(hhmm){ const [h,m] = String(hhmm).split(':').map(Number); return h*60+(m||0); }
+// unde suntem acum: {zi, ora, inOra:true/false (false = pauză), interval:[a,b]} sau null în afara orelor
+function oraCurenta(){
+  const d = new Date();
+  const zi = ziDinData(todayISO());
+  const min = d.getHours()*60 + d.getMinutes();
+  const prog = programOre();
+  for(let i=0;i<prog.length;i++){
+    const a = minuteDinOra(prog[i][0]), b = minuteDinOra(prog[i][1]);
+    if(min>=a && min<=b) return {zi, ora:i+1, inOra:true, interval:prog[i]};
+    if(min<a) return {zi, ora:i+1, inOra:false, interval:prog[i]}; // pauză sau înainte de prima oră: urmează ora i+1
+  }
+  return {zi, ora:null, inOra:false, interval:null}; // după ultima oră
+}
+// actualizează doar marcajele din pagină (fără redesenare), ca să nu deranjeze ce scrii
+function aplicaOraCurenta(){
+  const c = oraCurenta();
+  const weekend = c.zi==='SA' || c.zi==='DU';
+  document.querySelectorAll('.orar-now').forEach(x=>x.classList.remove('orar-now'));
+  document.querySelectorAll('.orar-azi-col').forEach(x=>x.classList.remove('orar-azi-col'));
+  document.querySelectorAll('.ora-acum').forEach(x=>x.classList.remove('ora-acum'));
+  if(!weekend){
+    document.querySelectorAll(`[data-orar-zi-th="${c.zi}"]`).forEach(x=>x.classList.add('orar-azi-col'));
+    document.querySelectorAll(`td[data-orar-cell][data-zi="${c.zi}"]`).forEach(x=>x.classList.add('orar-azi-col'));
+    if(c.ora){
+      document.querySelectorAll(`[data-orar-ora-th="${c.ora}"]`).forEach(x=>x.classList.add('orar-now'));
+      document.querySelectorAll(`td[data-orar-cell][data-zi="${c.zi}"][data-ora="${c.ora}"]`).forEach(x=>x.classList.add('orar-now'));
+      document.querySelectorAll(`.card-ora[data-fisa-ora="${c.ora}"]`).forEach(x=>x.classList.add('ora-acum'));
+    }
+  }
+  const b = document.getElementById('azi-acum');
+  if(b){
+    const o = (!weekend && c.ora) ? state.orar.find(x=>x.zi===c.zi && x.ora===c.ora) : null;
+    const cl = o ? state.clase.find(k=>k.id===o.claseId) : null;
+    let txt;
+    if(weekend) txt = 'Weekend — nicio oră.';
+    else if(!c.ora) txt = 'Orele de azi s-au terminat.';
+    else if(c.inOra) txt = `<b>Acum: ora ${c.ora}</b> (${c.interval[0]}–${c.interval[1]})${cl?` — clasa <b>${escapeHtml(cl.nume)}</b>`:' — nu ai oră cu nicio clasă'}`;
+    else txt = `Pauză — urmează <b>ora ${c.ora}</b> la ${c.interval[0]}${cl?`, clasa <b>${escapeHtml(cl.nume)}</b>`:' (fără clasă)'}`;
+    b.innerHTML = '⏰ ' + txt;
+  }
+}
+setInterval(aplicaOraCurenta, 30000);
+
+/* ---------------- NOTE CURENTE + STARE NOTARE ---------------- */
+const MOTIVE_CURENTE = ['Respectarea indicațiilor date','Implicare / participare activă','Progres observat','Fair-play și colaborare','Disciplină și echipament','Temă / fișă de lucru','Răspuns oral','Altul…'];
+function noteCurenteElev(eleviId){
+  return (state.noteCurente||[]).filter(n=>n.eleviId===eleviId).sort((a,b)=>a.data.localeCompare(b.data));
+}
+function noteCurenteNumerice(eleviId){
+  return noteCurenteElev(eleviId).map(n=>Number(n.valoare)).filter(v=>!isNaN(v) && v>=1 && v<=10);
+}
+function notaCurentaPillHTML(n){
+  const titlu = [n.motiv, n.detalii, n.obs].filter(Boolean).join(' — ') + ' (' + formatDataRo(n.data) + ')';
+  return `<span class="pill pill-ok" title="${escapeHtml(titlu)}" style="margin:1px 2px;">${n.valoare}</span>`;
+}
+// câți elevi au cel puțin o notă la proba asta, față de câți se pot nota
+function statusProba(claseId, probaId){
+  const elevi = eleviDinClasa(claseId).filter(e=>!blocheazaNotarea(e));
+  const notati = elevi.filter(e=>state.note.some(n=>n.eleviId===e.id && n.probaId===probaId)).length;
+  const fin = (state.notareFinalizata||[]).some(f=>f.claseId===claseId && f.probaId===probaId);
+  return {notati, total:elevi.length, fin};
+}
+function seteazaFinalizata(claseId, probaId, valoare){
+  state.notareFinalizata = (state.notareFinalizata||[]).filter(f=>!(f.claseId===claseId && f.probaId===probaId));
+  if(valoare) state.notareFinalizata.push({claseId, probaId});
+  saveState();
+}
+// bifa „clasa notată” — o singură ascultare pentru toată aplicația (Notare și Module)
+document.addEventListener('change', ev=>{
+  const t = ev.target;
+  if(t && t.id==='chk-clasa-notata'){
+    seteazaFinalizata(ui.clasaCurenta, ui.notareProba, t.checked);
+    const lbl = document.getElementById('lbl-clasa-notata');
+    if(lbl) lbl.classList.toggle('notata-ok', t.checked);
+  }
+});
+document.addEventListener('click', ev=>{
+  const td = ev.target.closest && ev.target.closest('[data-fin-clasa]');
+  if(!td) return;
+  const claseId = td.dataset.finClasa, probaId = td.dataset.finProba;
+  const st = statusProba(claseId, probaId);
+  seteazaFinalizata(claseId, probaId, !st.fin);
+  td.outerHTML = celulaStareNotareHTML(claseId, probaId);
+});
+function celulaStareNotareHTML(claseId, probaId){
+  const st = statusProba(claseId, probaId);
+  const cls = st.fin ? 'stare-fin' : (st.notati>=st.total && st.total>0 ? 'stare-aproape' : (st.notati>0 ? 'stare-partial' : 'stare-zero'));
+  return `<td class="stare-cell ${cls}" data-fin-clasa="${claseId}" data-fin-proba="${probaId}" title="Apasă ca să marchezi clasa ca notată / nenotată">${st.fin?'✔ ':''}${st.notati}/${st.total}</td>`;
+}
+// secțiunea de la Module: pe fiecare modul, clasele notate și cele rămase de notat
+function stareNotarePeModuleHTML(){
+  const module = [...state.module].sort((a,b)=>a.start.localeCompare(b.start));
+  if(!module.length) return '';
+  const azi = todayISO();
+  return `<h3 style="font-size:16px; color:var(--infield); margin:22px 0 6px;">Clase notate / de notat, pe module</h3>
+    <p class="tab-desc" style="margin-top:0;">Cifrele arată elevii notați din totalul celor care pot fi notați. Apasă pe o celulă ca să marchezi clasa ca <b>notată</b> la proba respectivă (devine verde cu ✔) sau ca să renunți la bifă.</p>
+    <div class="legenda-stare"><span class="stare-cell stare-zero">nenotat</span><span class="stare-cell stare-partial">în curs</span><span class="stare-cell stare-aproape">toți notați</span><span class="stare-cell stare-fin">✔ bifat notată</span></div>` +
+  module.map(m=>{
+    const probe = state.probe.filter(pr=>pr.data>=m.start && pr.data<=m.end).sort((a,b)=>a.data.localeCompare(b.data));
+    const clase = claseActive();
+    const esteCurent = azi>=m.start && azi<=m.end;
+    let corp;
+    if(!probe.length) corp = '<div style="color:var(--muted); font-size:14px;">Nicio probă cu data în acest modul.</div>';
+    else if(!clase.length) corp = '<div style="color:var(--muted); font-size:14px;">Nicio clasă.</div>';
+    else{
+      corp = `<div style="overflow-x:auto;"><table>
+        <thead><tr><th>Clasă</th>${probe.map(pr=>`<th title="${formatDataRo(pr.data)}">${escapeHtml(pr.nume)}</th>`).join('')}<th>Gata</th></tr></thead>
+        <tbody>${clase.map(c=>{
+          let aplicabile = 0, gata = 0;
+          const celule = probe.map(pr=>{
+            if(!probaSeAplicaClasei(pr, c.id)) return '<td class="stare-cell stare-na">—</td>';
+            aplicabile++;
+            if(statusProba(c.id, pr.id).fin) gata++;
+            return celulaStareNotareHTML(c.id, pr.id);
+          }).join('');
+          return `<tr><td><strong>${escapeHtml(c.nume)}</strong></td>${celule}<td>${aplicabile?`${gata}/${aplicabile}`:'—'}</td></tr>`;
+        }).join('')}</tbody></table></div>`;
+    }
+    return `<div class="card"${esteCurent?' style="border-left:4px solid var(--track);"':''}>
+      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">${escapeHtml(m.nume)} <span style="font-weight:400; color:var(--muted); font-size:13px;">(${formatDataRo(m.start)} – ${formatDataRo(m.end)})${esteCurent?' · modulul curent':''}</span></div>
+      ${corp}
+    </div>`;
+  }).join('');
+}
+
 function verificaSchimbareaZilei(){
   const azi = todayISO();
   if(azi !== ultimaZiCunoscuta){
@@ -846,6 +1008,7 @@ function verificaSchimbareaZilei(){
     // aducem data din Absențe automat pe ziua nouă
     ultimaZiCunoscuta = azi;
     ui.absenteData = azi;
+    ui.curenteData = azi; ui.curenteDetalii = null;
   }
 }
 function render(){
@@ -891,7 +1054,7 @@ function render(){
     }
   }
   document.querySelectorAll('[data-tab]').forEach(b=>{
-    b.addEventListener('click', ()=>{ currentTab = b.dataset.tab; ui.aziFisa = null; render(); });
+    b.addEventListener('click', ()=>{ currentTab = b.dataset.tab; ui.aziFisa = null; if(currentTab==='curente'){ ui.curenteData = todayISO(); ui.curenteDetalii = null; } render(); });
   });
   document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
   document.getElementById('btn-save-now').addEventListener('click', ()=>{
@@ -900,6 +1063,7 @@ function render(){
     showToast(ok ? 'Salvat ✓' : 'Nu am putut salva.');
   });
   renderTab();
+  aplicaOraCurenta();
   saveUIState();
 }
 
@@ -912,6 +1076,7 @@ function renderTab(){
   if(currentTab==='probe') return renderProbe(main);
   if(currentTab==='bareme') return renderBareme(main);
   if(currentTab==='notare') return renderNotare(main);
+  if(currentTab==='curente') return renderCurente(main);
   if(currentTab==='absente') return renderAbsente(main);
   if(currentTab==='istoric') return renderIstoric(main);
   if(currentTab==='practica') return renderPractica(main);
@@ -963,6 +1128,7 @@ function renderArhiva(main){
       state.elevi = state.elevi.filter(e=>e.claseId!==id);
       state.probe.forEach(p=>{ p.claseIds = (p.claseIds||[]).filter(cid=>cid!==id); });
       state.note = state.note.filter(n=>!eleviIds.includes(n.eleviId));
+      state.noteCurente = (state.noteCurente||[]).filter(n=>!eleviIds.includes(n.eleviId));
       state.absente = state.absente.filter(a=>!eleviIds.includes(a.eleviId));
       saveState(); render(); showToast('Clasă ștearsă definitiv.');
     });
@@ -1065,6 +1231,7 @@ function renderModule(main){
     state.module.push({id:uid(), nume, start, end});
     saveState(); render(); showToast('Modul adăugat.');
   });
+  main.insertAdjacentHTML('beforeend', stareNotarePeModuleHTML());
   main.querySelectorAll('[data-del-modul]').forEach(b=>{
     b.addEventListener('click', ()=>{
       if(!confirm('Ștergi acest modul?')) return;
@@ -1337,72 +1504,61 @@ function renderCombinat(main){
 
 /* ================= TAB: ORAR (fix, pe toată anul — zi + oră + clasă) ================= */
 function renderOrar(main){
-  const orarZi = state.orar.filter(o=>o.zi===ui.orarZi).sort((a,b)=>a.ora-b.ora);
+  const prog = programOre();
+  const maxOra = Math.max(prog.length, ...state.orar.map(o=>o.ora||0));
+  const ore = Array.from({length:maxOra}, (_,i)=>i+1);
+  const optiuniClase = (selId)=>{
+    const lista = claseActive();
+    const extra = (selId && !lista.find(c=>c.id===selId)) ? state.clase.find(c=>c.id===selId) : null;
+    const toate = extra ? [...lista, extra] : lista;
+    return `<option value="">—</option>` + toate.map(c=>`<option value="${c.id}" ${c.id===selId?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')
+      + ((selId && !state.clase.find(c=>c.id===selId)) ? `<option value="${selId}" selected>(clasă ștearsă)</option>` : '');
+  };
   main.innerHTML = `
     <h2>Orar</h2>
-    <p class="tab-desc">Orarul tău fix, pe toată anul — nu se schimbă pe module. Îl folosește tabul „Azi” ca să știe ce clasă ai la fiecare oră, în fiecare zi.</p>
-    <div class="card">
-      <div class="row">
-        <div class="field">
-          <label>Zi</label>
-          <select id="input-orar-zi-nou">
-            ${ZILE.map(z=>`<option value="${z}">${ZILE_NUME[z]}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label>Ora</label>
-          <input type="number" min="1" max="10" id="input-orar-ora-nou" value="1" style="width:70px;"/>
-        </div>
-        <div class="field">
-          <label>Clasă</label>
-          <select id="input-orar-clasa-nou">
-            ${claseActive().map(c=>`<option value="${c.id}">${escapeHtml(c.nume)}</option>`).join('')}
-          </select>
-        </div>
-        <button class="btn btn-primary" id="btn-add-orar">+ Adaugă în orar</button>
-      </div>
-    </div>
-
-    <div class="row" style="margin-bottom:12px; gap:6px;">
-      ${ZILE.map(z=>`<button class="btn ${z===ui.orarZi?'btn-primary':'btn-ghost'}" data-orar-zi-tab="${z}">${ZILE_NUME[z]}</button>`).join('')}
-    </div>
-
-    ${orarZi.length===0 ? emptyState(`Nicio oră trecută pentru ${ZILE_NUME[ui.orarZi]}.`, 'Adaugă una mai sus.') : `
+    <p class="tab-desc">Orarul tău fix, pe tot anul. Alege clasa în fiecare celulă; ora în care ești acum se colorează automat. Îl folosește și tabul „Azi”.</p>
+    ${claseActive().length===0 ? emptyState('Nicio clasă adăugată.', 'Adaugă clase în tabul „Clase”, apoi completează orarul.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
-      <table>
-        <thead><tr><th>Ora</th><th>Clasă</th><th></th></tr></thead>
+      <table class="orar-grid">
+        <thead><tr><th class="ora-col">Ora</th>${ZILE.map(z=>`<th data-orar-zi-th="${z}">${ZILE_NUME[z]}</th>`).join('')}</tr></thead>
         <tbody>
-          ${orarZi.map(o=>{
-            const c = state.clase.find(cl=>cl.id===o.claseId);
-            return `<tr>
-              <td><strong>${o.ora}</strong></td>
-              <td>${c ? escapeHtml(c.nume) : '<span style="color:var(--muted);">clasă ștearsă</span>'}</td>
-              <td><button class="btn btn-danger" data-del-orar="${o.id}">${ICONS.trash}</button></td>
-            </tr>`;
-          }).join('')}
+          ${ore.map(n=>`<tr>
+            <th class="ora-col" data-orar-ora-th="${n}">${n}${prog[n-1]?`<small>${prog[n-1][0]}–${prog[n-1][1]}</small>`:''}</th>
+            ${ZILE.map(z=>{
+              const o = state.orar.find(x=>x.zi===z && x.ora===n);
+              return `<td data-orar-cell data-zi="${z}" data-ora="${n}"><select class="orar-select" data-zi="${z}" data-ora="${n}">${optiuniClase(o?o.claseId:null)}</select></td>`;
+            }).join('')}
+          </tr>`).join('')}
         </tbody>
       </table>
     </div>`}
+    <details class="card" style="margin-top:12px;">
+      <summary style="cursor:pointer; font-weight:700; color:var(--infield);">Programul orelor (intervale)</summary>
+      <p class="tab-desc" style="margin-top:8px;">Intervalele sunt cele din orarul școlii 2026-2027. Le poți modifica dacă se schimbă.</p>
+      <div style="display:grid; grid-template-columns:auto 1fr 1fr; gap:6px 8px; align-items:center; max-width:360px;">
+        ${prog.map((iv,i)=>`<span><b>${i+1}</b></span><input type="time" class="input-prog-start" data-i="${i}" value="${iv[0]}"/><input type="time" class="input-prog-end" data-i="${i}" value="${iv[1]}"/>`).join('')}
+      </div>
+      <div style="margin-top:10px;"><button class="btn btn-secondary" id="btn-salveaza-program">Salvează programul</button></div>
+    </details>
   `;
-  main.querySelectorAll('[data-orar-zi-tab]').forEach(b=>{
-    b.addEventListener('click', ()=>{ ui.orarZi = b.dataset.orarZiTab; render(); });
-  });
-  document.getElementById('btn-add-orar').addEventListener('click', ()=>{
-    const zi = document.getElementById('input-orar-zi-nou').value;
-    const ora = parseInt(document.getElementById('input-orar-ora-nou').value, 10);
-    const claseId = document.getElementById('input-orar-clasa-nou').value;
-    if(!claseId) return showToast('Alege o clasă.');
-    if(!ora || ora<1) return showToast('Scrie un număr de oră valid.');
-    if(state.orar.some(o=>o.zi===zi && o.ora===ora)) return showToast('Ai deja o clasă trecută la ora asta, în ziua asta.');
-    state.orar.push({id:uid(), zi, ora, claseId});
-    ui.orarZi = zi;
-    saveState(); render(); showToast('Adăugat în orar.');
-  });
-  main.querySelectorAll('[data-del-orar]').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      state.orar = state.orar.filter(o=>o.id!==b.dataset.delOrar);
-      saveState(); render(); showToast('Șters din orar.');
+  main.querySelectorAll('.orar-select').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const zi = sel.dataset.zi, ora = parseInt(sel.dataset.ora,10);
+      state.orar = state.orar.filter(o=>!(o.zi===zi && o.ora===ora));
+      if(sel.value) state.orar.push({id:uid(), zi, ora, claseId:sel.value});
+      saveState(); showToast(sel.value ? 'Orar actualizat.' : 'Oră eliberată.');
+      aplicaOraCurenta();
     });
+  });
+  const btnProg = document.getElementById('btn-salveaza-program');
+  if(btnProg) btnProg.addEventListener('click', ()=>{
+    const nou = programOre().map((iv,i)=>{
+      const a = main.querySelector(`.input-prog-start[data-i="${i}"]`).value || iv[0];
+      const b = main.querySelector(`.input-prog-end[data-i="${i}"]`).value || iv[1];
+      return [a,b];
+    });
+    state.settings.programOre = nou;
+    saveState(); render(); showToast('Program salvat.');
   });
 }
 
@@ -1545,6 +1701,7 @@ function renderAzi(main){
   main.innerHTML = `
     <h2>Azi — ${ZILE_NUME[ziAzi]}, ${formatDataRo(azi)}</h2>
     <p class="tab-desc">Ce ai de lucru azi, pe ore, combinând Orarul, Planificarea și Practica comasată.</p>
+    ${esteWeekend ? '' : '<div class="card" id="azi-acum"></div>'}
     ${(zileExport===null || zileExport>=pragAtentionare) ? `
       <div class="card" style="background:#FBEBD3; border-color:#E3A23C; display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
         <div>💾 ${zileExport===null ? '<strong>N-ai făcut niciodată export de backup.</strong> Dacă pierzi tableta, pierzi tot.' : `<strong>Ultimul backup a fost acum ${zileExport} zile.</strong> Riști să pierzi ce ai adăugat de atunci, dacă se întâmplă ceva cu tableta.`}</div>
@@ -1680,12 +1837,16 @@ function renderFisaOra(main){
     `)}
     <div class="row" style="gap:8px; flex-wrap:wrap;">
       <button class="btn btn-secondary" id="btn-fisa-notare">Mergi la Notare</button>
+      <button class="btn btn-secondary" id="btn-fisa-curente">Notă curentă</button>
       <button class="btn btn-secondary" id="btn-fisa-planificare">Planificarea clasei</button>
     </div>
   `;
   document.getElementById('btn-fisa-inapoi').addEventListener('click', ()=>{ ui.aziFisa = null; render(); });
   document.getElementById('btn-fisa-prezenta').addEventListener('click', ()=>{
     ui.clasaCurenta = clasa.id; ui.absenteData = azi; currentTab = 'absente'; ui.aziFisa = null; render();
+  });
+  document.getElementById('btn-fisa-curente').addEventListener('click', ()=>{
+    ui.clasaCurenta = clasa.id; ui.curenteData = azi; ui.curenteDetalii = null; currentTab = 'curente'; ui.aziFisa = null; render();
   });
   document.getElementById('btn-fisa-notare').addEventListener('click', ()=>{
     ui.clasaCurenta = clasa.id; currentTab = 'notare'; ui.aziFisa = null; render();
@@ -1701,6 +1862,102 @@ function renderFisaOra(main){
     n.text = text;
     if(!text.trim()) state.notiteOre = state.notiteOre.filter(x=>x!==n);
     saveState();
+  });
+}
+
+
+/* ================= TAB: NOTE CURENTE (în afara probelor, cu motiv) ================= */
+function renderCurente(main){
+  if(claseActive().length===0){
+    main.innerHTML = `<h2>Note curente</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    return;
+  }
+  if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
+  if(!ui.curenteData) ui.curenteData = todayISO();
+  const claseId = ui.clasaCurenta;
+  const lista = eleviDinClasa(claseId);
+  const plan = state.planificari.find(p=>p.claseId===claseId && p.data===ui.curenteData);
+  if(ui.curenteDetalii===null || ui.curenteDetalii===undefined) ui.curenteDetalii = plan ? plan.tema : '';
+  if(!ui.curenteMotiv) ui.curenteMotiv = MOTIVE_CURENTE[0];
+  const esteAltul = ui.curenteMotiv==='Altul…';
+  const absentLaData = id => state.absente.some(a=>a.eleviId===id && a.data===ui.curenteData && a.stare==='absent');
+  const istoric = (state.noteCurente||[]).filter(n=>n.claseId===claseId).sort((a,b)=>b.data.localeCompare(a.data)).slice(0,150);
+  main.innerHTML = `
+    <h2>Note curente</h2>
+    <p class="tab-desc">O notă pusă la oră, în afara probelor — de exemplu pentru că elevul a respectat indicațiile. Fiecare notă păstrează <b>motivul</b>, iar notele curente se iau în calcul la media din Sinteză.</p>
+    ${bannerPracticaHTML(claseId)}
+    <div class="card">
+      <div class="row">
+        <div class="field"><label>Clasă</label>
+          <select id="select-curente-clasa">${claseActive().map(c=>`<option value="${c.id}" ${c.id===claseId?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}</select></div>
+        <div class="field"><label>Data</label><input type="date" id="input-curente-data" value="${ui.curenteData}"/></div>
+        <div class="field" style="min-width:210px;"><label>Motivul notei</label>
+          <select id="select-curente-motiv">${MOTIVE_CURENTE.map(m=>`<option ${m===ui.curenteMotiv?'selected':''}>${escapeHtml(m)}</option>`).join('')}</select></div>
+        ${esteAltul ? `<div class="field" style="flex:1; min-width:200px;"><label>Scrie motivul</label><input type="text" id="input-curente-motiv-altul" value="${escapeHtml(ui.curenteMotivAltul||'')}" placeholder="ex: a ajutat la pregătirea terenului"/></div>` : ''}
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <div class="field" style="flex:1; min-width:240px;"><label>La ce activitate / temă</label>
+          <input type="text" id="input-curente-detalii" value="${escapeHtml(ui.curenteDetalii)}" placeholder="ex: Fotbal — joc bilateral"/></div>
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-top:4px;">${plan?'Tema a fost preluată din planificarea clasei pentru această dată.':'Nicio planificare pentru această dată — scrie tu activitatea.'}</div>
+    </div>
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>Nota</th><th>Observație (opțional)</th></tr></thead>
+        <tbody>
+          ${lista.map((e,idx)=>`<tr>
+            <td style="color:var(--muted); text-align:center;">${idx+1}</td>
+            <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${absentLaData(e.id)?'<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent</div>':''}${noteCurenteElev(e.id).length?`<div style="margin-top:2px;">${noteCurenteElev(e.id).slice(-4).map(notaCurentaPillHTML).join('')}</div>`:''}</td>
+            <td>${blocheazaNotarea(e) ? '<span class="exempt-note">Scutit</span>' : `<input type="number" inputmode="decimal" min="1" max="10" step="0.5" class="grade-input inp-curenta" data-elev="${e.id}" placeholder="—"/>`}</td>
+            <td>${blocheazaNotarea(e) ? '' : `<input type="text" class="inp-curenta-obs" data-elev="${e.id}" placeholder="opțional" style="width:100%; min-width:120px;"/>`}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="row" style="margin-bottom:18px;"><button class="btn btn-primary" id="btn-salveaza-curente">Salvează notele curente</button></div>
+    `}
+    <h3 style="font-size:16px; color:var(--infield); margin:8px 0;">Notele curente ale clasei</h3>
+    ${istoric.length===0 ? `<div class="tab-desc">Nicio notă curentă înregistrată încă la această clasă.</div>` : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Data</th><th>Elev</th><th>Nota</th><th>Motiv</th><th>Activitate / observație</th><th></th></tr></thead>
+        <tbody>${istoric.map(n=>{ const e = state.elevi.find(x=>x.id===n.eleviId); return `<tr>
+          <td>${formatDataRo(n.data)}</td><td>${e?escapeHtml(e.nume)+' '+escapeHtml(e.prenume):'—'}</td><td><strong>${n.valoare}</strong></td>
+          <td>${escapeHtml(n.motiv||'')}</td><td>${escapeHtml([n.detalii,n.obs].filter(Boolean).join(' — '))}</td>
+          <td><button class="btn btn-danger" data-del-curenta="${n.id}">${ICONS.trash}</button></td></tr>`; }).join('')}</tbody>
+      </table>
+    </div>`}
+  `;
+  document.getElementById('select-curente-clasa').addEventListener('change', e=>{ ui.clasaCurenta = e.target.value; ui.curenteDetalii = null; render(); });
+  document.getElementById('input-curente-data').addEventListener('change', e=>{ ui.curenteData = e.target.value || todayISO(); ui.curenteDetalii = null; render(); });
+  document.getElementById('select-curente-motiv').addEventListener('change', e=>{ ui.curenteMotiv = e.target.value; render(); });
+  const mAltul = document.getElementById('input-curente-motiv-altul');
+  if(mAltul) mAltul.addEventListener('input', e=>{ ui.curenteMotivAltul = e.target.value; });
+  document.getElementById('input-curente-detalii').addEventListener('input', e=>{ ui.curenteDetalii = e.target.value; });
+  const btn = document.getElementById('btn-salveaza-curente');
+  if(btn) btn.addEventListener('click', ()=>{
+    const motiv = ui.curenteMotiv==='Altul…' ? (ui.curenteMotivAltul||'').trim() : ui.curenteMotiv;
+    if(!motiv) return showToast('Scrie motivul notei.');
+    const noi = [];
+    for(const inp of main.querySelectorAll('.inp-curenta')){
+      const brut = inp.value.trim().replace(',','.');
+      if(!brut) continue;
+      const v = parseFloat(brut);
+      if(isNaN(v) || v<1 || v>10) return showToast('Notele trebuie să fie între 1 și 10.');
+      const obs = (main.querySelector(`.inp-curenta-obs[data-elev="${inp.dataset.elev}"]`)||{value:''}).value.trim();
+      noi.push({id:uid(), eleviId:inp.dataset.elev, claseId, data:ui.curenteData, valoare:v, motiv, detalii:(ui.curenteDetalii||'').trim(), obs});
+    }
+    if(!noi.length) return showToast('Nu ai scris nicio notă.');
+    state.noteCurente.push(...noi);
+    saveState(); render(); showToast(noi.length===1 ? 'Nota curentă salvată.' : `${noi.length} note curente salvate.`);
+  });
+  main.querySelectorAll('[data-del-curenta]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(!confirm('Ștergi această notă curentă?')) return;
+      state.noteCurente = state.noteCurente.filter(n=>n.id!==b.dataset.delCurenta);
+      saveState(); render(); showToast('Notă ștearsă.');
+    });
   });
 }
 
@@ -1787,6 +2044,7 @@ function renderClase(main){
       state.elevi = state.elevi.filter(e=>e.claseId!==id);
       state.probe = state.probe.filter(p=>p.claseId!==id);
       state.note = state.note.filter(n=>!eleviIds.includes(n.eleviId));
+      state.noteCurente = (state.noteCurente||[]).filter(n=>!eleviIds.includes(n.eleviId));
       state.absente = state.absente.filter(a=>!eleviIds.includes(a.eleviId));
       saveState(); render(); showToast('Clasă ștearsă.');
     });
@@ -1836,6 +2094,7 @@ function renderSinteza(main){
         <thead><tr>
           <th style="position:sticky; left:0; background:var(--card);">Elev</th>
           ${probeClasa.map(p=>`<th>${escapeHtml(p.nume)}</th>`).join('')}
+          <th>Note curente</th>
           <th>Medie</th>
         </tr></thead>
         <tbody>
@@ -1857,10 +2116,13 @@ function renderSinteza(main){
               afisaj += `<br><span style="font-size:10px; color:var(--muted);">${formatDataRo(rec.data)}</span>`;
               return escapeHtmlKeepPill(afisaj);
             });
+            noteCurenteNumerice(e.id).forEach(v=>noteNumerice.push(v));
+            const celulaCurente = noteCurenteElev(e.id).map(notaCurentaPillHTML).join('') || '<span style="color:var(--muted);">—</span>';
             const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
             return `<tr>
               <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?'<span class="pill pill-blue" style="margin-left:4px; padding:1px 6px;">parțial</span>':''} ${cesTagHTML(e)}</td>
               ${celule.map(c=>`<td>${c}</td>`).join('')}
+              <td>${celulaCurente}</td>
               <td><strong>${medie}</strong></td>
             </tr>`;
           }).join('')}
@@ -1933,10 +2195,13 @@ function genereazaRaportClasa(claseId){
       if(!isNaN(numeric) && numeric>=1 && numeric<=10) noteNumerice.push(numeric);
       return `${rec.valoare} [${eticheta}, ${dataStr}]`;
     });
+    noteCurenteNumerice(e.id).forEach(v=>noteNumerice.push(v));
+    const textCurente = noteCurenteElev(e.id).map(n=>`${n.valoare} (${n.motiv||''}${n.detalii?', '+n.detalii:''}, ${formatDataRo(n.data)})`).join('; ');
     const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
     return `<tr>
       <td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${e.ces ? '<span style="color:#6B3FA0; font-weight:700;"> (CES)</span>' : ''}</td>
       ${celule.map(c=>`<td>${escapeHtml(String(c))}</td>`).join('')}
+      <td>${escapeHtml(textCurente)}</td>
       <td><strong>${medie}</strong></td>
     </tr>`;
   }).join('');
@@ -1996,7 +2261,7 @@ function genereazaRaportClasa(claseId){
     : '[I] = rezultatul testării inițiale, [F] = rezultatul testării finale (apare finala, dacă există).'}</p>
   ${probeClasa.length===0 ? '<p>Nicio probă înregistrată.</p>' : `
   <table>
-    <thead><tr><th>Elev</th>${probeClasa.map(p=>`<th>${escapeHtml(p.nume)}</th>`).join('')}<th>Medie</th></tr></thead>
+    <thead><tr><th>Elev</th>${probeClasa.map(p=>`<th>${escapeHtml(p.nume)}</th>`).join('')}<th>Note curente</th><th>Medie</th></tr></thead>
     <tbody>${randuriNote}</tbody>
   </table>`}
 
@@ -2030,7 +2295,7 @@ function genereazaRaportExcelClasa(claseId){
 
   // Foaia 1: Note pe probe
   const tipRaport = ui.sintezaTipRaport || 'simplu';
-  const antetNote = ['Elev', ...probeClasa.map(p=>p.nume), 'Medie'];
+  const antetNote = ['Elev', ...probeClasa.map(p=>p.nume), 'Note curente', 'Medie'];
   const randuriNote = lista.map(e=>{
     const noteNumerice = [];
     const celule = probeClasa.map(p=>{
@@ -2050,8 +2315,10 @@ function genereazaRaportExcelClasa(claseId){
       if(!isNaN(numeric) && numeric>=1 && numeric<=10) noteNumerice.push(numeric);
       return `${rec.valoare} [${eticheta}]`;
     });
+    noteCurenteNumerice(e.id).forEach(v=>noteNumerice.push(v));
+    const textCurente = noteCurenteElev(e.id).map(n=>`${n.valoare} (${n.motiv||''}${n.detalii?', '+n.detalii:''}, ${formatDataRo(n.data)})`).join('; ');
     const medie = noteNumerice.length ? Number((noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2)) : '';
-    return [`${e.nume} ${e.prenume}`, ...celule, medie];
+    return [`${e.nume} ${e.prenume}`, ...celule, textCurente, medie];
   });
 
   // Foaia 2: Absențe și observații
@@ -2077,6 +2344,7 @@ function genereazaRaportExcelClasa(claseId){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetNote, ...randuriNote]), tipRaport==='ppt' ? 'Note PPT' : 'Note');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetAbsente, ...randuriAbsente]), 'Absente');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Elev','Data','Nota','Motiv','Detalii','Observații'], ...(state.noteCurente||[]).filter(n=>n.claseId===claseId).sort((a,b)=>a.data.localeCompare(b.data)).map(n=>{ const e=state.elevi.find(x=>x.id===n.eleviId); return [e?`${e.nume} ${e.prenume}`:'—', formatDataRo(n.data), Number(n.valoare), n.motiv||'', n.detalii||'', n.obs||'']; })]), 'Note curente');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetAntropo, ...randuriAntropo]), 'Antropometrice');
   const sufixNume = tipRaport==='ppt' ? '_PPT' : '';
   XLSX.writeFile(wb, `Raport_${(clasa?clasa.nume:'clasa').replace(/\s+/g,'_')}${sufixNume}.xlsx`);
@@ -2122,6 +2390,7 @@ function genereazaRaportExcelGeneral(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetElevi, ...randuriElevi]), 'Elevi');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetNote, ...randuriNote]), 'Note');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([antetAbsente, ...randuriAbsente]), 'Absente');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Elev','Clasă','Data','Nota','Motiv','Detalii','Observații'], ...(state.noteCurente||[]).map(n=>{ const e=state.elevi.find(x=>x.id===n.eleviId); const c=e?state.clase.find(k=>k.id===e.claseId):null; return [e?`${e.nume} ${e.prenume}`:'—', c?c.nume:'—', formatDataRo(n.data), Number(n.valoare), n.motiv||'', n.detalii||'', n.obs||'']; })]), 'Note curente');
 
   // Foaia 4: Probe
   const numeClasa = id => { const c=state.clase.find(cl=>cl.id===id); return c?c.nume:''; };
@@ -2792,6 +3061,8 @@ function renderNotare(main){
         </select>
       </div>` : ''}
     </div>
+    ${probaSelectata ? (()=>{ const st = statusProba(ui.clasaCurenta, probaSelectata.id); return `
+      <label id="lbl-clasa-notata" class="${st.fin?'notata-ok':''}"><input type="checkbox" id="chk-clasa-notata" ${st.fin?'checked':''}/> <span>Clasa notată la această probă <span style="font-weight:400; color:var(--muted);">(${st.notati}/${st.total} elevi cu notă)</span></span></label>`; })() : ''}
     ${probaSelectata && tipNotare==='barem' && !barem ? `
       <div class="card" style="background:#FBEBD3; border-color:#E3A23C;">
         Nu există un barem definit pentru „${escapeHtml(probaSelectata.nume)}” — introduci direct timpul/rezultatul, sau
@@ -3275,6 +3546,12 @@ function renderIstoric(main){
           ${esteScutitActiv(elev) ? scutirePillHTML(elev) : ''}
           ${cesTagHTML(elev)}
         </div>
+        ${(()=>{ const nc = noteCurenteElev(elev.id); if(!nc.length) return ''; return `
+          <h3 style="font-size:15px; color:var(--infield); margin:0 0 6px;">Note curente</h3>
+          <div class="card" style="padding:0; overflow-x:auto;"><table>
+            <thead><tr><th>Data</th><th>Nota</th><th>Motiv</th><th>Detalii</th></tr></thead>
+            <tbody>${nc.map(n=>`<tr><td>${formatDataRo(n.data)}</td><td><strong>${n.valoare}</strong></td><td>${escapeHtml(n.motiv||'')}</td><td>${escapeHtml([n.detalii,n.obs].filter(Boolean).join(' — '))}</td></tr>`).join('')}</tbody>
+          </table></div>`; })()}
         ${inregistrari.length===0 ? emptyState('Niciun eveniment înregistrat.', 'Absențele și observațiile pentru acest elev vor apărea aici, pe măsură ce le adaugi în tabul „Absențe”.') : `
         <p class="tab-desc" style="margin-top:-6px;">Poți corecta direct aici starea sau observația unei zile trecute, sau șterge complet o înregistrare greșită.</p>
         <div class="card" style="padding:0; overflow-x:auto;">

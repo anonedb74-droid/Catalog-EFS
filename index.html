@@ -310,6 +310,9 @@
   .student-name{font-weight:600;}
   .exempt-note{font-style:italic; color:var(--yellow); font-size:13px;}
   select.absence-select{min-width:170px;}
+  .sync-btn{background:transparent; border:1px solid #4A5A68; color:#D9DEE3; border-radius:8px; padding:6px 10px; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; font-family:inherit;}
+  .sync-btn.ok{border-color:#3D7A4E; color:#BFE3C8;} .sync-btn.err{border-color:#B23A32; color:#F6C9C5;}
+  @media (max-width:760px){ .sync-btn{padding:5px 7px; font-size:11px;} }
   .settings-btn{
     background:transparent;
     border:none;
@@ -420,6 +423,7 @@ let state = {
   pppAfisareCatalog: true  // în tabul PPP arată și nota rotunjită pentru catalog (comutator)
 };
 
+const STARE_IMPLICITA = JSON.parse(JSON.stringify(state)); // valorile de pornire, pentru datele aduse din cont
 const ANI = ['IX','X','XI','XII'];
 
 let currentTab = 'clase';
@@ -718,11 +722,15 @@ function notaPentruSinteza(eleviId, probaId){
 }
 let saveTimer = null;
 let ultimaSalvare = null;
+let ultimJsonSalvat = null;
 function saveStateNow(){
   clearTimeout(saveTimer);
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const j = JSON.stringify(state);
+    localStorage.setItem(STORAGE_KEY, j);
     ultimaSalvare = new Date();
+    if(ultimJsonSalvat!==null && j!==ultimJsonSalvat && typeof marcheazaModificat==='function') marcheazaModificat();
+    ultimJsonSalvat = j;
     return true;
   }catch(e){
     return false;
@@ -1028,6 +1036,7 @@ function render(){
       </div>
       <div style="display:flex; align-items:center; gap:14px;">
         <span class="date" id="save-indicator" style="min-width:110px; text-align:right;">${ultimaSalvare ? ('Salvat ' + ultimaSalvare.toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit',second:'2-digit'})) : ''}</span>
+        <button class="sync-btn" id="sync-ind" data-sync="info" style="display:none;"></button>
         <button class="btn btn-primary" id="btn-save-now" style="padding:8px 14px; min-height:36px; display:flex; align-items:center; gap:6px;">${ICONS.save} Salvează</button>
         <button class="settings-btn" id="btn-settings" title="Setări">${ICONS.gear}</button>
       </div>
@@ -1056,6 +1065,7 @@ function render(){
   document.querySelectorAll('[data-tab]').forEach(b=>{
     b.addEventListener('click', ()=>{ currentTab = b.dataset.tab; ui.aziFisa = null; if(currentTab==='curente'){ ui.curenteData = todayISO(); ui.curenteDetalii = null; } render(); });
   });
+  if(typeof actualizeazaSyncBtn==='function') actualizeazaSyncBtn();
   document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
   document.getElementById('btn-save-now').addEventListener('click', ()=>{
     const ok = saveStateNow();
@@ -1702,7 +1712,8 @@ function renderAzi(main){
     <h2>Azi — ${ZILE_NUME[ziAzi]}, ${formatDataRo(azi)}</h2>
     <p class="tab-desc">Ce ai de lucru azi, pe ore, combinând Orarul, Planificarea și Practica comasată.</p>
     ${esteWeekend ? '' : '<div class="card" id="azi-acum"></div>'}
-    ${(zileExport===null || zileExport>=pragAtentionare) ? `
+    ${bannerSync()}
+    ${(!sync.uid && (zileExport===null || zileExport>=pragAtentionare)) ? `
       <div class="card" style="background:#FBEBD3; border-color:#E3A23C; display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
         <div>💾 ${zileExport===null ? '<strong>N-ai făcut niciodată export de backup.</strong> Dacă pierzi tableta, pierzi tot.' : `<strong>Ultimul backup a fost acum ${zileExport} zile.</strong> Riști să pierzi ce ai adăugat de atunci, dacă se întâmplă ceva cu tableta.`}</div>
         <div style="display:flex; gap:6px; flex-wrap:wrap;"><button class="btn btn-primary" id="btn-azi-export" style="white-space:nowrap;">Exportă backup</button><button class="btn btn-secondary" id="btn-azi-excel" style="white-space:nowrap;">📊 Exportă Excel</button></div>
@@ -4023,10 +4034,11 @@ function openSettingsModal(){
 
       <div style="border-top:1px solid var(--border); margin:18px 0 14px; padding-top:14px;">
         <div style="font-weight:700; color:var(--infield); margin-bottom:4px;">Sincronizare între dispozitive</div>
-        <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">
-          Datele stau doar pe acest dispozitiv, fără internet. Ca să le ai și pe laptop și pe tabletă,
-          exportă un fișier de pe unul și importă-l pe celălalt (prin Drive, email sau USB, oricând ai semnal).
+        <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">
+          ${sync.uid ? `Conectat ca <b>${escapeHtml(sync.email)}</b> — catalogul se sincronizează singur pe toate dispozitivele unde intri cu acest cont. Fără semnal lucrezi normal; se trimite când revine internetul.` : 'Intră cu contul Google ca să ai același catalog pe tabletă, laptop și telefon. Fiecare cont își vede doar datele lui.'}
         </div>
+        <div class="row" style="margin-bottom:14px;">${sync.uid ? '<button class="btn btn-ghost" data-sync="info">Contul meu</button>' : '<button class="btn btn-primary" data-sync="in">Intră cu Google</button>'}</div>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">Backup de siguranță (un fișier pe care îl păstrezi tu). Importul înlocuiește tot catalogul${sync.uid?' și în cont':''}.</div>
         <div class="row">
           <button class="btn btn-secondary" id="modal-export">⭳ Exportă backup</button>
           <button class="btn btn-secondary" id="modal-import-btn">⭱ Importă backup</button>
@@ -4095,10 +4107,193 @@ function emptyState(title, sub){
   return `<div class="empty"><div class="display">${escapeHtml(title)}</div><div>${escapeHtml(sub)}</div></div>`;
 }
 
+/* ================= SINCRONIZARE (cont Google + Firebase) =================
+   Lucrezi la fel ca până acum, și fără semnal: totul se salvează întâi pe dispozitiv.
+   Când există internet, modificările se trimit în contul tău și ajung pe celelalte dispozitive.
+   Fiecare cont își vede doar datele lui: utilizatori/{uid}/catalog/... */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD1-HQQntx3v66fERfjxFZverIEvCYIpQ4",
+  authDomain: "scoala-soferi-9a750.firebaseapp.com",
+  projectId: "scoala-soferi-9a750",
+  storageBucket: "scoala-soferi-9a750.firebasestorage.app",
+  messagingSenderId: "969178093301",
+  appId: "1:969178093301:web:04ea77974b0248b61797bc"
+};
+const FB_VER='10.12.2', SYNC_KEY='catalog_efs_sync_v1', SYNC_COL='catalog', PARTE=300000;
+const sync={disponibil:false, uid:null, email:'', stare:'neconectat', auth:null, db:null, unsub:null, inLucru:false, iarDupa:false, suprim:false, t:null, ultimaSinc:null};
+let syncLocal={}; try{ syncLocal=JSON.parse(localStorage.getItem(SYNC_KEY)||'{}')||{}; }catch(e){ syncLocal={}; }
+if(!syncLocal.deviceId){ syncLocal.deviceId=uid(); try{ localStorage.setItem(SYNC_KEY, JSON.stringify(syncLocal)); }catch(e){} }
+function salveazaSyncLocal(){ try{ localStorage.setItem(SYNC_KEY, JSON.stringify(syncLocal)); }catch(e){} }
+function smModal(html){ smClose(); const b=document.createElement('div'); b.className='modal-backdrop'; b.id='sync-modal'; b.innerHTML=`<div class="modal">${html}</div>`; document.body.appendChild(b); return b; }
+function smClose(){ const m=document.getElementById('sync-modal'); if(m) m.remove(); }
+function smConfirm(msg, onYes, et){ const b=smModal(`<h3>Sigur?</h3><p>${msg}</p><div class="row" style="justify-content:flex-end; gap:8px;"><button class="btn btn-ghost" id="sc-no">Nu</button><button class="btn btn-primary" id="sc-yes">${et||'Da'}</button></div>`); b.querySelector('#sc-no').onclick=smClose; b.querySelector('#sc-yes').onclick=()=>{ smClose(); onYes(); }; b.addEventListener('click',e=>{ if(e.target===b) smClose(); }); }
+function seteazaStareSync(s){ sync.stare=s; if(s==='sincronizat') sync.ultimaSinc=new Date(); actualizeazaSyncBtn(); }
+function textSync(){ return ({neconectat: sync.disponibil?'☁ Conectează':'', trimite:'☁ Se trimite…', sincronizat:'☁ Sincronizat', offline:'☁ Fără internet', eroare:'⚠ Sincronizare', asteapta:'☁ Se conectează…'})[sync.stare]||''; }
+function actualizeazaSyncBtn(){ const sb=document.getElementById('sync-ind'); if(!sb) return; const t=textSync(); sb.textContent=t; sb.style.display=t?'':'none'; sb.className='sync-btn'+(sync.stare==='eroare'?' err':sync.stare==='sincronizat'?' ok':''); }
+function areDate(){ return (state.clase||[]).length>0 || (state.elevi||[]).length>0; }
+function cand(ms){ return ms?new Date(ms).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'; }
+function refMeta(){ return sync.db.collection('utilizatori').doc(sync.uid).collection(SYNC_COL).doc('meta'); }
+function incarcaScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+async function initSync(){
+  if(!location.protocol.startsWith('http')) return;
+  if(syncLocal.uid) seteazaStareSync(navigator.onLine===false?'offline':'asteapta');
+  try{
+    const b=`https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    await incarcaScript(b+'firebase-app-compat.js');
+    await Promise.all([incarcaScript(b+'firebase-auth-compat.js'), incarcaScript(b+'firebase-firestore-compat.js')]);
+    firebase.initializeApp(FIREBASE_CONFIG);
+    sync.auth=firebase.auth(); sync.db=firebase.firestore(); sync.disponibil=true;
+  }catch(e){ console.warn('Firebase indisponibil', e); seteazaStareSync(syncLocal.uid?'offline':'neconectat'); return; }
+  sync.auth.getRedirectResult().catch(e=>{ if(e && e.code) showToast('Intrarea în cont n-a reușit ('+e.code+').'); });
+  sync.auth.onAuthStateChanged(u=>{ if(u) laConectare(u); else laDeconectare(); });
+}
+function intraCont(){
+  if(!sync.disponibil) return showToast('Pentru conectare e nevoie de internet. Încearcă din nou când ai semnal.');
+  const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:'select_account'});
+  sync.auth.signInWithPopup(p).catch(e=>{
+    const c=e&&e.code;
+    if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/web-storage-unsupported'].includes(c)) return sync.auth.signInWithRedirect(p);
+    if(c!=='auth/popup-closed-by-user' && c!=='auth/cancelled-popup-request') showToast('Nu am putut intra în cont ('+c+').');
+  });
+}
+function laDeconectare(){ if(sync.unsub){ sync.unsub(); sync.unsub=null; } sync.uid=null; sync.email=''; seteazaStareSync('neconectat'); render(); }
+async function laConectare(u){
+  sync.uid=u.uid; sync.email=u.email||''; seteazaStareSync('asteapta');
+  let snap; try{ snap=await refMeta().get(); }catch(e){ console.warn(e); seteazaStareSync(e&&e.code==='permission-denied'?'eroare':'offline'); setTimeout(()=>{ if(sync.uid===u.uid && sync.stare!=='sincronizat') laConectare(u); }, 20000); return; }
+  const m=snap.exists?snap.data():null;
+  try{
+    if(!m){ syncLocal.uid=u.uid; salveazaSyncLocal(); await urca(); if(areDate()) showToast('Datele de pe acest dispozitiv au fost urcate în contul tău ✓'); }
+    else if(syncLocal.uid!==u.uid){
+      if(areDate()){ alegeLaPrimaConectare(m); return; }
+      await descarca(m); showToast('Datele din contul tău au fost aduse pe acest dispozitiv ✓');
+    } else {
+      if(syncLocal.dirty && m.versiune!==syncLocal.baza){ conflict(m); return; }
+      else if(syncLocal.dirty) await urca();
+      else if(m.versiune!==syncLocal.baza) await descarca(m);
+      else seteazaStareSync('sincronizat');
+    }
+  }catch(e){ console.error(e); seteazaStareSync('eroare'); }
+  asculta(); render();
+}
+function pastreazaCopie(){ try{ localStorage.setItem('catalog_efs_copie_inlocuita', JSON.stringify({salvat:Date.now(), state})); }catch(e){} }
+function alegeLaPrimaConectare(m){
+  const b=smModal(`<h3>Ce date păstrezi?</h3>
+    <p>În contul tău există deja date (ultima modificare: <b>${cand(m.actualizat)}</b>). Pe acest dispozitiv sunt și date salvate local.</p>
+    <p style="font-size:13px; color:var(--muted);">De obicei alegi datele din cont — sunt cele trecute pe celălalt dispozitiv.</p>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+      <button class="btn btn-primary" id="pc-cont">Folosește datele din cont (recomandat)</button>
+      <button class="btn btn-secondary" id="pc-local">Păstrează datele de pe acest dispozitiv</button>
+    </div>`);
+  b.addEventListener('click', e=>{ if(e.target===b){ smClose(); sync.auth.signOut(); } });
+  b.querySelector('#pc-cont').onclick=async()=>{ smClose(); pastreazaCopie(); try{ await descarca(m); }catch(e){ seteazaStareSync('eroare'); } asculta(); render(); showToast('Datele din cont au fost aduse ✓'); };
+  b.querySelector('#pc-local').onclick=()=>smConfirm('Datele din cont vor fi <b>înlocuite</b> cu cele de pe acest dispozitiv. Continui?', async()=>{ syncLocal.uid=sync.uid; salveazaSyncLocal(); await urca(); asculta(); render(); showToast('Datele de pe acest dispozitiv au fost urcate ✓'); }, 'Da, înlocuiește');
+}
+// modificări și aici (făcute fără semnal), și în cont (de pe alt dispozitiv) — întrebăm, nu ghicim
+function conflict(m){
+  const b=smModal(`<h3>Modificări pe două dispozitive</h3>
+    <p>Pe acest dispozitiv ai modificări care n-au ajuns încă în cont (ultima: <b>${cand(syncLocal.modificat)}</b>), iar între timp în cont au intrat modificări de pe alt dispozitiv (<b>${cand(m.actualizat)}</b>).</p>
+    <p style="font-size:13px; color:var(--muted);">Varianta pe care n-o alegi se păstrează ca fișier de siguranță (o găsești apăsând butonul ☁ de sus), ca să nu pierzi nimic.</p>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+      <button class="btn btn-primary" id="cf-local">Păstrează ce am pe acest dispozitiv</button>
+      <button class="btn btn-secondary" id="cf-cont">Ia ce e în cont</button>
+    </div>`);
+  b.querySelector('#cf-local').onclick=async()=>{ smClose(); try{ const vechi=await citesteCont(m); localStorage.setItem('catalog_efs_copie_inlocuita', JSON.stringify({salvat:Date.now(), state:vechi})); }catch(e){} await urca(); asculta(); render(); showToast('Modificările de pe acest dispozitiv au fost trimise ✓'); };
+  b.querySelector('#cf-cont').onclick=async()=>{ smClose(); pastreazaCopie(); try{ await descarca(m); }catch(e){ seteazaStareSync('eroare'); } asculta(); render(); showToast('Datele din cont au fost aduse ✓'); };
+}
+function asculta(){
+  if(sync.unsub) sync.unsub();
+  sync.unsub=refMeta().onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const m=snap.data();
+    if(m.versiune===syncLocal.baza){ if(!syncLocal.dirty && !sync.inLucru) seteazaStareSync('sincronizat'); return; }
+    if(m.dispozitiv===syncLocal.deviceId || sync.inLucru) return;
+    if(syncLocal.dirty){ conflict(m); return; }
+    descarca(m).then(()=>{ render(); showToast('Actualizat cu ce ai trecut pe celălalt dispozitiv ✓'); }).catch(e=>{ console.error(e); seteazaStareSync('eroare'); });
+  }, e=>{ console.warn(e); seteazaStareSync('offline'); });
+}
+async function urca(){
+  if(!sync.uid || !sync.db) return;
+  if(sync.inLucru){ sync.iarDupa=true; return; }
+  sync.inLucru=true; sync.iarDupa=false; seteazaStareSync(navigator.onLine===false?'offline':'trimite');
+  const json=JSON.stringify(state), parti=[];
+  for(let i=0;i<json.length;i+=PARTE) parti.push(json.slice(i,i+PARTE));
+  if(!parti.length) parti.push('{}');
+  const versiune=Date.now().toString(36)+'-'+String(syncLocal.deviceId).slice(-5);
+  const col=refMeta().parent, b=sync.db.batch();
+  parti.forEach((p,i)=>b.set(col.doc('p'+i), {s:p}));
+  for(let i=parti.length; i<Math.max(parti.length, syncLocal.partiAnterioare||0); i++) b.delete(col.doc('p'+i));
+  b.set(refMeta(), {versiune, parti:parti.length, actualizat:Date.now(), dispozitiv:syncLocal.deviceId, marime:json.length});
+  try{
+    await b.commit();
+    syncLocal.baza=versiune; syncLocal.partiAnterioare=parti.length; syncLocal.uid=sync.uid;
+    if(!sync.iarDupa) syncLocal.dirty=false;
+    salveazaSyncLocal(); seteazaStareSync('sincronizat');
+  }catch(e){ console.error(e); seteazaStareSync(e&&e.code==='permission-denied'?'eroare':'offline'); }
+  sync.inLucru=false;
+  if(sync.iarDupa){ sync.iarDupa=false; urca(); }
+}
+async function citesteCont(m){
+  const col=refMeta().parent;
+  const docs=await Promise.all(Array.from({length:m.parti||1},(_,i)=>col.doc('p'+i).get()));
+  return JSON.parse(docs.map(d=>d.exists?d.data().s:'').join('')||'{}');
+}
+async function descarca(m){
+  const p=await citesteCont(m);
+  sync.suprim=true;
+  state=Object.assign(JSON.parse(JSON.stringify(STARE_IMPLICITA)), p); migreazaDate(); saveStateNow();
+  sync.suprim=false;
+  syncLocal.baza=m.versiune; syncLocal.dirty=false; syncLocal.uid=sync.uid; syncLocal.partiAnterioare=m.parti||1; salveazaSyncLocal();
+  seteazaStareSync('sincronizat');
+}
+function marcheazaModificat(){
+  if(sync.suprim) return;
+  syncLocal.dirty=true; syncLocal.modificat=Date.now(); salveazaSyncLocal();
+  if(sync.uid){ clearTimeout(sync.t); sync.t=setTimeout(urca, 1500); }
+}
+window.addEventListener('online', ()=>{ if(sync.uid){ if(sync.stare!=='sincronizat') laConectare(sync.auth.currentUser||{uid:sync.uid, email:sync.email}); } });
+function modalCont(){
+  if(!sync.uid){
+    const b=smModal(`<h3>Sincronizare tabletă ↔ laptop ↔ telefon</h3>
+      <p>Intră cu contul tău Google și ai același catalog pe toate dispozitivele. Pe teren lucrezi ca până acum, și fără semnal — modificările se trimit singure când revine internetul.</p>
+      <p style="font-size:13px; color:var(--muted);">Fiecare cont își vede doar datele lui.${areDate()?' Datele de pe acest dispozitiv se urcă în cont la prima conectare (sau alegi ce păstrezi, dacă în cont există deja date).':''}</p>
+      <div class="row" style="justify-content:flex-end; gap:8px;"><button class="btn btn-ghost" id="mc-x">Nu acum</button><button class="btn btn-primary" id="mc-in">Intră cu Google</button></div>`);
+    b.addEventListener('click',e=>{ if(e.target===b) smClose(); });
+    b.querySelector('#mc-x').onclick=smClose; b.querySelector('#mc-in').onclick=()=>{ smClose(); intraCont(); };
+    return;
+  }
+  const copie=localStorage.getItem('catalog_efs_copie_inlocuita');
+  const b=smModal(`<h3>Contul tău</h3>
+    <p>Conectat ca <b>${escapeHtml(sync.email)}</b>.</p>
+    <p>Stare: <b>${escapeHtml(textSync().replace('☁ ','').replace('⚠ ',''))}</b>${sync.ultimaSinc?` · ultima sincronizare ${sync.ultimaSinc.toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})}`:''}</p>
+    ${sync.stare==='offline'?'<p style="font-size:13px; color:var(--muted);">Nu e internet acum. Ce scrii se păstrează pe acest dispozitiv și se trimite singur când revine conexiunea.</p>':''}
+    ${sync.stare==='eroare'?'<p style="font-size:13px; color:var(--danger);">Serverul a refuzat datele. Trimite-mi o poză cu acest ecran.</p>':''}
+    ${copie?`<p style="font-size:13px;">Există o copie de siguranță a unei variante înlocuite (${cand(JSON.parse(copie).salvat)}). <button class="btn btn-ghost" id="mc-copie" style="min-height:30px; padding:4px 10px;">Descarcă-o</button></p>`:''}
+    <div class="row" style="justify-content:space-between; gap:8px;"><button class="btn btn-ghost" id="mc-out">Ieși din cont</button><div style="display:flex; gap:8px;"><button class="btn btn-ghost" id="mc-x">Închide</button><button class="btn btn-primary" id="mc-now">Sincronizează acum</button></div></div>`);
+  b.addEventListener('click',e=>{ if(e.target===b) smClose(); });
+  b.querySelector('#mc-x').onclick=smClose;
+  b.querySelector('#mc-out').onclick=()=>smConfirm('Ieși din cont pe acest dispozitiv? Datele rămân aici, dar nu se mai sincronizează până intri din nou.', ()=>{ sync.auth.signOut(); showToast('Ai ieșit din cont.'); }, 'Da, ieși');
+  b.querySelector('#mc-now').onclick=async()=>{ smClose(); await laConectare(sync.auth.currentUser||{uid:sync.uid, email:sync.email}); };
+  const bc=b.querySelector('#mc-copie'); if(bc) bc.onclick=()=>{ const c=JSON.parse(copie); const blob=new Blob([JSON.stringify(c.state,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='catalog-efs-copie-inlocuita.json'; document.body.appendChild(a); a.click(); a.remove(); };
+}
+function bannerSync(){
+  if(!sync.disponibil || sync.uid || syncLocal.uid || syncLocal.faraBanner) return '';
+  return `<div class="card" style="background:#D9E6F5; border-color:#9DB9DD; display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
+    <div>☁ <strong>Același catalog pe tabletă, laptop și telefon:</strong> intră cu contul tău Google. Pe teren merge și fără semnal — se sincronizează când revine internetul.</div>
+    <div style="display:flex; gap:6px;"><button class="btn btn-ghost" data-sync="nu" style="background:#fff;">Nu acum</button><button class="btn btn-primary" data-sync="in">Intră cu Google</button></div></div>`;
+}
+document.addEventListener('click', e=>{
+  const a=e.target.closest('[data-sync]'); if(!a) return;
+  if(a.dataset.sync==='info') modalCont();
+  else if(a.dataset.sync==='in'){ const s=document.querySelector('.modal-backdrop'); if(s && s.id!=='sync-modal') s.remove(); intraCont(); }
+  else if(a.dataset.sync==='nu'){ syncLocal.faraBanner=true; salveazaSyncLocal(); render(); }
+});
+
 /* ---------------- BOOT ---------------- */
 (async function init(){
   await loadState();
+  ultimJsonSalvat = JSON.stringify(state);
   render();
+  initSync();
 })();
 
 // Activează modul offline real (PWA): odată încărcată o dată cu internet,

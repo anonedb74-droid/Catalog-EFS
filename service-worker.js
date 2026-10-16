@@ -1,6 +1,6 @@
 // Service worker pentru Catalog EFS — face aplicația disponibilă offline,
 // oricât timp a trecut de la ultima deschidere cu internet.
-const CACHE_NAME = 'catalog-efs-cache-v2';
+const CACHE_NAME = 'catalog-efs-cache-v3';
 const FILES_DE_CACHE = [
   './',
   './index.html',
@@ -31,6 +31,9 @@ self.addEventListener('activate', (event) => {
 // deschide oricum, chiar și fără nicio conexiune.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // Conexiunile cu contul Google și baza de date (Firebase) nu trec prin cache
+  const gazda = new URL(event.request.url).hostname;
+  if ((gazda.endsWith('googleapis.com') && !gazda.startsWith('fonts.')) || gazda.endsWith('google.com') || gazda.endsWith('firebaseapp.com')) return;
   event.respondWith(
     fetch(event.request)
       .then((raspuns) => {
@@ -38,6 +41,6 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copie));
         return raspuns;
       })
-      .catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
+      .catch(() => caches.match(event.request).then((r) => r || (event.request.mode === 'navigate' ? caches.match('./index.html') : Response.error())))
   );
 });

@@ -387,6 +387,16 @@
   #lbl-clasa-notata{display:flex; align-items:center; gap:10px; padding:10px 12px; border:2px solid var(--border); border-radius:10px; margin-bottom:12px; background:#fff; font-weight:600; cursor:pointer;}
   #lbl-clasa-notata.notata-ok{background:#E3EFDD; border-color:#2E7D32; color:#1B5E20;}
   #lbl-clasa-notata input{width:24px; height:24px; flex-shrink:0;}
+  /* ---------- ECHIPE REPREZENTATE ---------- */
+  .echipa-card h3{margin:0;}
+  .echipa-head{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
+  table.echipa-tbl input{min-height:32px; padding:4px 6px; font-size:14px;}
+  table.echipa-tbl td{vertical-align:middle;}
+  .pill-cat{display:inline-block; padding:2px 9px; border-radius:10px; font-weight:700; font-size:12px; background:var(--infield); color:#fff;}
+  .pill-cat.u16{background:#C1440E;}
+  .add-elev-list label{display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--border); cursor:pointer;}
+  .add-elev-list label.deja{opacity:.5; cursor:default;}
+  .add-elev-list input[type=checkbox]{width:22px; height:22px; flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -411,6 +421,9 @@ let state = {
   absente: [],    // {id, eleviId, claseId, data, stare} stare: 'prezent'|'absent'
   bareme: [],     // {id, nume, directie:'desc'|'asc', praguri:{IX:{M:{9..4},F:{9..4}}, X:{...}, XI:{...}, XII:{...}}}
   observatiiCustom: [],  // observații suplimentare adăugate de profesor, pe lângă cele predefinite
+  echipe: [],        // {id, eleviId, categorie:'U16'|'U18', sport, pozitie, tricou, aviz, acord, obs} — elevi în echipele reprezentative
+  meciuriEchipe: [], // {id, categorie, sport, data, eveniment, rezultat, obs}
+  sporturiEchipe: ['Fotbal','Futsal','Handbal','Baschet','Volei','Atletism','Tenis de masă'],
   noteCurente: [],   // {id, eleviId, claseId, data, valoare, motiv, detalii, obs} — note curente, în afara probelor
   notareFinalizata: [], // {claseId, probaId} — clasa bifată ca „notată” la o probă
   module: [],     // {id, nume, start, end} — perioadele anului școlar (5 module), pentru calculul Participării active (PPP)
@@ -555,6 +568,12 @@ function migreazaDate(){
   if(state.settings.ultimulExport===undefined) state.settings.ultimulExport = null;
   if(!state.module) state.module = [];
   if(!state.noteCurente) state.noteCurente = [];
+  if(!state.echipe) state.echipe = [];
+  if(!state.meciuriEchipe) state.meciuriEchipe = [];
+  if(!state.sporturiEchipe || !state.sporturiEchipe.length) state.sporturiEchipe = ['Fotbal','Futsal','Handbal','Baschet','Volei','Atletism','Tenis de masă'];
+  if(state.settings.echipeLimite===undefined) state.settings.echipeLimite = {U16:null, U18:null};
+  if(state.settings.scoalaTabel===undefined) state.settings.scoalaTabel = 'Liceul Tehnologic „Al. Vlahuță” Șendriceni';
+  if(state.settings.profesorTabel===undefined) state.settings.profesorTabel = 'Daniel Botezatu';
   if(!state.notareFinalizata) state.notareFinalizata = [];
   if(!state.pppPonderi) state.pppPonderi = { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false };
   if(state.pppPonderi.tehnica===undefined) state.pppPonderi.tehnica = 35;
@@ -812,6 +831,7 @@ function showToast(msg){
 
 /* ---------------- ICONS (inline SVG, stroke style) ---------------- */
 const ICONS = {
+  echipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 21h8M12 17v4"/><path d="M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg>',
   curente: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>',
   clase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg>',
   elevi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M15 20c0-2.6 1-4.6 3-5.5"/></svg>',
@@ -854,6 +874,7 @@ const TABS = [
   {id:'module', label:'Module'},
   {id:'clase', label:'Clase'},
   {id:'elevi', label:'Elevi'},
+  {id:'echipe', label:'Echipe reprezentate'},
   {id:'practica', label:'Practică'},
   {id:'istoric', label:'Istoric elev'},
   {id:'scutiri', label:'Scutiri'},
@@ -1087,6 +1108,7 @@ function renderTab(){
   if(currentTab==='bareme') return renderBareme(main);
   if(currentTab==='notare') return renderNotare(main);
   if(currentTab==='curente') return renderCurente(main);
+  if(currentTab==='echipe') return renderEchipe(main);
   if(currentTab==='absente') return renderAbsente(main);
   if(currentTab==='istoric') return renderIstoric(main);
   if(currentTab==='practica') return renderPractica(main);
@@ -1139,6 +1161,7 @@ function renderArhiva(main){
       state.probe.forEach(p=>{ p.claseIds = (p.claseIds||[]).filter(cid=>cid!==id); });
       state.note = state.note.filter(n=>!eleviIds.includes(n.eleviId));
       state.noteCurente = (state.noteCurente||[]).filter(n=>!eleviIds.includes(n.eleviId));
+      state.echipe = (state.echipe||[]).filter(m=>!eleviIds.includes(m.eleviId));
       state.absente = state.absente.filter(a=>!eleviIds.includes(a.eleviId));
       saveState(); render(); showToast('Clasă ștearsă definitiv.');
     });
@@ -1972,6 +1995,230 @@ function renderCurente(main){
   });
 }
 
+
+/* ================= TAB: ECHIPE REPREZENTATE (U16 / U18, pe sporturi) ================= */
+function anNastereElev(e){ return (e && e.dataNasterii) ? parseInt(String(e.dataNasterii).slice(0,4),10) : null; }
+function varstaElev(e){
+  if(!e || !e.dataNasterii) return null;
+  const n = new Date(e.dataNasterii+'T12:00:00'), a = new Date();
+  let v = a.getFullYear()-n.getFullYear();
+  if(a.getMonth()<n.getMonth() || (a.getMonth()===n.getMonth() && a.getDate()<n.getDate())) v--;
+  return v;
+}
+function limiteEchipe(){
+  const y = parseInt(state.settings.anScolar,10) || new Date().getFullYear();
+  const l = state.settings.echipeLimite || {};
+  return {U16: l.U16 || (y-15), U18: l.U18 || (y-17)};
+}
+// avertismente pentru un elev într-o categorie (pastile mici)
+function avertismenteEchipa(e, cat, m){
+  const out = [];
+  if(!e) return out;
+  if(blocheazaNotarea(e)) out.push('<span class="pill pill-danger" title="Scutire medicală totală activă">scutit medical</span>');
+  else if(scutirePartialaActiva(e)) out.push('<span class="pill pill-blue" title="Scutire parțială — verifică ce are voie">scutire parțială</span>');
+  const an = anNastereElev(e);
+  if(an==null) out.push('<span class="pill pill-yellow" title="Completează data nașterii în tabul Elevi">fără dată naștere</span>');
+  else if(cat && an < limiteEchipe()[cat]) out.push(`<span class="pill pill-danger" title="Născut în ${an}; limita ${cat}: ${limiteEchipe()[cat]} sau mai târziu">peste limita ${cat}</span>`);
+  if(m){
+    if(m.aviz && m.aviz < todayISO()) out.push('<span class="pill pill-danger" title="Avizul medical sportiv a expirat">aviz expirat</span>');
+    else if(!m.aviz) out.push('<span class="pill pill-ghost" title="Nu ai trecut avizul medical">fără aviz</span>');
+    if(!m.acord) out.push('<span class="pill pill-ghost" title="Acordul părinților nu e bifat">fără acord</span>');
+  }
+  return out;
+}
+function tabelNominalEchipa(cat, sport){
+  const membri = state.echipe.filter(m=>m.categorie===cat && m.sport===sport).map(m=>({m, e:state.elevi.find(x=>x.id===m.eleviId)})).filter(x=>x.e)
+    .sort((a,b)=>a.e.nume.localeCompare(b.e.nume,'ro')||a.e.prenume.localeCompare(b.e.prenume,'ro'));
+  const rows = membri.map((x,i)=>{ const c = state.clase.find(k=>k.id===x.e.claseId);
+    return `<tr><td>${i+1}</td><td>${escapeHtml(x.e.nume)} ${escapeHtml(x.e.prenume)}</td><td>${x.e.dataNasterii?formatDataRo(x.e.dataNasterii):''}</td><td>${c?escapeHtml(c.nume):''}</td><td>${escapeHtml(String(x.m.tricou||''))}</td><td>${escapeHtml(x.m.pozitie||'')}</td><td>${x.m.aviz?formatDataRo(x.m.aviz):''}</td><td></td></tr>`; }).join('');
+  const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>Tabel nominal ${escapeHtml(sport)} ${cat}</title>
+<style>body{font-family:Arial,sans-serif;padding:24px;color:#111;} h1{font-size:20px;margin:0 0 4px;} .sub{color:#444;font-size:13px;margin-bottom:16px;} table{width:100%;border-collapse:collapse;font-size:14px;} th,td{border:1px solid #333;padding:7px 8px;text-align:left;} th{background:#eee;} .sem{margin-top:40px;display:flex;justify-content:space-between;font-size:14px;} .btn-print{padding:8px 14px;margin-bottom:16px;} @media print{.btn-print{display:none;}}</style></head><body>
+<button class="btn-print" onclick="window.print()">🖨 Printează / Salvează PDF</button>
+<h1>TABEL NOMINAL — ${escapeHtml(sport)} ${cat}</h1>
+<div class="sub">${escapeHtml(state.settings.scoalaTabel||'')} · An școlar ${escapeHtml(state.settings.anScolar)}<br>Profesor coordonator: ${escapeHtml(state.settings.profesorTabel||'')}</div>
+<table><thead><tr><th>Nr.</th><th>Nume și prenume</th><th>Data nașterii</th><th>Clasa</th><th>Nr. tricou</th><th>Poziție</th><th>Aviz medical până la</th><th>Semnătură</th></tr></thead><tbody>${rows}</tbody></table>
+<div class="sem"><span>Director,<br><br>______________</span><span>Profesor coordonator,<br><br>${escapeHtml(state.settings.profesorTabel||'______________')}</span></div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if(!w){ showToast('Permite ferestrele pop-up ca să vezi tabelul.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+function renderEchipe(main){
+  if(claseActive().length===0){
+    main.innerHTML = `<h2>Echipe reprezentate</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi clase și elevi.');
+    return;
+  }
+  ui.echipeAdd = ui.echipeAdd || {};
+  const add = ui.echipeAdd;
+  if(!add.cat) add.cat = 'U16';
+  if(!add.sport || !state.sporturiEchipe.includes(add.sport)) add.sport = state.sporturiEchipe[0];
+  if(!add.clasa || !claseActive().find(c=>c.id===add.clasa)) add.clasa = claseActive()[0].id;
+  const filtCat = ui.echipeFiltCat || 'toate', filtSport = ui.echipeFiltSport || 'toate';
+  const lim = limiteEchipe();
+  const eleviClasa = eleviDinClasa(add.clasa);
+  const dejaIn = new Set(state.echipe.filter(m=>m.categorie===add.cat && m.sport===add.sport).map(m=>m.eleviId));
+  // grupuri (sport + categorie)
+  const chei = [...new Set(state.echipe.map(m=>m.sport+'||'+m.categorie))]
+    .map(k=>{ const [sport,cat]=k.split('||'); return {sport,cat}; })
+    .filter(g=>(filtCat==='toate'||g.cat===filtCat) && (filtSport==='toate'||g.sport===filtSport))
+    .sort((a,b)=>a.sport.localeCompare(b.sport,'ro')||a.cat.localeCompare(b.cat));
+  const elevUnici = new Set(state.echipe.map(m=>m.eleviId)).size;
+
+  main.innerHTML = `
+    <h2>Echipe reprezentate</h2>
+    <p class="tab-desc">Elevii care reprezintă școala, pe categorii (U16, U18) și pe sporturi. Datele (clasă, naștere, înălțime, greutate, scutiri) vin direct din fișa elevului. Un elev poate fi în mai multe sporturi. ${elevUnici?`<b>${elevUnici}</b> elevi în echipe.`:''}</p>
+
+    <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Adaugă elevi într-o echipă</div>
+      <div class="row">
+        <div class="field"><label>Categorie</label><select id="ech-add-cat"><option value="U16" ${add.cat==='U16'?'selected':''}>U16</option><option value="U18" ${add.cat==='U18'?'selected':''}>U18</option></select></div>
+        <div class="field"><label>Sport</label><select id="ech-add-sport">${state.sporturiEchipe.map(sp=>`<option ${sp===add.sport?'selected':''}>${escapeHtml(sp)}</option>`).join('')}</select></div>
+        <div class="field"><label>Din clasa</label><select id="ech-add-clasa">${claseActive().map(c=>`<option value="${c.id}" ${c.id===add.clasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}</select></div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <div class="field" style="flex:1; min-width:180px;"><label>Sport nou (dacă nu e în listă)</label><input type="text" id="ech-sport-nou" placeholder="ex: Rugby, Tenis, Orientare"/></div>
+        <button class="btn btn-secondary" id="ech-sport-adauga">+ Adaugă sportul</button>
+      </div>
+      <div class="add-elev-list card" style="padding:0; margin:12px 0 8px; max-height:340px; overflow-y:auto;">
+        ${eleviClasa.length===0 ? '<div style="padding:12px; color:var(--muted);">Niciun elev în clasa aleasă.</div>' : eleviClasa.map(e=>{
+          const deja = dejaIn.has(e.id);
+          const av = avertismenteEchipa(e, add.cat, null).join(' ');
+          const an = anNastereElev(e);
+          return `<label class="${deja?'deja':''}"><input type="checkbox" class="ech-chk" data-elev="${e.id}" ${deja?'checked disabled':''}/> <span style="flex:1;"><b>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</b> <span style="color:var(--muted); font-size:13px;">· ${e.sex==='F'?'F':'B'}${an?' · '+an:''}${deja?' · deja în echipă':''}</span> ${cesTagHTML(e)} ${av}</span></label>`;
+        }).join('')}
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="ech-add-btn">Adaugă elevii bifați în ${escapeHtml(add.sport)} ${add.cat}</button>
+        <button class="btn btn-ghost" id="ech-toti-btn">Bifează toată clasa</button>
+      </div>
+    </div>
+
+    <details class="card">
+      <summary style="cursor:pointer; font-weight:700; color:var(--infield);">Reguli de vârstă și date pentru tabelul nominal</summary>
+      <p class="tab-desc" style="margin-top:8px;">Pentru anul școlar ${escapeHtml(state.settings.anScolar)}, aplicația avertizează dacă un elev e născut <b>înaintea</b> anului limită. Verifică regulamentul competiției și corectează dacă e altfel.</p>
+      <div class="row">
+        <div class="field"><label>U16 — născuți în anul … sau mai târziu</label><input type="number" id="ech-lim-u16" value="${lim.U16}" style="width:110px;"/></div>
+        <div class="field"><label>U18 — născuți în anul … sau mai târziu</label><input type="number" id="ech-lim-u18" value="${lim.U18}" style="width:110px;"/></div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <div class="field" style="flex:1; min-width:220px;"><label>Școala (pe tabelul nominal)</label><input type="text" id="ech-scoala" value="${escapeHtml(state.settings.scoalaTabel||'')}"/></div>
+        <div class="field" style="min-width:180px;"><label>Profesor coordonator</label><input type="text" id="ech-profesor" value="${escapeHtml(state.settings.profesorTabel||'')}"/></div>
+      </div>
+      <div style="margin-top:10px;"><button class="btn btn-secondary" id="ech-salveaza-setari">Salvează</button></div>
+    </details>
+
+    <div class="row" style="margin:14px 0 10px;">
+      <div class="field"><label>Arată categoria</label><select id="ech-filt-cat"><option value="toate">Toate</option><option ${filtCat==='U16'?'selected':''}>U16</option><option ${filtCat==='U18'?'selected':''}>U18</option></select></div>
+      <div class="field"><label>Arată sportul</label><select id="ech-filt-sport"><option value="toate">Toate</option>${state.sporturiEchipe.map(sp=>`<option ${sp===filtSport?'selected':''}>${escapeHtml(sp)}</option>`).join('')}</select></div>
+      ${state.echipe.length?`<button class="btn btn-secondary" id="ech-excel" style="align-self:flex-end;">📊 Excel echipe</button>`:''}
+    </div>
+
+    ${chei.length===0 ? emptyState('Nicio echipă încă.', 'Alege mai sus categoria, sportul și clasa, bifează elevii și apasă „Adaugă”.') : chei.map(g=>{
+      const membri = state.echipe.filter(m=>m.categorie===g.cat && m.sport===g.sport)
+        .map(m=>({m, e:state.elevi.find(x=>x.id===m.eleviId)})).filter(x=>x.e)
+        .sort((a,b)=>a.e.nume.localeCompare(b.e.nume,'ro')||a.e.prenume.localeCompare(b.e.prenume,'ro'));
+      const nB = membri.filter(x=>x.e.sex!=='F').length, nF = membri.length-nB;
+      const meciuri = state.meciuriEchipe.filter(x=>x.categorie===g.cat && x.sport===g.sport).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+      const cheie = `${g.sport}||${g.cat}`;
+      return `<div class="card echipa-card" data-echipa="${escapeHtml(cheie)}">
+        <div class="echipa-head">
+          <h3><span class="pill-cat ${g.cat==='U16'?'u16':''}">${g.cat}</span> ${escapeHtml(g.sport)} <span style="font-weight:400; color:var(--muted); font-size:14px;">— ${membri.length} ${membri.length===1?'elev':'elevi'} (${nB} ${nB===1?'băiat':'băieți'}, ${nF} ${nF===1?'fată':'fete'})</span></h3>
+          <button class="btn btn-secondary" data-nominal="${escapeHtml(cheie)}">🖨 Tabel nominal</button>
+        </div>
+        <div style="overflow-x:auto;"><table class="echipa-tbl">
+          <thead><tr><th>Nr.</th><th>Elev</th><th>Clasa</th><th>Naștere</th><th>Î/G</th><th>Poziție</th><th>Tricou</th><th>Aviz medical până la</th><th>Acord</th><th>Observații</th><th></th></tr></thead>
+          <tbody>${membri.map((x,i)=>{
+            const c = state.clase.find(k=>k.id===x.e.claseId), v = varstaElev(x.e);
+            return `<tr data-membru="${x.m.id}">
+              <td style="color:var(--muted); text-align:center;">${i+1}</td>
+              <td class="student-name">${escapeHtml(x.e.nume)} ${escapeHtml(x.e.prenume)} ${cesTagHTML(x.e)}<div>${avertismenteEchipa(x.e, g.cat, x.m).join(' ')}</div></td>
+              <td>${c?escapeHtml(c.nume):''}</td>
+              <td style="white-space:nowrap;">${x.e.dataNasterii?formatDataRo(x.e.dataNasterii):'—'}${v!=null?`<div style="font-size:12px; color:var(--muted);">${v} ani</div>`:''}</td>
+              <td style="white-space:nowrap; font-size:13px;">${x.e.inaltime||'—'} / ${x.e.greutate||'—'}</td>
+              <td><input type="text" data-camp="pozitie" value="${escapeHtml(x.m.pozitie||'')}" style="width:100px;" placeholder="ex: portar"/></td>
+              <td><input type="number" data-camp="tricou" value="${escapeHtml(String(x.m.tricou||''))}" style="width:64px;" min="0" max="99"/></td>
+              <td><input type="date" data-camp="aviz" value="${x.m.aviz||''}"/></td>
+              <td style="text-align:center;"><input type="checkbox" data-camp="acord" ${x.m.acord?'checked':''} style="width:22px; height:22px;"/></td>
+              <td><input type="text" data-camp="obs" value="${escapeHtml(x.m.obs||'')}" style="min-width:150px; width:100%;" placeholder="observații"/></td>
+              <td><button class="btn btn-danger" data-scoate="${x.m.id}" title="Scoate din echipă">${ICONS.trash}</button></td>
+            </tr>`; }).join('')}</tbody>
+        </table></div>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer; font-weight:600; color:var(--infield);">Meciuri și competiții (${meciuri.length})</summary>
+          <div class="row" style="margin:10px 0;">
+            <div class="field"><label>Data</label><input type="date" class="mec-data" value="${todayISO()}"/></div>
+            <div class="field" style="flex:1; min-width:170px;"><label>Eveniment / adversar</label><input type="text" class="mec-eveniment" placeholder="ex: faza locală ONSS, cu Liceul X"/></div>
+            <div class="field"><label>Rezultat</label><input type="text" class="mec-rezultat" placeholder="ex: 3-1" style="width:90px;"/></div>
+            <div class="field" style="flex:1; min-width:150px;"><label>Observații</label><input type="text" class="mec-obs"/></div>
+            <button class="btn btn-secondary" data-mec-add="${escapeHtml(cheie)}">+ Adaugă</button>
+          </div>
+          ${meciuri.length?`<table><thead><tr><th>Data</th><th>Eveniment / adversar</th><th>Rezultat</th><th>Observații</th><th></th></tr></thead><tbody>${meciuri.map(x=>`<tr><td>${formatDataRo(x.data)}</td><td>${escapeHtml(x.eveniment||'')}</td><td><b>${escapeHtml(x.rezultat||'')}</b></td><td>${escapeHtml(x.obs||'')}</td><td><button class="btn btn-danger" data-mec-del="${x.id}">${ICONS.trash}</button></td></tr>`).join('')}</tbody></table>`:'<div style="color:var(--muted); font-size:14px;">Niciun meci înregistrat.</div>'}
+        </details>
+      </div>`;
+    }).join('')}
+  `;
+
+  // selecturi
+  document.getElementById('ech-add-cat').addEventListener('change', e=>{ add.cat = e.target.value; render(); });
+  document.getElementById('ech-add-sport').addEventListener('change', e=>{ add.sport = e.target.value; render(); });
+  document.getElementById('ech-add-clasa').addEventListener('change', e=>{ add.clasa = e.target.value; render(); });
+  document.getElementById('ech-filt-cat').addEventListener('change', e=>{ ui.echipeFiltCat = e.target.value; render(); });
+  document.getElementById('ech-filt-sport').addEventListener('change', e=>{ ui.echipeFiltSport = e.target.value; render(); });
+  document.getElementById('ech-sport-adauga').addEventListener('click', ()=>{
+    const inp = document.getElementById('ech-sport-nou'); const nume = inp.value.trim();
+    if(!nume) return showToast('Scrie numele sportului.');
+    if(state.sporturiEchipe.some(x=>x.toLowerCase()===nume.toLowerCase())) return showToast('Sportul există deja în listă.');
+    state.sporturiEchipe.push(nume); add.sport = nume; saveState(); render(); showToast('Sport adăugat.');
+  });
+  document.getElementById('ech-toti-btn').addEventListener('click', ()=>{
+    main.querySelectorAll('.ech-chk:not(:disabled)').forEach(c=>c.checked = true);
+  });
+  document.getElementById('ech-add-btn').addEventListener('click', ()=>{
+    const ids = [...main.querySelectorAll('.ech-chk:not(:disabled):checked')].map(c=>c.dataset.elev);
+    if(!ids.length) return showToast('Bifează cel puțin un elev.');
+    ids.forEach(id=>state.echipe.push({id:uid(), eleviId:id, categorie:add.cat, sport:add.sport, pozitie:'', tricou:'', aviz:'', acord:false, obs:''}));
+    saveState(); render(); showToast(`${ids.length} ${ids.length===1?'elev adăugat':'elevi adăugați'} în ${add.sport} ${add.cat}.`);
+  });
+  document.getElementById('ech-salveaza-setari').addEventListener('click', ()=>{
+    const n = x=>{ const v = parseInt(document.getElementById(x).value,10); return isNaN(v)?null:v; };
+    state.settings.echipeLimite = {U16:n('ech-lim-u16'), U18:n('ech-lim-u18')};
+    state.settings.scoalaTabel = document.getElementById('ech-scoala').value.trim();
+    state.settings.profesorTabel = document.getElementById('ech-profesor').value.trim();
+    saveState(); render(); showToast('Salvat.');
+  });
+  const bx = document.getElementById('ech-excel'); if(bx) bx.addEventListener('click', ()=>genereazaRaportExcelGeneral());
+  // câmpurile unui membru: se salvează pe loc, fără redesenare
+  main.querySelectorAll('tr[data-membru] [data-camp]').forEach(inp=>{
+    const salv = ()=>{
+      const m = state.echipe.find(x=>x.id===inp.closest('tr').dataset.membru); if(!m) return;
+      m[inp.dataset.camp] = inp.type==='checkbox' ? inp.checked : inp.value.trim();
+      saveState();
+      if(inp.dataset.camp==='aviz' || inp.dataset.camp==='acord'){ // reîmprospătăm doar pastilele de avertisment
+        const tr = inp.closest('tr'), e = state.elevi.find(x=>x.id===m.eleviId);
+        tr.querySelector('.student-name div').innerHTML = avertismenteEchipa(e, m.categorie, m).join(' ');
+      }
+    };
+    inp.addEventListener(inp.type==='text'||inp.type==='number' ? 'input' : 'change', salv);
+  });
+  main.querySelectorAll('[data-scoate]').forEach(b=>b.addEventListener('click', ()=>{
+    if(!confirm('Scoți elevul din această echipă?')) return;
+    state.echipe = state.echipe.filter(m=>m.id!==b.dataset.scoate); saveState(); render(); showToast('Elev scos din echipă.');
+  }));
+  main.querySelectorAll('[data-nominal]').forEach(b=>b.addEventListener('click', ()=>{ const [sport,cat]=b.dataset.nominal.split('||'); tabelNominalEchipa(cat, sport); }));
+  main.querySelectorAll('[data-mec-add]').forEach(b=>b.addEventListener('click', ()=>{
+    const card = b.closest('.echipa-card'); const [sport,cat] = b.dataset.mecAdd.split('||');
+    const ev = card.querySelector('.mec-eveniment').value.trim(), data = card.querySelector('.mec-data').value;
+    if(!ev) return showToast('Scrie evenimentul sau adversarul.');
+    state.meciuriEchipe.push({id:uid(), categorie:cat, sport, data, eveniment:ev, rezultat:card.querySelector('.mec-rezultat').value.trim(), obs:card.querySelector('.mec-obs').value.trim()});
+    saveState(); ui._deschisMeciuri = b.dataset.mecAdd; render(); showToast('Meci adăugat.');
+    const nou = main.querySelector(`.echipa-card[data-echipa="${CSS.escape(b.dataset.mecAdd)}"] details:last-of-type`); if(nou) nou.open = true;
+  }));
+  main.querySelectorAll('[data-mec-del]').forEach(b=>b.addEventListener('click', ()=>{
+    if(!confirm('Ștergi acest meci?')) return;
+    state.meciuriEchipe = state.meciuriEchipe.filter(x=>x.id!==b.dataset.mecDel); saveState(); render();
+  }));
+}
+
 /* ================= TAB: CLASE ================= */
 function renderClase(main){
   main.innerHTML = `
@@ -2056,6 +2303,7 @@ function renderClase(main){
       state.probe = state.probe.filter(p=>p.claseId!==id);
       state.note = state.note.filter(n=>!eleviIds.includes(n.eleviId));
       state.noteCurente = (state.noteCurente||[]).filter(n=>!eleviIds.includes(n.eleviId));
+      state.echipe = (state.echipe||[]).filter(m=>!eleviIds.includes(m.eleviId));
       state.absente = state.absente.filter(a=>!eleviIds.includes(a.eleviId));
       saveState(); render(); showToast('Clasă ștearsă.');
     });
@@ -2475,6 +2723,11 @@ function genereazaRaportExcelGeneral(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Clasa','An de studiu','Arhivată','Nr. elevi'],
     ...state.clase.map(c=>[c.nume, c.an, c.arhivata?'Da':'', state.elevi.filter(e=>e.claseId===c.id).length])]), 'Clase');
 
+  // Echipe reprezentate
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Sport','Categorie','Elev','Clasa','Sex','Data nașterii','Vârstă','Înălțime (cm)','Greutate (kg)','Poziție','Nr. tricou','Aviz medical până la','Acord părinte','Scutit medical','CES','Observații'],
+    ...(state.echipe||[]).slice().sort((a,b)=>(a.sport||'').localeCompare(b.sport||'','ro')||(a.categorie||'').localeCompare(b.categorie||'')).map(m=>{ const e=state.elevi.find(x=>x.id===m.eleviId); const c=e?state.clase.find(k=>k.id===e.claseId):null;
+      return [m.sport, m.categorie, e?`${e.nume} ${e.prenume}`:'—', c?c.nume:'', e?e.sex:'', e&&e.dataNasterii?formatDataRo(e.dataNasterii):'', e?(varstaElev(e)==null?'':varstaElev(e)):'', e&&e.inaltime||'', e&&e.greutate||'', m.pozitie||'', m.tricou||'', m.aviz?formatDataRo(m.aviz):'', m.acord?'Da':'', e&&esteScutitActiv(e)?'Da':'', e&&e.ces?(e.cesDetalii||'Da'):'', m.obs||'']; })]), 'Echipe');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Sport','Categorie','Data','Eveniment / adversar','Rezultat','Observații'], ...(state.meciuriEchipe||[]).slice().sort((a,b)=>(a.data||'').localeCompare(b.data||'')).map(x=>[x.sport,x.categorie,x.data?formatDataRo(x.data):'',x.eveniment||'',x.rezultat||'',x.obs||''])]), 'Meciuri echipe');
   XLSX.writeFile(wb, `Catalog_EFS_${state.settings.anScolar}_${todayISO()}.xlsx`);
   showToast('Excel exportat.');
 }
@@ -2689,6 +2942,7 @@ Georgescu Mihai"></textarea>
       state.elevi = state.elevi.filter(e=>e.id!==id);
       state.note = state.note.filter(n=>n.eleviId!==id);
       state.absente = state.absente.filter(a=>a.eleviId!==id);
+      state.echipe = (state.echipe||[]).filter(m=>m.eleviId!==id);
       saveState(); render(); showToast('Elev șters.');
     });
   });

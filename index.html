@@ -605,6 +605,20 @@ function moduleDupaData(data){
 }
 // nota de Participare activă (0-10) a unui elev, pentru modulul respectiv:
 // pleacă de la 10 și scade punctele fiecărei observații înregistrate în acel interval
+// sub numele elevului în PPT: absența din ziua probei + absențele din modulul probei
+function absentePPTHTML(e, probaId){
+  const pr = state.probe.find(x=>x.id===probaId);
+  if(!pr) return '';
+  const modul = state.module.find(m=>pr.data>=m.start && pr.data<=m.end) || null;
+  const absente = state.absente.filter(a=>a.eleviId===e.id && a.stare==='absent').map(a=>a.data).sort();
+  const inProba = absente.includes(pr.data);
+  const inModul = modul ? absente.filter(d=>d>=modul.start && d<=modul.end) : [];
+  const fmt = d=>formatDataRo(d).slice(0,5);
+  let out = '';
+  if(inProba) out += `<div style="font-size:12px; font-weight:700; color:var(--danger); margin-top:2px;">● Absent în ziua probei (${formatDataRo(pr.data)})</div>`;
+  if(inModul.length) out += `<div style="font-size:12px; color:var(--muted); margin-top:1px;">Absențe în ${escapeHtml(modul.nume)}: <b>${inModul.length}</b> (${inModul.map(fmt).join(', ')})</div>`;
+  return out;
+}
 function calculeazaParticipare(eleviId, modul){
   if(!modul) return null;
   const inregistrari = state.absente.filter(a=>a.eleviId===eleviId && a.data>=modul.start && a.data<=modul.end);
@@ -1344,11 +1358,11 @@ function renderPPP(main){
             const tehnicaRec = gasesteTehnica(e.id, ui.pppProba);
             const inputTehnica = `<input type="number" min="1" max="10" step="0.5" class="input-tehnica" data-elev="${e.id}" value="${tehnicaRec?tehnicaRec.valoare:''}" placeholder="—" style="width:60px;"/>`;
             if(!r){
-              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="6" style="color:var(--muted);">Fără notă la această probă (Performanță/Progres)</td></tr>`;
+              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${absentePPTHTML(e, ui.pppProba)}</td><td colspan="6" style="color:var(--muted);">Fără notă la această probă (Performanță/Progres)</td></tr>`;
             }
             return `<tr>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${absentePPTHTML(e, ui.pppProba)}</td>
               <td>${r.performanta.toFixed(2)}</td>
               <td>${r.progres.toFixed(2)}</td>
               <td>${inputTehnica}</td>

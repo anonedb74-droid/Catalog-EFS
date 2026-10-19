@@ -397,6 +397,8 @@
   .add-elev-list label{display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--border); cursor:pointer;}
   .add-elev-list label.deja{opacity:.5; cursor:default;}
   .add-elev-list input[type=checkbox]{width:22px; height:22px; flex-shrink:0;}
+.rand-inactiv td{background:#fff4d6 !important;}
+.rand-inactiv .student-name{color:#7a5200;}
 </style>
 </head>
 <body>
@@ -719,6 +721,7 @@ function esteScutitActiv(e){
 // scutirea PARȚIALĂ (permanentă sau temporară) nu blochează notarea — elevul poate fi notat
 // la probele pe care profesorul consideră că le poate efectua. Doar scutirea TOTALĂ blochează.
 function blocheazaNotarea(e){
+  if(esteInactiv(e)) return true;
   if(!esteScutitActiv(e)) return false;
   if(e.scutireTip==='partiala') return false;
   if(e.scutireTip==='temporara' && e.scutireSubTip==='partiala') return false;
@@ -903,8 +906,13 @@ function claseNume(id){
   const c = state.clase.find(c=>c.id===id);
   return c ? c.nume : '—';
 }
-// situație școlară: elevii transferați / cu abandon / care nu mai vin sunt scoși din toate listele de lucru
-// (note, absențe, PPT, echipe) dar rămân în tabul Elevi, marcați distinct. Datele lor se păstrează.
+// situație școlară: elevii transferați / cu abandon / care nu mai vin rămân în toate listele, dar marcați distinct
+// (rând galben, eticheta dedesubt) și nu mai pot fi notați / marcați absenți. Datele lor se păstrează.
+function motivBlocareHTML(e, scurt){
+  if(esteInactiv(e)) return `<span class="pill pill-yellow">${SITUATII_ELEV[e.situatie]}</span>`;
+  return `<span class="exempt-note">${scurt?'Scutit':'Scutit medical'}</span>`;
+}
+function motivBlocareText(e){ return esteInactiv(e) ? SITUATII_ELEV[e.situatie].toLowerCase() : 'scutit'; }
 const SITUATII_ELEV = {transferat:'Transferat', abandon:'Abandon școlar', nuvine:'Nu mai vine'};
 function esteInactiv(e){ return !!(e && e.situatie && SITUATII_ELEV[e.situatie]); }
 function situatieElevHTML(e){
@@ -912,8 +920,8 @@ function situatieElevHTML(e){
   const det = [e.situatieData?formatDataRo(e.situatieData):'', e.situatieNota||''].filter(Boolean).join(' — ');
   return `<div class="situatie-elev" style="font-size:12px; font-weight:600; color:#7a5200; margin-top:2px;">● ${SITUATII_ELEV[e.situatie]}${det?` · ${escapeHtml(det)}`:''}</div>`;
 }
-function eleviDinClasa(claseId, cuInactivi){
-  return state.elevi.filter(e=>e.claseId===claseId && (cuInactivi || !esteInactiv(e))).sort((a,b)=>a.nume.localeCompare(b.nume,'ro'));
+function eleviDinClasa(claseId){
+  return state.elevi.filter(e=>e.claseId===claseId).sort((a,b)=>a.nume.localeCompare(b.nume,'ro'));
 }
 function formatDataRo(iso){
   if(!iso) return '—';
@@ -1364,7 +1372,7 @@ function renderPPP(main){
         <tbody>
           ${lista.map((e,idx)=>{
             if(blocheazaNotarea(e)){
-              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="6"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="6">${motivBlocareHTML(e)}</td></tr>`;
             }
             const r = calculeazaPPP(e.id, ui.pppProba);
             const tehnicaRec = gasesteTehnica(e.id, ui.pppProba);
@@ -1514,7 +1522,7 @@ function renderCombinat(main){
         <tbody>
           ${lista.map((e,idx)=>{
             if(blocheazaNotarea(e)){
-              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="${ui.combinatProbe.length+1}"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="${ui.combinatProbe.length+1}">${motivBlocareHTML(e)}</td></tr>`;
             }
             const valori = []; // {nume, valoare}
             const celule = ui.combinatProbe.map(probaId=>{
@@ -1966,10 +1974,10 @@ function renderCurente(main){
       <table>
         <thead><tr><th>Nr.</th><th>Elev</th><th>Nota</th><th>Observație (opțional)</th></tr></thead>
         <tbody>
-          ${lista.map((e,idx)=>`<tr>
+          ${lista.map((e,idx)=>`<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>
             <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-            <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${absentLaData(e.id)?'<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent</div>':''}${noteCurenteElev(e.id).length?`<div style="margin-top:2px;">${noteCurenteElev(e.id).slice(-4).map(notaCurentaPillHTML).join('')}</div>`:''}</td>
-            <td>${blocheazaNotarea(e) ? '<span class="exempt-note">Scutit</span>' : `<input type="number" inputmode="decimal" min="1" max="10" step="0.5" class="grade-input inp-curenta" data-elev="${e.id}" placeholder="—"/>`}</td>
+            <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}${absentLaData(e.id)?'<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent</div>':''}${noteCurenteElev(e.id).length?`<div style="margin-top:2px;">${noteCurenteElev(e.id).slice(-4).map(notaCurentaPillHTML).join('')}</div>`:''}</td>
+            <td>${blocheazaNotarea(e) ? motivBlocareHTML(e,true) : `<input type="number" inputmode="decimal" min="1" max="10" step="0.5" class="grade-input inp-curenta" data-elev="${e.id}" placeholder="—"/>`}</td>
             <td>${blocheazaNotarea(e) ? '' : `<input type="text" class="inp-curenta-obs" data-elev="${e.id}" placeholder="opțional" style="width:100%; min-width:120px;"/>`}</td>
           </tr>`).join('')}
         </tbody>
@@ -2040,7 +2048,8 @@ function limiteEchipe(){
 function avertismenteEchipa(e, cat, m){
   const out = [];
   if(!e) return out;
-  if(blocheazaNotarea(e)) out.push('<span class="pill pill-danger" title="Scutire medicală totală activă">scutit medical</span>');
+  if(esteInactiv(e)) out.push(`<span class="pill pill-yellow">${SITUATII_ELEV[e.situatie].toLowerCase()}</span>`);
+  else if(blocheazaNotarea(e)) out.push('<span class="pill pill-danger" title="Scutire medicală totală activă">scutit medical</span>');
   else if(scutirePartialaActiva(e)) out.push('<span class="pill pill-blue" title="Scutire parțială — verifică ce are voie">scutire parțială</span>');
   const an = anNastereElev(e);
   if(an==null) out.push('<span class="pill pill-yellow" title="Completează data nașterii în tabul Elevi">fără dată naștere</span>');
@@ -2386,7 +2395,7 @@ function renderSinteza(main){
           ${lista.map(e=>{
             const noteNumerice = [];
             const celule = probeClasa.map(p=>{
-              if(blocheazaNotarea(e)) return '<span class="exempt-note">scutit</span>';
+              if(blocheazaNotarea(e)) return esteInactiv(e) ? `<span class="pill pill-yellow">${motivBlocareText(e)}</span>` : '<span class="exempt-note">scutit</span>';
               const rec = notaPentruSinteza(e.id, p.id);
               if(!rec) return '<span style="color:var(--muted);">—</span>';
               const eticheta = rec.moment==='final' ? 'F' : 'I';
@@ -2463,7 +2472,7 @@ function genereazaRaportClasa(claseId){
   const randuriNote = lista.map(e=>{
     const noteNumerice = [];
     const celule = probeClasa.map(p=>{
-      if(blocheazaNotarea(e)) return 'scutit';
+      if(blocheazaNotarea(e)) return motivBlocareText(e);
       if(tipRaport==='ppt'){
         const r = calculeazaPPP(e.id, p.id);
         if(!r) return '—';
@@ -2584,7 +2593,7 @@ function genereazaRaportExcelClasa(claseId){
   const randuriNote = lista.map(e=>{
     const noteNumerice = [];
     const celule = probeClasa.map(p=>{
-      if(blocheazaNotarea(e)) return 'scutit';
+      if(blocheazaNotarea(e)) return motivBlocareText(e);
       if(tipRaport==='ppt'){
         const r = calculeazaPPP(e.id, p.id);
         if(!r) return '';
@@ -2768,7 +2777,7 @@ function renderElevi(main){
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
-  const lista = eleviDinClasa(ui.clasaCurenta, true);
+  const lista = eleviDinClasa(ui.clasaCurenta);
   const nrInactivi = lista.filter(esteInactiv).length;
   main.innerHTML = `
     <h2>Elevi</h2>
@@ -3401,7 +3410,7 @@ function renderNotare(main){
           ${lista.map((e,idx)=>{
             const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
             if(blocheazaNotarea(e)){
-              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="4"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="4">${motivBlocareHTML(e)}</td></tr>`;
             }
             const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${absentAziHTML(e)}`;
             const an = claseAn(e.claseId);
@@ -3442,7 +3451,7 @@ function renderNotare(main){
             const numarOrdine = `<td style="color:var(--muted); text-align:center;">${idx+1}</td>`;
             const existing = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment===moment);
             if(blocheazaNotarea(e)){
-              return `<tr>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td><td colspan="2"><span class="exempt-note">Scutit medical</span></td></tr>`;
+              return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="2">${motivBlocareHTML(e)}</td></tr>`;
             }
             const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${absentAziHTML(e)}`;
             if(tipNotare==='calificativ'){
@@ -3685,6 +3694,9 @@ function renderAbsente(main){
             const esteAbsent = stare==='absent';
             const nota = rec ? (rec.nota || '') : '';
             const esteCustom = nota && !toateObservatiile().includes(nota);
+            if(esteInactiv(e)){
+              return `<tr data-row-elev="${e.id}" class="rand-inactiv"><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="4">${motivBlocareHTML(e)}</td></tr>`;
+            }
             return `<tr data-row-elev="${e.id}">
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''} ${cesTagHTML(e)}</td>

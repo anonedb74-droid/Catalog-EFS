@@ -531,6 +531,7 @@ function migreazaDate(){
     // scutire veche (doar boolean + motiv) -> se consideră "totală anuală" implicit
     if(e.scutit && !e.scutireTip) e.scutireTip = 'totala_anuala';
     if(e.scutireTip===undefined) e.scutireTip = null;
+    if(e.situatie===undefined) e.situatie = null;
     if(e.scutireSubTip===undefined) e.scutireSubTip = null;
     if(e.scutireStart===undefined) e.scutireStart = null;
     if(e.scutireEnd===undefined) e.scutireEnd = null;
@@ -902,8 +903,17 @@ function claseNume(id){
   const c = state.clase.find(c=>c.id===id);
   return c ? c.nume : '—';
 }
-function eleviDinClasa(claseId){
-  return state.elevi.filter(e=>e.claseId===claseId).sort((a,b)=>a.nume.localeCompare(b.nume,'ro'));
+// situație școlară: elevii transferați / cu abandon / care nu mai vin sunt scoși din toate listele de lucru
+// (note, absențe, PPT, echipe) dar rămân în tabul Elevi, marcați distinct. Datele lor se păstrează.
+const SITUATII_ELEV = {transferat:'Transferat', abandon:'Abandon școlar', nuvine:'Nu mai vine'};
+function esteInactiv(e){ return !!(e && e.situatie && SITUATII_ELEV[e.situatie]); }
+function situatieElevHTML(e){
+  if(!esteInactiv(e)) return '';
+  const det = [e.situatieData?formatDataRo(e.situatieData):'', e.situatieNota||''].filter(Boolean).join(' — ');
+  return `<div class="situatie-elev" style="font-size:12px; font-weight:600; color:#7a5200; margin-top:2px;">● ${SITUATII_ELEV[e.situatie]}${det?` · ${escapeHtml(det)}`:''}</div>`;
+}
+function eleviDinClasa(claseId, cuInactivi){
+  return state.elevi.filter(e=>e.claseId===claseId && (cuInactivi || !esteInactiv(e))).sort((a,b)=>a.nume.localeCompare(b.nume,'ro'));
 }
 function formatDataRo(iso){
   if(!iso) return '—';
@@ -2758,7 +2768,8 @@ function renderElevi(main){
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
-  const lista = eleviDinClasa(ui.clasaCurenta);
+  const lista = eleviDinClasa(ui.clasaCurenta, true);
+  const nrInactivi = lista.filter(esteInactiv).length;
   main.innerHTML = `
     <h2>Elevi</h2>
     <p class="tab-desc">Gestionează lista de elevi pentru fiecare clasă.</p>
@@ -2770,7 +2781,7 @@ function renderElevi(main){
           ${claseActive().map(c=>`<option value="${c.id}" ${c.id===ui.clasaCurenta?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}
         </select>
       </div>
-      <span class="pill pill-ok">${lista.length} elev${lista.length===1?'':'i'}</span>
+      <span class="pill pill-ok">${lista.length-nrInactivi} elev${lista.length-nrInactivi===1?'':'i'} activi</span>${nrInactivi?`<span class="pill pill-yellow">${nrInactivi} transferați / plecați</span>`:''}
     </div>
 
     <div class="card">
@@ -2813,16 +2824,16 @@ Georgescu Mihai"></textarea>
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă lista de mai sus, dintr-o dată sau elev cu elev.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table style="font-size:13px;">
-        <thead><tr><th style="padding:5px 3px;">Nr.</th><th style="padding:5px 3px;">Cod</th><th style="padding:5px 3px;">Nume</th><th style="padding:5px 3px;">Prenume</th><th style="padding:5px 3px;">Sex</th><th style="padding:5px 3px;">Naștere</th><th style="padding:5px 3px;">Î.</th><th style="padding:5px 3px;">G.</th><th style="padding:5px 3px;">IMC</th><th style="padding:5px 3px;">Scutit</th><th></th></tr></thead>
+        <thead><tr><th style="padding:5px 3px;">Nr.</th><th style="padding:5px 3px;">Cod</th><th style="padding:5px 3px;">Nume</th><th style="padding:5px 3px;">Prenume</th><th style="padding:5px 3px;">Sex</th><th style="padding:5px 3px;">Naștere</th><th style="padding:5px 3px;">Î.</th><th style="padding:5px 3px;">G.</th><th style="padding:5px 3px;">IMC</th><th style="padding:5px 3px;">Scutit</th><th style="padding:5px 3px;">Situație</th><th></th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             const imc = (e.inaltime && e.greutate) ? (e.greutate / ((e.inaltime/100)*(e.inaltime/100))).toFixed(1) : '—';
             const catIMC = imc!=='—' ? categorieIMC(parseFloat(imc), claseAn(e.claseId), e.sex) : null;
             return `
-            <tr>
+            <tr ${esteInactiv(e)?'class="rand-inactiv" style="background:#fff4d6; opacity:.9;"':''}>
               <td style="color:var(--muted); text-align:center; width:22px; padding:4px 3px; font-size:11px;">${idx+1}</td>
               <td style="color:var(--muted); font-size:9px; white-space:nowrap; width:56px; padding:4px 3px;">${escapeHtml(e.codUnic||'—')}</td>
-              <td class="student-name" style="padding:4px 3px;"><input type="text" class="input-nume-elev" autocapitalize="characters" data-elev="${e.id}" value="${escapeHtml(e.nume)}" style="width:150px; font-weight:700; min-height:30px; padding:3px 5px; text-transform:uppercase; font-size:12px;"/></td>
+              <td class="student-name" style="padding:4px 3px;"><input type="text" class="input-nume-elev" autocapitalize="characters" data-elev="${e.id}" value="${escapeHtml(e.nume)}" style="width:150px; font-weight:700; min-height:30px; padding:3px 5px; text-transform:uppercase; font-size:12px;"/>${situatieElevHTML(e)}</td>
               <td style="padding:4px 3px;"><input type="text" class="input-prenume-elev" autocapitalize="characters" data-elev="${e.id}" value="${escapeHtml(e.prenume)}" style="width:130px; min-height:30px; padding:3px 5px; text-transform:uppercase; font-size:12px;"/></td>
               <td style="padding:4px 3px;">
                 <select data-sex-elev="${e.id}" style="min-height:30px; padding:3px 2px; font-size:12px; width:56px;">
@@ -2835,6 +2846,13 @@ Georgescu Mihai"></textarea>
               <td style="padding:4px 3px;"><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:44px; min-height:30px; padding:3px 3px; font-size:12px;"/></td>
               <td style="color:var(--muted); padding:4px 3px; font-size:11px;" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:9px; padding:0px 4px;">${catIMC.eticheta}</span>` : ''}</td>
               <td style="padding:4px 3px; font-size:10px;">${scutirePillHTML(e)}<br><span class="pill pill-ghost" style="margin-top:2px; font-size:9px; padding:0 4px;">${e.scutit?1:0}</span>${e.ces?`<br>${cesTagHTML(e)}`:''}</td>
+              <td style="padding:4px 3px; min-width:120px;">
+                <select data-situatie-elev="${e.id}" style="min-height:30px; padding:3px 2px; font-size:12px; width:112px;">
+                  <option value="">Activ</option>
+                  ${Object.keys(SITUATII_ELEV).map(k=>`<option value="${k}" ${e.situatie===k?'selected':''}>${SITUATII_ELEV[k]}</option>`).join('')}
+                </select>
+                ${esteInactiv(e)?`<input type="date" data-situatie-data="${e.id}" value="${e.situatieData||''}" style="min-height:28px; width:112px; font-size:11px; margin-top:3px;"/><input type="text" data-situatie-nota="${e.id}" value="${escapeHtml(e.situatieNota||'')}" placeholder="ex: la Liceul X" style="min-height:28px; width:112px; font-size:12px; margin-top:3px;"/>`:''}
+              </td>
               <td style="padding:4px 3px;"><button class="btn btn-danger" data-del-elev="${e.id}" style="padding:4px 6px; min-height:28px;">${ICONS.trash}</button></td>
             </tr>
           `;}).join('')}
@@ -2907,6 +2925,28 @@ Georgescu Mihai"></textarea>
       adaugati++;
     });
     saveState(); render(); showToast(`${adaugati} elevi adăugați.`);
+  });
+  main.querySelectorAll('[data-situatie-elev]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const e = state.elevi.find(e=>e.id===sel.dataset.situatieElev);
+      if(sel.value){ e.situatie = sel.value; if(!e.situatieData) e.situatieData = todayISO(); }
+      else { e.situatie = null; e.situatieData = null; e.situatieNota = ''; }
+      saveState(); render();
+    });
+  });
+  main.querySelectorAll('[data-situatie-data]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const e = state.elevi.find(e=>e.id===inp.dataset.situatieData);
+      e.situatieData = inp.value || null; saveState();
+      const c = inp.closest('tr').querySelector('.situatie-elev'); if(c) c.outerHTML = situatieElevHTML(e);
+    });
+  });
+  main.querySelectorAll('[data-situatie-nota]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const e = state.elevi.find(e=>e.id===inp.dataset.situatieNota);
+      e.situatieNota = inp.value; saveState();
+      const c = inp.closest('tr').querySelector('.situatie-elev'); if(c) c.outerHTML = situatieElevHTML(e);
+    });
   });
   main.querySelectorAll('[data-sex-elev]').forEach(sel=>{
     sel.addEventListener('change', ()=>{

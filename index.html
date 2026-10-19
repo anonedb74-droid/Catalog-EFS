@@ -918,7 +918,7 @@ function esteInactiv(e){ return !!(e && e.situatie && SITUATII_ELEV[e.situatie])
 function situatieElevHTML(e){
   if(!esteInactiv(e)) return '';
   const det = [e.situatieData?formatDataRo(e.situatieData):'', e.situatieNota||''].filter(Boolean).join(' — ');
-  return `<div class="situatie-elev" style="font-size:12px; font-weight:600; color:#7a5200; margin-top:2px;">● ${SITUATII_ELEV[e.situatie]}${det?` · ${escapeHtml(det)}`:''}</div>`;
+  return `<div class="situatie-elev" title="${escapeHtml(SITUATII_ELEV[e.situatie]+(det?' · '+det:''))}" style="font-size:11px; font-weight:600; color:#7a5200; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">● ${SITUATII_ELEV[e.situatie]}${det?` · ${escapeHtml(det)}`:''}</div>`;
 }
 function eleviDinClasa(claseId){
   return state.elevi.filter(e=>e.claseId===claseId).sort((a,b)=>a.nume.localeCompare(b.nume,'ro'));
@@ -2855,12 +2855,11 @@ Georgescu Mihai"></textarea>
               <td style="padding:4px 3px;"><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:44px; min-height:30px; padding:3px 3px; font-size:12px;"/></td>
               <td style="color:var(--muted); padding:4px 3px; font-size:11px;" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:9px; padding:0px 4px;">${catIMC.eticheta}</span>` : ''}</td>
               <td style="padding:4px 3px; font-size:10px;">${scutirePillHTML(e)}<br><span class="pill pill-ghost" style="margin-top:2px; font-size:9px; padding:0 4px;">${e.scutit?1:0}</span>${e.ces?`<br>${cesTagHTML(e)}`:''}</td>
-              <td style="padding:4px 3px; min-width:120px;">
-                <select data-situatie-elev="${e.id}" style="min-height:30px; padding:3px 2px; font-size:12px; width:112px;">
+              <td style="padding:4px 3px; white-space:nowrap;">
+                <select data-situatie-elev="${e.id}" style="min-height:30px; padding:3px 2px; font-size:12px; width:${esteInactiv(e)?'92px':'112px'};">
                   <option value="">Activ</option>
                   ${Object.keys(SITUATII_ELEV).map(k=>`<option value="${k}" ${e.situatie===k?'selected':''}>${SITUATII_ELEV[k]}</option>`).join('')}
-                </select>
-                ${esteInactiv(e)?`<input type="date" data-situatie-data="${e.id}" value="${e.situatieData||''}" style="min-height:28px; width:112px; font-size:11px; margin-top:3px;"/><input type="text" data-situatie-nota="${e.id}" value="${escapeHtml(e.situatieNota||'')}" placeholder="ex: la Liceul X" style="min-height:28px; width:112px; font-size:12px; margin-top:3px;"/>`:''}
+                </select>${esteInactiv(e)?`<input type="date" data-situatie-data="${e.id}" value="${e.situatieData||''}" title="Data" style="min-height:30px; width:84px; font-size:10px; padding:2px;"/><input type="text" data-situatie-nota="${e.id}" value="${escapeHtml(e.situatieNota||'')}" placeholder="detaliu" style="min-height:30px; width:80px; font-size:12px; padding:3px;"/>`:''}
               </td>
               <td style="padding:4px 3px;"><button class="btn btn-danger" data-del-elev="${e.id}" style="padding:4px 6px; min-height:28px;">${ICONS.trash}</button></td>
             </tr>

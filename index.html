@@ -920,6 +920,26 @@ function situatieElevHTML(e){
   const det = [e.situatieData?formatDataRo(e.situatieData):'', e.situatieNota||''].filter(Boolean).join(' — ');
   return `<div class="situatie-elev" title="${escapeHtml(SITUATII_ELEV[e.situatie]+(det?' · '+det:''))}" style="font-size:11px; font-weight:600; color:#7a5200; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">● ${SITUATII_ELEV[e.situatie]}${det?` · ${escapeHtml(det)}`:''}</div>`;
 }
+// data nașterii: se scrie simplu, doar cifre (ex: 15032009 sau 150309) -> punctele apar singure
+function dataNastereAfisare(iso){ if(!iso) return ''; const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso); return m?`${m[3]}.${m[2]}.${m[1]}`:''; }
+function formateazaCifreData(v){
+  const c=String(v).replace(/\D/g,'').slice(0,8);
+  if(c.length<=2) return c;
+  if(c.length<=4) return c.slice(0,2)+'.'+c.slice(2);
+  return c.slice(0,2)+'.'+c.slice(2,4)+'.'+c.slice(4);
+}
+function parseazaDataNastere(v){
+  const t=String(v).trim(); if(!t) return {gol:true};
+  let z,l,a;
+  const sep=/^(\d{1,2})[.\/\-\s](\d{1,2})[.\/\-\s](\d{2}|\d{4})$/.exec(t);
+  if(sep){ z=+sep[1]; l=+sep[2]; a=sep[3]; }
+  else { const c=t.replace(/\D/g,''); if(c.length===8){ z=+c.slice(0,2); l=+c.slice(2,4); a=c.slice(4); } else if(c.length===6){ z=+c.slice(0,2); l=+c.slice(2,4); a=c.slice(4); } else return {eroare:true}; }
+  if(a.length===2){ const n=+a; a=String(n<=30?2000+n:1900+n); }
+  a=+a;
+  const d=new Date(a,l-1,z);
+  if(!(a>=1990 && a<=2030) || d.getFullYear()!==a || d.getMonth()!==l-1 || d.getDate()!==z) return {eroare:true};
+  return {iso:`${a}-${String(l).padStart(2,'0')}-${String(z).padStart(2,'0')}`};
+}
 function eleviDinClasa(claseId){
   return state.elevi.filter(e=>e.claseId===claseId).sort((a,b)=>a.nume.localeCompare(b.nume,'ro'));
 }
@@ -1073,6 +1093,12 @@ function verificaSchimbareaZilei(){
     ui.absenteData = azi;
     ui.curenteData = azi; ui.curenteDetalii = null;
   }
+}
+// re-randare care păstrează poziția în pagină (pentru schimbări făcute în timpul lucrului)
+function renderPastrand(){
+  const m=document.getElementById('main'); const t=m?m.scrollTop:0;
+  render();
+  const m2=document.getElementById('main'); if(m2) m2.scrollTop=t;
 }
 function render(){
   verificaSchimbareaZilei();
@@ -2852,7 +2878,7 @@ Georgescu Mihai"></textarea>
                   <option value="F" ${e.sex==='F'?'selected':''}>F</option>
                 </select>
               </td>
-              <td style="padding:4px 3px;"><input type="date" class="input-data-nasterii" data-elev="${e.id}" value="${e.dataNasterii||''}" style="min-height:30px; padding:2px 2px; width:88px; font-size:10px;"/></td>
+              <td style="padding:4px 3px;"><input type="text" inputmode="numeric" autocomplete="off" class="input-data-nasterii" data-elev="${e.id}" value="${dataNastereAfisare(e.dataNasterii)}" placeholder="zz.ll.aaaa" maxlength="10" style="min-height:30px; padding:2px 4px; width:92px; font-size:13px;"/></td>
               <td style="padding:4px 3px;"><input type="number" inputmode="decimal" class="input-inaltime" data-elev="${e.id}" value="${e.inaltime||''}" placeholder="—" style="width:44px; min-height:30px; padding:3px 3px; font-size:12px;"/></td>
               <td style="padding:4px 3px;"><input type="number" inputmode="decimal" class="input-greutate" data-elev="${e.id}" value="${e.greutate||''}" placeholder="—" style="width:44px; min-height:30px; padding:3px 3px; font-size:12px;"/></td>
               <td style="color:var(--muted); padding:4px 3px; font-size:11px;" data-imc-for="${e.id}">${imc}${catIMC ? `<br><span class="pill ${catIMC.clasa}" style="font-size:9px; padding:0px 4px;">${catIMC.eticheta}</span>` : ''}</td>
@@ -2897,7 +2923,7 @@ Georgescu Mihai"></textarea>
     });
   });
   // Enter -> trece la aceeași căsuță (înălțime sau greutate) a elevului următor
-  ['.input-inaltime', '.input-greutate'].forEach(selectorClasa=>{
+  ['.input-nume-elev', '.input-prenume-elev', '.input-data-nasterii', '.input-inaltime', '.input-greutate'].forEach(selectorClasa=>{
     const campuri = Array.from(main.querySelectorAll(selectorClasa));
     campuri.forEach((inp, idx)=>{
       inp.addEventListener('keydown', (ev)=>{
@@ -2941,7 +2967,7 @@ Georgescu Mihai"></textarea>
       const e = state.elevi.find(e=>e.id===sel.dataset.situatieElev);
       if(sel.value){ e.situatie = sel.value; if(!e.situatieData) e.situatieData = todayISO(); }
       else { e.situatie = null; e.situatieData = null; e.situatieNota = ''; }
-      saveState(); render();
+      saveState(); renderPastrand();
     });
   });
   main.querySelectorAll('[data-situatie-data]').forEach(inp=>{
@@ -2995,9 +3021,24 @@ Georgescu Mihai"></textarea>
     });
   });
   main.querySelectorAll('.input-data-nasterii').forEach(inp=>{
+    inp.addEventListener('input', (ev)=>{
+      inp.style.borderColor='';
+      if(ev.inputType && ev.inputType.startsWith('delete')) return;
+      let v = inp.value;
+      if(/[^\d.\/\- ]/.test(v)) return;
+      if(/[.\/\- ]$/.test(v)){            // a scris singur separatorul: 1. -> 01
+        const g = v.split(/[.\/\- ]+/).filter(Boolean);
+        if(g.length && g.length<3 && g[g.length-1].length===1) g[g.length-1] = '0'+g[g.length-1];
+        v = g.join('');
+      }
+      inp.value = formateazaCifreData(v);
+    });
     inp.addEventListener('change', ()=>{
       const el = state.elevi.find(e=>e.id===inp.dataset.elev);
-      el.dataNasterii = inp.value || null;
+      const r = parseazaDataNastere(inp.value);
+      if(r.gol){ el.dataNasterii = null; inp.style.borderColor=''; saveState(); return; }
+      if(r.eroare){ inp.style.borderColor='var(--danger)'; showToast('Dată nevalidă. Scrie ziua, luna, anul (ex: 15032009).'); return; }
+      el.dataNasterii = r.iso; inp.value = dataNastereAfisare(r.iso); inp.style.borderColor='';
       saveState();
     });
   });
@@ -4490,7 +4531,7 @@ async function laConectare(u){
       if(areDate()){ alegeLaPrimaConectare(m); return; }
       await descarca(m); showToast('Datele din contul tău au fost aduse pe acest dispozitiv ✓');
     } else {
-      if(syncLocal.dirty && m.versiune!==syncLocal.baza){ await imbinaAutomat(m); asculta(); render(); return; }
+      if(syncLocal.dirty && m.versiune!==syncLocal.baza){ await imbinaAutomat(m); asculta(); renderPastrand(); return; }
       else if(syncLocal.dirty) await urca();
       else if(m.versiune!==syncLocal.baza) await descarca(m);
       else seteazaStareSync('sincronizat');
@@ -4569,7 +4610,7 @@ async function imbinaAutomat(m){
     sync.suprim=false;
     syncLocal.baza=m.versiune; syncLocal.dirty=true; syncLocal.uid=sync.uid; syncLocal.partiAnterioare=m.parti||1; salveazaSyncLocal();
     await urca();
-    render(); showToast('Datele de pe cele două dispozitive au fost îmbinate ✓');
+    renderPastrand(); showToast('Datele de pe cele două dispozitive au fost îmbinate ✓');
   }catch(e){ sync.suprim=false; console.error(e); seteazaStareSync('eroare'); }
 }
 // (varianta veche, cu întrebare — nu se mai folosește)
@@ -4592,7 +4633,7 @@ function asculta(){
     if(m.versiune===syncLocal.baza){ if(!syncLocal.dirty && !sync.inLucru) seteazaStareSync('sincronizat'); return; }
     if(m.dispozitiv===syncLocal.deviceId || sync.inLucru) return;
     if(syncLocal.dirty){ imbinaAutomat(m); return; }
-    descarca(m).then(()=>{ render(); showToast('Actualizat cu ce ai trecut pe celălalt dispozitiv ✓'); }).catch(e=>{ console.error(e); seteazaStareSync('eroare'); });
+    descarca(m).then(()=>{ renderPastrand(); showToast('Actualizat cu ce ai trecut pe celălalt dispozitiv ✓'); }).catch(e=>{ console.error(e); seteazaStareSync('eroare'); });
   }, e=>{ console.warn(e); seteazaStareSync('offline'); });
 }
 async function urca(){

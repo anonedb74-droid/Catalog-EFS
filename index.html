@@ -4490,7 +4490,7 @@ async function laConectare(u){
       if(areDate()){ alegeLaPrimaConectare(m); return; }
       await descarca(m); showToast('Datele din contul tău au fost aduse pe acest dispozitiv ✓');
     } else {
-      if(syncLocal.dirty && m.versiune!==syncLocal.baza){ conflict(m); return; }
+      if(syncLocal.dirty && m.versiune!==syncLocal.baza){ await imbinaAutomat(m); asculta(); render(); return; }
       else if(syncLocal.dirty) await urca();
       else if(m.versiune!==syncLocal.baza) await descarca(m);
       else seteazaStareSync('sincronizat');
@@ -4511,7 +4511,68 @@ function alegeLaPrimaConectare(m){
   b.querySelector('#pc-cont').onclick=async()=>{ smClose(); pastreazaCopie(); try{ await descarca(m); }catch(e){ seteazaStareSync('eroare'); } asculta(); render(); showToast('Datele din cont au fost aduse ✓'); };
   b.querySelector('#pc-local').onclick=()=>smConfirm('Datele din cont vor fi <b>înlocuite</b> cu cele de pe acest dispozitiv. Continui?', async()=>{ syncLocal.uid=sync.uid; salveazaSyncLocal(); await urca(); asculta(); render(); showToast('Datele de pe acest dispozitiv au fost urcate ✓'); }, 'Da, înlocuiește');
 }
-// modificări și aici (făcute fără semnal), și în cont (de pe alt dispozitiv) — întrebăm, nu ghicim
+/* ---- îmbinare automată (3 căi): ce ai schimbat aici + ce s-a schimbat în cont, fără întrebări ---- */
+const BAZA_KEY='catalog_efs_sync_baza_v1';
+function eg(a,b){ return JSON.stringify(a)===JSON.stringify(b); }
+function esteObj(x){ return x && typeof x==='object' && !Array.isArray(x); }
+function merge3(b,l,r,localMaiNou){
+  if(eg(l,r)) return l;
+  if(eg(l,b)) return r;
+  if(eg(r,b)) return l;
+  if(l===undefined) return r;   // șters aici, modificat în cont -> păstrăm modificarea
+  if(r===undefined) return l;
+  if(Array.isArray(l) && Array.isArray(r)){
+    const ba=Array.isArray(b)?b:[];
+    const cuId=a=>a.every(x=>esteObj(x) && typeof x.id==='string');
+    if(cuId(l) && cuId(r) && cuId(ba)){
+      const mb=new Map(ba.map(x=>[x.id,x])), ml=new Map(l.map(x=>[x.id,x])), mr=new Map(r.map(x=>[x.id,x]));
+      const ids=[...ml.keys(), ...[...mr.keys()].filter(i=>!ml.has(i))];
+      const out=[];
+      ids.forEach(i=>{ const v=merge3(mb.get(i), ml.get(i), mr.get(i), localMaiNou); if(v!==undefined) out.push(v); });
+      return out;
+    }
+    // liste simple / fără id: mulțime (adăugări de ambele părți, ștergeri de ambele părți)
+    const k=x=>JSON.stringify(x);
+    const sb=new Set(ba.map(k)), sl=new Set(l.map(k)), sr=new Set(r.map(k));
+    const out=[]; const vazut=new Set();
+    [...l,...r].forEach(x=>{ const c=k(x); if(vazut.has(c)) return; vazut.add(c);
+      const inB=sb.has(c), inL=sl.has(c), inR=sr.has(c);
+      if(inL && inR) out.push(x);
+      else if(inL && !inB) out.push(x);        // adăugat aici
+      else if(inR && !inB) out.push(x);        // adăugat în cont
+      // altfel: șters pe una din părți
+    });
+    return out;
+  }
+  if(esteObj(l) && esteObj(r)){
+    const bb=esteObj(b)?b:{}, out={};
+    new Set([...Object.keys(l),...Object.keys(r)]).forEach(c=>{
+      const v=merge3(bb[c], l[c], r[c], localMaiNou); if(v!==undefined) out[c]=v;
+    });
+    return out;
+  }
+  return localMaiNou ? l : r;   // aceeași valoare modificată pe ambele: cea mai recentă
+}
+function salveazaBaza(json){ try{ localStorage.setItem(BAZA_KEY, json); }catch(e){} }
+function citesteBaza(){ try{ const j=localStorage.getItem(BAZA_KEY); return j?JSON.parse(j):null; }catch(e){ return null; } }
+// modificări și aici, și în cont: le îmbinăm automat, apoi trimitem rezultatul
+async function imbinaAutomat(m){
+  try{
+    const remote=await citesteCont(m);
+    try{ localStorage.setItem('catalog_efs_copie_inlocuita', JSON.stringify({salvat:Date.now(), state})); }catch(e){}
+    const baza=citesteBaza()||{};
+    const localMaiNou=(syncLocal.modificat||0) >= (m.actualizat||0);
+    const imbinat=merge3(baza, JSON.parse(JSON.stringify(state)), remote, localMaiNou);
+    sync.suprim=true;
+    state=Object.assign(JSON.parse(JSON.stringify(STARE_IMPLICITA)), imbinat); migreazaDate();
+    saveStateNow();
+    sync.suprim=false;
+    syncLocal.baza=m.versiune; syncLocal.dirty=true; syncLocal.uid=sync.uid; syncLocal.partiAnterioare=m.parti||1; salveazaSyncLocal();
+    await urca();
+    render(); showToast('Datele de pe cele două dispozitive au fost îmbinate ✓');
+  }catch(e){ sync.suprim=false; console.error(e); seteazaStareSync('eroare'); }
+}
+// (varianta veche, cu întrebare — nu se mai folosește)
 function conflict(m){
   const b=smModal(`<h3>Modificări pe două dispozitive</h3>
     <p>Pe acest dispozitiv ai modificări care n-au ajuns încă în cont (ultima: <b>${cand(syncLocal.modificat)}</b>), iar între timp în cont au intrat modificări de pe alt dispozitiv (<b>${cand(m.actualizat)}</b>).</p>
@@ -4530,7 +4591,7 @@ function asculta(){
     const m=snap.data();
     if(m.versiune===syncLocal.baza){ if(!syncLocal.dirty && !sync.inLucru) seteazaStareSync('sincronizat'); return; }
     if(m.dispozitiv===syncLocal.deviceId || sync.inLucru) return;
-    if(syncLocal.dirty){ conflict(m); return; }
+    if(syncLocal.dirty){ imbinaAutomat(m); return; }
     descarca(m).then(()=>{ render(); showToast('Actualizat cu ce ai trecut pe celălalt dispozitiv ✓'); }).catch(e=>{ console.error(e); seteazaStareSync('eroare'); });
   }, e=>{ console.warn(e); seteazaStareSync('offline'); });
 }
@@ -4539,6 +4600,7 @@ async function urca(){
   if(sync.inLucru){ sync.iarDupa=true; return; }
   sync.inLucru=true; sync.iarDupa=false; seteazaStareSync(navigator.onLine===false?'offline':'trimite');
   const json=JSON.stringify(state), parti=[];
+  const jsonUrcat=json;
   for(let i=0;i<json.length;i+=PARTE) parti.push(json.slice(i,i+PARTE));
   if(!parti.length) parti.push('{}');
   const versiune=Date.now().toString(36)+'-'+String(syncLocal.deviceId).slice(-5);
@@ -4550,6 +4612,7 @@ async function urca(){
     await b.commit();
     syncLocal.baza=versiune; syncLocal.partiAnterioare=parti.length; syncLocal.uid=sync.uid;
     if(!sync.iarDupa) syncLocal.dirty=false;
+    if(!sync.iarDupa) salveazaBaza(jsonUrcat);
     salveazaSyncLocal(); seteazaStareSync('sincronizat');
   }catch(e){ console.error(e); seteazaStareSync(e&&e.code==='permission-denied'?'eroare':'offline'); }
   sync.inLucru=false;
@@ -4566,6 +4629,7 @@ async function descarca(m){
   state=Object.assign(JSON.parse(JSON.stringify(STARE_IMPLICITA)), p); migreazaDate(); saveStateNow();
   sync.suprim=false;
   syncLocal.baza=m.versiune; syncLocal.dirty=false; syncLocal.uid=sync.uid; syncLocal.partiAnterioare=m.parti||1; salveazaSyncLocal();
+  salveazaBaza(JSON.stringify(state));
   seteazaStareSync('sincronizat');
 }
 function marcheazaModificat(){

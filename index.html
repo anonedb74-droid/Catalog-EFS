@@ -1533,8 +1533,10 @@ function renderCombinat(main){
                 if(ui.combinatSursa==='performanta') v = r.performanta;
                 else v = r.notaFinala; // null dacă lipsește Tehnica
               }
-              if(v!=null){ valori.push({nume: p?p.nume:'—', valoare: v}); return v.toFixed(2); }
-              return '<span style="color:var(--muted);">—</span>';
+              const absP = p && state.absente.some(a=>a.eleviId===e.id && a.data===p.data && a.stare==='absent');
+              const tagAbs = absP ? `<div style="font-size:11px; font-weight:700; color:var(--danger);">● Absent ${formatDataRo(p.data).slice(0,5)}</div>` : '';
+              if(v!=null){ valori.push({nume: p?p.nume:'—', valoare: v}); return v.toFixed(2)+tagAbs; }
+              return '<span style="color:var(--muted);">—</span>'+tagAbs;
             });
             let notaCombinataHTML;
             if(valori.length===0){
@@ -1547,7 +1549,7 @@ function renderCombinat(main){
             }
             return `<tr>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${absentAziHTML(e)}</td>
               ${celule.map(c=>`<td>${c}</td>`).join('')}
               <td>${notaCombinataHTML}</td>
             </tr>`;

@@ -537,6 +537,7 @@ function migreazaDate(){
     if(e.scutireSubTip===undefined) e.scutireSubTip = null;
     if(e.scutireStart===undefined) e.scutireStart = null;
     if(e.scutireEnd===undefined) e.scutireEnd = null;
+    if(!Array.isArray(e.istoricScutiri)) e.istoricScutiri = []; // scutirile anterioare ale elevului (nu se șterg)
     if(e.dataNasterii===undefined) e.dataNasterii = null;
     if(e.ces===undefined) e.ces = false;
     if(e.cesDetalii===undefined) e.cesDetalii = '';
@@ -2763,6 +2764,10 @@ function genereazaRaportExcelGeneral(){
   const randuriScut = state.elevi.filter(e=>e.scutireTip || e.scutit || e.ces).map(e=>[
     `${e.nume} ${e.prenume}`, numeClasa(e.claseId), tipScutire(e), e.scutireSubTip||'', e.scutireStart?formatDataRo(e.scutireStart):'', e.scutireEnd?formatDataRo(e.scutireEnd):'',
     esteScutitActiv(e)?'Da':'Nu', e.motivScutire||'', e.ces?(e.cesDetalii||'Da'):'']);
+  // scutirile anterioare (istoric), sub cele curente
+  state.elevi.forEach(e=>(e.istoricScutiri||[]).forEach(x=>randuriScut.push([
+    `${e.nume} ${e.prenume}`, numeClasa(e.claseId), tipScutire({scutireTip:x.tip}), x.subTip||'', x.start?formatDataRo(x.start):'', x.end?formatDataRo(x.end):'',
+    'Nu (anterioară)', x.motiv||'', ''])));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Elev','Clasă','Scutire','Detaliu','De la','Până la','Activă azi','Motiv','CES'], ...randuriScut]), 'Scutiri');
 
   // Foaia 11: Practică comasată
@@ -4195,13 +4200,31 @@ function renderPractica(main){
 }
 
 /* ================= TAB: SCUTIRI MEDICALE ================= */
+// mută scutirea curentă a elevului în istoricul lui (folosit când i se trece o scutire nouă)
+function arhiveazaScutire(e){
+  if(!Array.isArray(e.istoricScutiri)) e.istoricScutiri = [];
+  e.istoricScutiri.push({tip:e.scutireTip, subTip:e.scutireSubTip||null, start:e.scutireStart||null, end:e.scutireEnd||null, motiv:e.motivScutire||'', inlocuitaLa:todayISO()});
+}
+function descriereScutire(x){
+  const fel = x.tip==='partiala'?'Parțială':x.tip==='temporara'?`Temporară (${x.subTip==='partiala'?'parțială':'totală'})`:'Totală anuală';
+  const per = x.start&&x.end ? `, ${formatDataRo(x.start)}–${formatDataRo(x.end)}` : '';
+  return fel+per;
+}
+function istoricScutiriHTML(e){
+  const ist = e.istoricScutiri||[];
+  if(!ist.length) return '';
+  return `<div style="margin-top:6px; font-size:12px; color:var(--muted);"><b>Scutiri anterioare:</b>${ist.map(x=>`<div>• ${escapeHtml(descriereScutire(x))}${x.motiv?` — ${escapeHtml(x.motiv)}`:''}</div>`).join('')}</div>`;
+}
 function renderScutiri(main){
   const scutiti = state.elevi.filter(e=>e.scutit && e.scutireTip);
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)){
     ui.clasaCurenta = claseActive().length ? claseActive()[0].id : null;
   }
   if(!ui.scutireTipNou) ui.scutireTipNou = 'totala_anuala';
-  const eleviNescutitiClasa = ui.clasaCurenta ? eleviDinClasa(ui.clasaCurenta).filter(e=>!(e.scutit && e.scutireTip)) : [];
+  // în listă apar TOȚI elevii clasei: unui elev i se poate trece o scutire nouă (ex.: după ce i-a expirat cea veche);
+  // scutirea anterioară nu se pierde, trece în istoricul elevului
+  const eleviNescutitiClasa = ui.clasaCurenta ? eleviDinClasa(ui.clasaCurenta) : [];
+  const etichetaScutire = e => !(e.scutit && e.scutireTip) ? '' : (esteScutitActiv(e) ? ' — are scutire activă' : ' — scutire expirată');
   const eleviCes = state.elevi.filter(e=>e.ces);
   const eleviNeCesClasa = ui.clasaCurenta ? eleviDinClasa(ui.clasaCurenta).filter(e=>!e.ces) : [];
   main.innerHTML = `
@@ -4220,7 +4243,7 @@ function renderScutiri(main){
           <label>Elev</label>
           <select id="select-scutire-elev" ${eleviNescutitiClasa.length===0?'disabled':''}>
             <option value="">${eleviNescutitiClasa.length===0 ? 'Niciun elev disponibil' : 'Alege un elev...'}</option>
-            ${eleviNescutitiClasa.map(e=>`<option value="${e.id}">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</option>`).join('')}
+            ${eleviNescutitiClasa.map(e=>`<option value="${e.id}" ${ui.scutireElevSel===e.id?'selected':''}>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${etichetaScutire(e)}</option>`).join('')}
           </select>
         </div>
         <div class="field" style="min-width:200px;">
@@ -4256,7 +4279,7 @@ function renderScutiri(main){
           <label>Motiv scutire</label>
           <input type="text" id="input-scutire-motiv" placeholder="ex: scutire medicală pe semestrul I"/>
         </div>
-        <button class="btn btn-primary" id="btn-add-scutire">+ Marchează scutit</button>
+        <button class="btn btn-primary" id="btn-add-scutire">+ Adaugă scutirea</button>
       </div>
     </div>
     ${scutiti.length===0 ? emptyState('Niciun elev scutit momentan.', 'Adaugă o scutire folosind formularul de mai sus.') : `
@@ -4269,8 +4292,8 @@ function renderScutiri(main){
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
               <td>${escapeHtml(claseNume(e.claseId))}</td>
               <td>${scutirePillHTML(e)}</td>
-              <td>${escapeHtml(e.motivScutire) || '—'}</td>
-              <td><button class="btn btn-ghost" data-unscutire="${e.id}">Anulează scutirea</button></td>
+              <td>${escapeHtml(e.motivScutire) || '—'}${istoricScutiriHTML(e)}</td>
+              <td style="white-space:nowrap;"><button class="btn btn-secondary" data-scutirenoua="${e.id}">+ Scutire nouă</button> <button class="btn btn-ghost" data-unscutire="${e.id}">Anulează scutirea</button></td>
             </tr>
           `).join('')}
         </tbody>
@@ -4331,6 +4354,8 @@ function renderScutiri(main){
       saveState(); render(); showToast('Marcaj CES anulat.');
     });
   });
+  // elevul ales rămâne ales și după ce schimbi felul scutirii
+  document.getElementById('select-scutire-elev').addEventListener('change', e=>{ ui.scutireElevSel = e.target.value || null; });
   document.getElementById('select-scutire-tip').addEventListener('change', e=>{
     ui.scutireTipNou = e.target.value; render();
   });
@@ -4340,20 +4365,39 @@ function renderScutiri(main){
     const tip = ui.scutireTipNou;
     if(!id) return showToast('Alege un elev.');
     const e = state.elevi.find(e=>e.id===id);
+    let subTip=null, start=null, end=null;
+    if(tip==='temporara'){
+      subTip = document.getElementById('select-scutire-subtip').value;
+      start = document.getElementById('input-scutire-start').value;
+      end = document.getElementById('input-scutire-end').value;
+      if(!start || !end) return showToast('Completează perioada (de la - până la).');
+      if(end<start) return showToast('Data „până la” nu poate fi înainte de „de la”.');
+    }
+    // elevul are deja o scutire: cea veche trece în istoric, nu se pierde
+    if(e.scutit && e.scutireTip){
+      if(esteScutitActiv(e) && !confirm(`${e.nume} ${e.prenume} are o scutire activă. Scutirea nouă o înlocuiește, iar cea veche trece în istoricul elevului. Continui?`)) return;
+      arhiveazaScutire(e);
+    }
     e.scutit = true;
     e.scutireTip = tip;
     e.motivScutire = motiv;
+    ui.scutireElevSel = null;
     if(tip==='temporara'){
-      const subTip = document.getElementById('select-scutire-subtip').value;
-      const start = document.getElementById('input-scutire-start').value;
-      const end = document.getElementById('input-scutire-end').value;
-      if(!start || !end) return showToast('Completează perioada (de la - până la).');
-      if(end<start) return showToast('Data „până la” nu poate fi înainte de „de la”.');
       e.scutireSubTip = subTip; e.scutireStart = start; e.scutireEnd = end;
     } else {
       e.scutireSubTip = null; e.scutireStart = null; e.scutireEnd = null;
     }
     saveState(); render(); showToast('Scutire înregistrată.');
+  });
+  // „+ Scutire nouă” din tabel: alege clasa și elevul în formular și duce pagina sus, la formular
+  main.querySelectorAll('[data-scutirenoua]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const e = state.elevi.find(e=>e.id===b.dataset.scutirenoua);
+      ui.clasaCurenta = e.claseId; ui.scutireElevSel = e.id; render();
+      const sel = document.getElementById('select-scutire-elev');
+      if(sel){ sel.scrollIntoView({behavior:'smooth', block:'center'}); sel.focus(); }
+      showToast('Completează scutirea nouă în formular.');
+    });
   });
   main.querySelectorAll('[data-unscutire]').forEach(b=>{
     b.addEventListener('click', ()=>{

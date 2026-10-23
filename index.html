@@ -558,6 +558,15 @@ function migreazaDate(){
     if(!b.categorie) b.categorie = 'Altele';
   });
   if(!state.settings.anScolar) state.settings.anScolar = '2026-2027';
+  // o singură dată (cererea lui Daniel, 23.10.2026): clasele X D și XI I nu mai are ore la ele.
+  // Se ARHIVEAZĂ (datele rămân, se pot restaura din „Arhivă”) și se scot din orar.
+  if(!state.settings.arhivatXD_XI_I){
+    const tinta = c => /^\s*X\s*[-.]?\s*D\s*$/i.test(c.nume||'') || /^\s*XI\s*[-.\s]\s*I\s*$/i.test(c.nume||'');
+    const ids = (state.clase||[]).filter(tinta).map(c=>c.id);
+    (state.clase||[]).forEach(c=>{ if(ids.includes(c.id)) c.arhivata = true; });
+    if(state.orar) state.orar = state.orar.filter(o=>!ids.includes(o.claseId));
+    state.settings.arhivatXD_XI_I = true;
+  }
   if(!state.settings.urmatorulCodElev) state.settings.urmatorulCodElev = 1;
   if(!state.observatiiCustom) state.observatiiCustom = [];
   if(!state.orar) state.orar = [];
@@ -910,16 +919,22 @@ function claseNume(id){
 // situație școlară: elevii transferați / cu abandon / care nu mai vin rămân în toate listele, dar marcați distinct
 // (rând galben, eticheta dedesubt) și nu mai pot fi notați / marcați absenți. Datele lor se păstrează.
 function motivBlocareHTML(e, scurt){
-  if(esteInactiv(e)) return `<span class="pill pill-yellow">${SITUATII_ELEV[e.situatie]}</span>`;
+  if(esteInactiv(e)) return `<span class="pill pill-yellow">${etichetaSituatie(e)}</span>`;
   return `<span class="exempt-note">${scurt?'Scutit':'Scutit medical'}</span>`;
 }
-function motivBlocareText(e){ return esteInactiv(e) ? SITUATII_ELEV[e.situatie].toLowerCase() : 'scutit'; }
-const SITUATII_ELEV = {transferat:'Transferat', abandon:'Abandon școlar', nuvine:'Nu mai vine'};
-function esteInactiv(e){ return !!(e && e.situatie && SITUATII_ELEV[e.situatie]); }
+function motivBlocareText(e){ return esteInactiv(e) ? etichetaSituatie(e).toLowerCase() : 'scutit'; }
+const SITUATII_ELEV = {transferat:'Transferat', retras:'Retras', abandon:'Abandon școlar', nuvine:'Nu mai vine', alta:'Altă situație'};
+// textul afișat pentru situația elevului; la „Altă situație” se afișează ce ai scris tu în câmpul de detaliu
+function etichetaSituatie(e){
+  if(!e || !e.situatie) return '';
+  if(e.situatie==='alta' && (e.situatieNota||'').trim()) return e.situatieNota.trim();
+  return SITUATII_ELEV[e.situatie] || '';
+}
+function esteInactiv(e){ return !!(e && e.situatie && etichetaSituatie(e)); }
 function situatieElevHTML(e){
   if(!esteInactiv(e)) return '';
-  const det = [e.situatieData?formatDataRo(e.situatieData):'', e.situatieNota||''].filter(Boolean).join(' — ');
-  return `<div class="situatie-elev" title="${escapeHtml(SITUATII_ELEV[e.situatie]+(det?' · '+det:''))}" style="font-size:11px; font-weight:600; color:#7a5200; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">● ${SITUATII_ELEV[e.situatie]}${det?` · ${escapeHtml(det)}`:''}</div>`;
+  const det = [e.situatieData?formatDataRo(e.situatieData):'', e.situatie==='alta'?'':(e.situatieNota||'')].filter(Boolean).join(' — ');
+  return `<div class="situatie-elev" title="${escapeHtml(etichetaSituatie(e)+(det?' · '+det:''))}" style="font-size:11px; font-weight:600; color:#7a5200; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">● ${etichetaSituatie(e)}${det?` · ${escapeHtml(det)}`:''}</div>`;
 }
 // data nașterii: se scrie simplu, doar cifre (ex: 15032009 sau 150309) -> punctele apar singure
 function dataNastereAfisare(iso){ if(!iso) return ''; const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso); return m?`${m[3]}.${m[2]}.${m[1]}`:''; }
@@ -2077,7 +2092,7 @@ function limiteEchipe(){
 function avertismenteEchipa(e, cat, m){
   const out = [];
   if(!e) return out;
-  if(esteInactiv(e)) out.push(`<span class="pill pill-yellow">${SITUATII_ELEV[e.situatie].toLowerCase()}</span>`);
+  if(esteInactiv(e)) out.push(`<span class="pill pill-yellow">${etichetaSituatie(e).toLowerCase()}</span>`);
   else if(blocheazaNotarea(e)) out.push('<span class="pill pill-danger" title="Scutire medicală totală activă">scutit medical</span>');
   else if(scutirePartialaActiva(e)) out.push('<span class="pill pill-blue" title="Scutire parțială — verifică ce are voie">scutire parțială</span>');
   const an = anNastereElev(e);
@@ -2892,7 +2907,7 @@ Georgescu Mihai"></textarea>
                 <select data-situatie-elev="${e.id}" style="min-height:30px; padding:3px 2px; font-size:12px; width:${esteInactiv(e)?'92px':'112px'};">
                   <option value="">Activ</option>
                   ${Object.keys(SITUATII_ELEV).map(k=>`<option value="${k}" ${e.situatie===k?'selected':''}>${SITUATII_ELEV[k]}</option>`).join('')}
-                </select>${esteInactiv(e)?`<input type="date" data-situatie-data="${e.id}" value="${e.situatieData||''}" title="Data" style="min-height:30px; width:84px; font-size:10px; padding:2px;"/><input type="text" data-situatie-nota="${e.id}" value="${escapeHtml(e.situatieNota||'')}" placeholder="detaliu" style="min-height:30px; width:80px; font-size:12px; padding:3px;"/>`:''}
+                </select>${esteInactiv(e)?`<input type="date" data-situatie-data="${e.id}" value="${e.situatieData||''}" title="Data" style="min-height:30px; width:84px; font-size:10px; padding:2px;"/><input type="text" data-situatie-nota="${e.id}" value="${escapeHtml(e.situatieNota||'')}" placeholder="${e.situatie==='alta'?'scrie situația':'detaliu'}" style="min-height:30px; width:${e.situatie==='alta'?'120px':'80px'}; font-size:12px; padding:3px;"/>`:''}
               </td>
               <td style="padding:4px 3px;"><button class="btn btn-danger" data-del-elev="${e.id}" style="padding:4px 6px; min-height:28px;">${ICONS.trash}</button></td>
             </tr>

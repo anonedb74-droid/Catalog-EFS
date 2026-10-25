@@ -289,7 +289,7 @@
   }
   .class-card h3{margin:0 0 4px; font-size:18px; color:var(--infield);}
   .class-card .count{color:var(--muted); font-size:13px; margin-bottom:12px;}
-  .class-card .actions{display:flex; gap:8px;}
+  .class-card .actions{display:flex; gap:8px; flex-wrap:wrap;}
   .toast{
     position:fixed;
     bottom:24px;
@@ -887,7 +887,7 @@ function anonimizeazaStare(sursa){
   if(st.observatiiCustom) st.observatiiCustom = st.observatiiCustom.map(curata);
   // clase: nume fictive (an + literă), școala fictivă
   const perAn = {};
-  (st.clase||[]).forEach(c=>{ const i = perAn[c.an] = (perAn[c.an]||0)+1; c.nume = `${c.an} ${'ABCDEFGH'[(i-1)%8]}`; });
+  (st.clase||[]).forEach(c=>{ const i = perAn[c.an] = (perAn[c.an]||0)+1; c.nume = `${c.an} ${'ABCDEFGH'[(i-1)%8]}`; (c.practica||[]).forEach(pr=>{ if(pr.nume && /ing\.|prof\.|dl\.|dna\b|d-na|instructor|\bSC\b|\bSRL\b/i.test(pr.nume)) pr.nume = 'SC Exemplu SRL'; else if(pr.nume) pr.nume = curata(pr.nume); }); });
   st.settings = st.settings || {};
   st.settings.scoalaTabel = 'Liceul Tehnologic „Exemplu”';
   st.settings.titlu = 'Catalog EFS';

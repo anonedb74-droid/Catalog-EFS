@@ -4588,7 +4588,6 @@ function openSettingsModal(){
         <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">Backup de siguranță (un fișier pe care îl păstrezi tu). Importul înlocuiește tot catalogul${sync.uid?' și în cont':''}.</div>
         <div class="row">
           <button class="btn btn-secondary" id="modal-export">⭳ Exportă backup</button>
-          <button class="btn btn-secondary" id="modal-export-anon" title="Copie cu nume inventate, pentru carte. Datele tale nu se schimbă.">⭳ Export anonimizat (pentru carte)</button>
           <button class="btn btn-secondary" id="modal-import-btn">⭱ Importă backup</button>
           <input type="file" id="modal-import-input" accept="application/json" style="display:none;"/>
         </div>
@@ -4634,10 +4633,6 @@ function openSettingsModal(){
     saveState(); backdrop.remove(); render(); showToast('Toate datele au fost șterse.');
   });
   document.getElementById('modal-export-excel').addEventListener('click', ()=>genereazaRaportExcelGeneral());
-  document.getElementById('modal-export-anon').addEventListener('click', async ()=>{
-    const r = await exportAnonimizat();
-    if(r==='share') showToast('Export anonimizat trimis.'); else if(r==='download') showToast('Export anonimizat descărcat.');
-  });
   document.getElementById('modal-export').addEventListener('click', async ()=>{
     const rezultat = await exportBackup();
     if(rezultat === 'share' || rezultat === 'download'){

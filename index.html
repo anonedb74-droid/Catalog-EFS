@@ -444,6 +444,7 @@ let state = {
   puncteObservatii: {},  // { "textul observației": puncte de scăzut din 10 } — editabil de profesor
   puncteAbsentaGoala: 2,  // puncte scăzute pentru fiecare absență (punctaj fix, uniform — observația nu se mai aplică la absență)
   pppPonderi: { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false },  // procentele din formula PPP, editabile
+  pppPonderiCalif: { performanta: 50, tehnica: 50 },  // formula pentru probele cu calificativ: doar performanța (testul final) + tehnica, fără progres
   tehnicaExecutie: [],  // {id, eleviId, probaId, valoare} — nota de corectitudine tehnică, dată manual de profesor, o dată per probă
   orar: [],  // {id, zi:'LU'..'VI', ora: number, claseId} — orarul săptămânal fix, pentru tot anul
   planificari: [],  // {id, an:'IX'..'XII', data, tema, recAfara, recInterior, recMixt} — planificarea pe lecție, pe an de studiu + dată
@@ -604,6 +605,7 @@ function migreazaDate(){
   if(state.pppPonderi.tehnica===undefined) state.pppPonderi.tehnica = 35;
   if(state.pppPonderi.participareActiva===undefined) state.pppPonderi.participareActiva = false;
   if(!state.tehnicaExecutie) state.tehnicaExecutie = [];
+  if(!state.pppPonderiCalif) state.pppPonderiCalif = { performanta: 50, tehnica: 50 };
   if(state.pppAfisareCatalog===undefined) state.pppAfisareCatalog = true;
   if(state.puncteAbsentaGoala===undefined || state.puncteAbsentaGoala===null) state.puncteAbsentaGoala = 2;
   if(!state.puncteObservatii) state.puncteObservatii = {};
@@ -680,6 +682,19 @@ function calculeazaPPP(eleviId, probaId){
   };
   const nInitial = notaRec(recInitial);
   const nFinal = notaRec(recFinal);
+  const probaCurenta = state.probe.find(x=>x.id===probaId);
+  if(probaCurenta && probaCurenta.tipNotare==='calificativ'){
+    // probe cu calificativ: testul inițial NU se notează; nota vine din testul final (performanța) + tehnica, fără progres
+    if(nFinal==null) return null;
+    const modulC = moduleDupaData(recFinal.data);
+    const participareC = modulC ? calculeazaParticipare(eleviId, modulC) : null;
+    const tehRec = gasesteTehnica(eleviId, probaId);
+    const tehC = tehRec ? tehRec.valoare : null;
+    const pc = state.pppPonderiCalif || {performanta:50, tehnica:50};
+    if(tehC==null) return { performanta:nFinal, progres:null, participare:participareC, tehnica:null, modul:modulC, notaFinala:null, calificativ:true };
+    return { performanta:nFinal, progres:null, participare:participareC, tehnica:tehC, modul:modulC, calificativ:true,
+      notaFinala: Math.round((nFinal*(pc.performanta/100) + tehC*(pc.tehnica/100))*100)/100 };
+  }
   const performanta = nFinal!=null ? nFinal : nInitial; // cea mai recentă disponibilă
   if(performanta==null) return null; // nu are nicio notă la această probă
   const progres = (nFinal!=null && nInitial!=null && nFinal>nInitial) ? 10 : performanta;
@@ -1436,10 +1451,23 @@ function renderPPP(main){
   }
   const lista = eleviDinClasa(ui.clasaCurenta);
   const pn = state.pppPonderi;
+  const probaSel = state.probe.find(x=>x.id===ui.pppProba);
+  const esteCalif = !!(probaSel && probaSel.tipNotare==='calificativ');
+  const pcal = state.pppPonderiCalif || {performanta:50, tehnica:50};
 
   main.innerHTML = `
     <h2>PPT — Performanță, Progres, Tehnică de execuție</h2>
-    <p class="tab-desc">Nota finală = Performanță×${pn.performanta}% + Progres×${pn.progres}% + Tehnică×${pn.tehnica}%${pn.participareActiva ? ` + Participare×${pn.participare}%` : ''}. Participarea e ${pn.participareActiva ? 'inclusă' : '<b>exclusă</b> din nota finală (doar informativă)'} — o poți activa/dezactiva mai jos.</p>
+    ${esteCalif ? `<p class="tab-desc">Proba <b>${escapeHtml(probaSel.nume)}</b> se apreciază cu calificative, deci nu are Progres. Testul inițial <b>nu se notează</b>; nota finală = Performanță (testul final)×${pcal.performanta}% + Tehnică×${pcal.tehnica}%. Dacă elevul n-a avut testare finală, trece tu calificativul la testul final.</p>
+    <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Procentele probelor cu calificativ</div>
+      <div class="row" style="align-items:flex-end;">
+        <div class="field"><label>Performanță %</label><input type="number" min="0" max="100" step="1" id="input-pondere-cal-perf" value="${pcal.performanta}" style="width:80px;"/></div>
+        <div class="field"><label>Tehnică %</label><input type="number" min="0" max="100" step="1" id="input-pondere-cal-teh" value="${pcal.tehnica}" style="width:80px;"/></div>
+        <button class="btn btn-secondary" id="btn-salveaza-ponderi-cal">Salvează procentele</button>
+        <span id="suma-ponderi-cal" style="font-size:13px; color:var(--muted);"></span>
+      </div>
+    </div>` : ''}
+    <div ${esteCalif?'hidden':''}><p class="tab-desc">Nota finală = Performanță×${pn.performanta}% + Progres×${pn.progres}% + Tehnică×${pn.tehnica}%${pn.participareActiva ? ` + Participare×${pn.participare}%` : ''}. Participarea e ${pn.participareActiva ? 'inclusă' : '<b>exclusă</b> din nota finală (doar informativă)'} — o poți activa/dezactiva mai jos.</p>
     <div class="card">
       <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Procentele formulei</div>
       <div class="row" style="align-items:flex-end;">
@@ -1456,7 +1484,7 @@ function renderPPP(main){
         <button class="btn btn-secondary" id="btn-salveaza-ponderi">Salvează procentele</button>
         <span id="suma-ponderi-info" style="font-size:13px; color:var(--muted);"></span>
       </div>
-    </div>
+    </div></div>
     <div class="row" style="margin-bottom:12px; align-items:center;">
       <label style="display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer;">
         <input type="checkbox" id="chk-afisare-catalog" ${state.pppAfisareCatalog?'checked':''} style="width:20px; height:20px;"/>
@@ -1483,23 +1511,23 @@ function renderPPP(main){
       probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nr.</th><th>Elev</th><th>Performanță</th><th>Progres</th><th>Tehnică</th><th>Participare</th><th>Modul</th><th>${state.pppAfisareCatalog ? 'Catalog · PPT' : 'Nota PPT'}</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>${esteCalif?'Performanță (test final)':'Performanță'}</th>${esteCalif?'':'<th>Progres</th>'}<th>Tehnică</th><th>Participare</th><th>Modul</th><th>${state.pppAfisareCatalog ? 'Catalog · PPT' : 'Nota PPT'}</th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>{
             if(blocheazaNotarea(e)){
-              return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="6">${motivBlocareHTML(e)}</td></tr>`;
+              return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="${esteCalif?5:6}">${motivBlocareHTML(e)}</td></tr>`;
             }
             const r = calculeazaPPP(e.id, ui.pppProba);
             const tehnicaRec = gasesteTehnica(e.id, ui.pppProba);
             const inputTehnica = `<input type="number" min="1" max="10" step="0.5" class="input-tehnica" data-elev="${e.id}" value="${tehnicaRec?tehnicaRec.valoare:''}" placeholder="—" style="width:60px;"/>`;
             if(!r){
-              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${absentePPTHTML(e, ui.pppProba)}</td><td colspan="6" style="color:var(--muted);">Fără notă la această probă (Performanță/Progres)</td></tr>`;
+              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${absentePPTHTML(e, ui.pppProba)}</td><td colspan="${esteCalif?5:6}" style="color:var(--muted);">${esteCalif?'Fără calificativ la testul final al acestei probe':'Fără notă la această probă (Performanță/Progres)'}</td></tr>`;
             }
             return `<tr>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${absentePPTHTML(e, ui.pppProba)}</td>
               <td>${r.performanta.toFixed(2)}</td>
-              <td>${r.progres.toFixed(2)}</td>
+              ${esteCalif?'':`<td>${r.progres.toFixed(2)}</td>`}
               <td>${inputTehnica}</td>
               <td>${r.participare!=null ? r.participare.toFixed(2) : '<span style="color:var(--muted);">—</span>'}</td>
               <td style="font-size:12px; color:var(--muted);">${r.modul ? escapeHtml(r.modul.nume) : '—'}</td>
@@ -1541,6 +1569,15 @@ function renderPPP(main){
     document.getElementById(id).addEventListener('input', actualizeazaSumaInfo);
   });
   actualizeazaSumaInfo();
+  if(esteCalif){
+    const infC = ()=>{ const t=(parseFloat(document.getElementById('input-pondere-cal-perf').value)||0)+(parseFloat(document.getElementById('input-pondere-cal-teh').value)||0); const i=document.getElementById('suma-ponderi-cal'); i.textContent='Total: '+t+'%'; i.style.color = t===100?'var(--ok)':'var(--danger)'; };
+    ['input-pondere-cal-perf','input-pondere-cal-teh'].forEach(id=>document.getElementById(id).addEventListener('input', infC)); infC();
+    document.getElementById('btn-salveaza-ponderi-cal').addEventListener('click', ()=>{
+      const a=parseFloat(document.getElementById('input-pondere-cal-perf').value)||0, b=parseFloat(document.getElementById('input-pondere-cal-teh').value)||0;
+      if(a+b!==100) return showToast('Procentele trebuie să însumeze 100%.');
+      state.pppPonderiCalif = {performanta:a, tehnica:b}; saveState(); render(); showToast('Procente salvate.');
+    });
+  }
   document.getElementById('btn-salveaza-ponderi').addEventListener('click', ()=>{
     const perf = parseFloat(document.getElementById('input-pondere-performanta').value)||0;
     const prog = parseFloat(document.getElementById('input-pondere-progres').value)||0;
@@ -2595,7 +2632,7 @@ function genereazaRaportClasa(claseId){
         if(!r) return '—';
         if(r.notaFinala==null) return 'fără Tehnică';
         noteNumerice.push(r.notaFinala);
-        return `P:${r.performanta.toFixed(1)} Pr:${r.progres.toFixed(1)} T:${r.tehnica.toFixed(1)} = ${r.notaFinala.toFixed(2)}`;
+        return `P:${r.performanta.toFixed(1)} ${r.progres!=null?'Pr:'+r.progres.toFixed(1)+' ':''}T:${r.tehnica.toFixed(1)} = ${r.notaFinala.toFixed(2)}`;
       }
       const rec = notaPentruSinteza(e.id, p.id);
       if(!rec) return '—';
@@ -2716,7 +2753,7 @@ function genereazaRaportExcelClasa(claseId){
         if(!r) return '';
         if(r.notaFinala==null) return 'fără Tehnică';
         noteNumerice.push(r.notaFinala);
-        return `P:${r.performanta.toFixed(1)} Pr:${r.progres.toFixed(1)} T:${r.tehnica.toFixed(1)} = ${r.notaFinala.toFixed(2)}`;
+        return `P:${r.performanta.toFixed(1)} ${r.progres!=null?'Pr:'+r.progres.toFixed(1)+' ':''}T:${r.tehnica.toFixed(1)} = ${r.notaFinala.toFixed(2)}`;
       }
       const rec = notaPentruSinteza(e.id, p.id);
       if(!rec) return '';
@@ -2826,7 +2863,7 @@ function genereazaRaportExcelGeneral(){
     const c = state.clase.find(cl=>cl.id===e.claseId);
     state.probe.filter(p=>p.claseId==='all' || p.claseId===e.claseId).forEach(p=>{
       const r = calculeazaPPP(e.id, p.id); if(!r) return;
-      randuriPPT.push([`${e.nume} ${e.prenume}`, c?c.nume:'—', p.nume, f2(r.performanta), f2(r.progres), f2(r.tehnica), f2(r.participare), r.modul?r.modul.nume:'', r.notaFinala==null?'fără Tehnică':r.notaFinala]);
+      randuriPPT.push([`${e.nume} ${e.prenume}`, c?c.nume:'—', p.nume, f2(r.performanta), (r.progres==null?'—':f2(r.progres)), f2(r.tehnica), f2(r.participare), r.modul?r.modul.nume:'', r.notaFinala==null?'fără Tehnică':r.notaFinala]);
     });
   });
   const pp = state.pppPonderi||{};
@@ -3528,6 +3565,7 @@ function renderNotare(main){
     </div>
     ${probaSelectata ? (()=>{ const st = statusProba(ui.clasaCurenta, probaSelectata.id); return `
       <label id="lbl-clasa-notata" class="${st.fin?'notata-ok':''}"><input type="checkbox" id="chk-clasa-notata" ${st.fin?'checked':''}/> <span>Clasa notată la această probă <span style="font-weight:400; color:var(--muted);">(${st.notati}/${st.total} elevi cu notă)</span></span></label>`; })() : ''}
+    ${probaSelectata && tipNotare==='calificativ' ? `<div class="tab-desc" style="margin-bottom:10px;">Probă cu calificative: <b>testarea inițială nu se notează</b> (rămâne punctul de plecare). Nota se formează din <b>testarea finală</b> + <b>tehnica de execuție</b> (o singură notă pentru ambele testări), cu procentele din secțiunea PPT. Dacă un elev n-a avut testare finală, trece tu calificativul la testarea finală.</div>` : ''}
     ${probaSelectata && tipNotare==='barem' && !barem ? `
       <div class="card" style="background:#FBEBD3; border-color:#E3A23C;">
         Nu există un barem definit pentru „${escapeHtml(probaSelectata.nume)}” — introduci direct timpul/rezultatul, sau

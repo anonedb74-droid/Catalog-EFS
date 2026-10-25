@@ -417,7 +417,8 @@
    Licență: Creative Commons Atribuire-Necomercial-FărăDerivate 4.0 (CC BY-NC-ND 4.0)
    https://creativecommons.org/licenses/by-nc-nd/4.0/deed.ro
    Utilizare gratuită, cu menționarea autorului. Se interzic vânzarea, utilizarea comercială,
-   modificarea și redistribuirea aplicației sau a unor părți din ea, inclusiv eliminarea mențiunii de autor. */
+   modificarea și redistribuirea aplicației sau a unor părți din ea, inclusiv eliminarea mențiunii de autor.
+   Concepută de Daniel Botezatu pentru nevoile unui profesor de educație fizică și sport; realizată cu asistență AI (Claude, Anthropic). */
 const AUTOR_APP = {nume:'Daniel Botezatu', an:'2026', licenta:'CC BY-NC-ND 4.0', url:'https://creativecommons.org/licenses/by-nc-nd/4.0/deed.ro'};
 function autorHTML(){ return `<span class="autor-app"> · © ${AUTOR_APP.an} ${AUTOR_APP.nume}</span>`; }
 // mențiunea de autor nu se poate șterge din aplicație: dacă dispare din pagină, se repune
@@ -4553,6 +4554,7 @@ function openSettingsModal(){
       <div style="margin-top:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:12px; color:var(--muted);">
         <b style="color:var(--ink);">Despre aplicație</b><br>
         Catalog EFS · autor: <b>${AUTOR_APP.nume}</b> · © ${AUTOR_APP.an}<br>
+        Concepută de ${AUTOR_APP.nume} pentru nevoile unui profesor de educație fizică și sport; ideile, regulile de calcul și structura îi aparțin. Realizată cu asistență AI (Claude, Anthropic).<br>
         Licență <a href="${AUTOR_APP.url}" target="_blank" rel="noopener">${AUTOR_APP.licenta}</a>: utilizare gratuită, cu menționarea autorului. Se interzic vânzarea, utilizarea comercială și modificarea sau redistribuirea aplicației.
       </div>
 

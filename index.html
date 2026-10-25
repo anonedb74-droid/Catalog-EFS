@@ -845,12 +845,73 @@ async function exportBackup(){
   URL.revokeObjectURL(url);
   return 'download';
 }
+/* ---------------- EXPORT ANONIMIZAT (pentru carte / materiale publice) ---------------- */
+// Face o COPIE a datelor în care elevii, școala și clasele primesc nume inventate; datele reale nu se ating.
+// Același elev primește același nume fictiv peste tot, iar notele, absențele, probele și orarul rămân identice.
+const NUME_FICTIVE = ['Popa','Ionescu','Dumitru','Stan','Rusu','Marin','Toma','Preda','Lungu','Barbu','Munteanu','Constantin','Stoica','Matei','Dinu','Florea','Cristea','Radu','Sima','Voicu','Ene','Tudor','Nistor','Pavel','Iacob','Moldovan','Ilie','Vasile','Lazar','Ungureanu','Crețu','Mocanu','Neagu','Oprea','Serban','Zamfir','Badea','Cojocaru','Diaconu','Grigore'];
+const PRENUME_M = ['Andrei','Mihai','Alexandru','Ștefan','Daniel','Cristian','Radu','Vlad','Darius','Matei','Luca','Gabriel','Rareș','Denis','Tudor','Sebastian','Robert','Adrian','Marian','Paul'];
+const PRENUME_F = ['Maria','Elena','Ioana','Andreea','Ana','Bianca','Daria','Alexandra','Sofia','Teodora','Larisa','Denisa','Raluca','Carmen','Diana','Iulia','Miruna','Alina','Georgiana','Cristina'];
+function anonimizeazaStare(sursa){
+  const st = JSON.parse(JSON.stringify(sursa));
+  const nrN = NUME_FICTIVE.length;
+  const harta = {};                       // nume real -> nume fictiv (pentru textele libere)
+  const folosite = new Set();
+  (st.elevi||[]).forEach((e,i)=>{
+    const nr = i;
+    let nume = NUME_FICTIVE[(nr*7+3) % nrN], pren;
+    const lista = e.sex==='F' ? PRENUME_F : PRENUME_M;
+    pren = lista[(nr*3+1) % lista.length];
+    let k = 0; while(folosite.has(nume+' '+pren)){ k++; pren = lista[(nr*3+1+k) % lista.length]; }
+    folosite.add(nume+' '+pren);
+    [e.nume, e.prenume].forEach((t,j)=>{ String(t||'').split(/[\s-]+/).filter(x=>x.length>2).forEach(x=>{ harta[x.toLowerCase()] = j===0 ? nume : pren; }); });
+    e.nume = nume.toUpperCase(); e.prenume = pren.toUpperCase();
+    if(e.codUnic) e.codUnic = 'EFS2026-'+String(100+nr);
+    if(e.dataNasterii && /^\d{4}-\d{2}-\d{2}$/.test(e.dataNasterii)){          // păstrăm anul (pentru U16/U18), schimbăm ziua și luna
+      const a = e.dataNasterii.slice(0,4), m = ((+e.dataNasterii.slice(5,7)+nr*5) % 12)+1, z = ((+e.dataNasterii.slice(8,10)+nr*7) % 28)+1;
+      e.dataNasterii = `${a}-${String(m).padStart(2,'0')}-${String(z).padStart(2,'0')}`;
+    }
+    if(e.motivScutire) e.motivScutire = 'motiv medical';
+    if(e.cesDetalii) e.cesDetalii = 'detalii CES';
+    if(e.situatieNota) e.situatieNota = 'la altă școală';
+  });
+  const curata = t => {
+    let x = String(t||'');
+    Object.keys(harta).forEach(k=>{ x = x.replace(new RegExp('(^|[^\\p{L}])'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\p{L}])','giu'), (m0,p1)=>p1+harta[k]); });
+    return x;
+  };
+  (st.noteCurente||[]).forEach(n=>{ n.motiv = curata(n.motiv); n.detalii = curata(n.detalii); n.obs = curata(n.obs); });
+  (st.absente||[]).forEach(a=>{ if(a.nota) a.nota = curata(a.nota); });
+  (st.echipe||[]).forEach(m=>{ m.obs = curata(m.obs); if(m.pozitie) m.pozitie = curata(m.pozitie); });
+  (st.meciuriEchipe||[]).forEach(m=>{ m.eveniment = curata(m.eveniment); m.rezultat = curata(m.rezultat); m.obs = curata(m.obs); });
+  if(st.observatiiCustom) st.observatiiCustom = st.observatiiCustom.map(curata);
+  // clase: nume fictive (an + literă), școala fictivă
+  const perAn = {};
+  (st.clase||[]).forEach(c=>{ const i = perAn[c.an] = (perAn[c.an]||0)+1; c.nume = `${c.an} ${'ABCDEFGH'[(i-1)%8]}`; });
+  st.settings = st.settings || {};
+  st.settings.scoalaTabel = 'Liceul Tehnologic „Exemplu”';
+  st.settings.titlu = 'Catalog EFS';
+  st.settings.anonimizat = true;
+  return st;
+}
+async function exportAnonimizat(){
+  const copie = anonimizeazaStare(state);
+  const filename = `catalog-efs-anonimizat-${todayISO()}.json`;
+  const blob = new Blob([JSON.stringify(copie, null, 2)], {type:'application/json'});
+  try{
+    const file = new File([blob], filename, {type:'application/json'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:'Catalog EFS — export anonimizat'}); return 'share'; }
+  }catch(e){ if(e && e.name === 'AbortError') return 'cancel'; }
+  const url = URL.createObjectURL(blob); const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  return 'download';
+}
 function importBackupFile(file, onDone){
   const reader = new FileReader();
   reader.onload = () => {
     try{
       const parsed = JSON.parse(reader.result);
       if(!parsed || typeof parsed !== 'object') throw new Error('format invalid');
+      if(parsed.settings && parsed.settings.anonimizat && !confirm('Fișierul acesta conține date INVENTATE (export anonimizat pentru carte). Dacă îl imporți, datele reale de pe acest dispozitiv se înlocuiesc și, cu sincronizarea pornită, se înlocuiesc și în cont. Sigur continui?')){ onDone(null); return; }
       state = Object.assign({settings:{titlu:'Catalogul meu EFS'}, clase:[], elevi:[], probe:[], note:[], absente:[], bareme:[], observatiiCustom:[]}, parsed);
       migreazaDate();
       saveState();
@@ -4475,6 +4536,7 @@ function openSettingsModal(){
         <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">Backup de siguranță (un fișier pe care îl păstrezi tu). Importul înlocuiește tot catalogul${sync.uid?' și în cont':''}.</div>
         <div class="row">
           <button class="btn btn-secondary" id="modal-export">⭳ Exportă backup</button>
+          <button class="btn btn-secondary" id="modal-export-anon" title="Copie cu nume inventate, pentru carte. Datele tale nu se schimbă.">⭳ Export anonimizat (pentru carte)</button>
           <button class="btn btn-secondary" id="modal-import-btn">⭱ Importă backup</button>
           <input type="file" id="modal-import-input" accept="application/json" style="display:none;"/>
         </div>
@@ -4519,6 +4581,10 @@ function openSettingsModal(){
     saveState(); backdrop.remove(); render(); showToast('Toate datele au fost șterse.');
   });
   document.getElementById('modal-export-excel').addEventListener('click', ()=>genereazaRaportExcelGeneral());
+  document.getElementById('modal-export-anon').addEventListener('click', async ()=>{
+    const r = await exportAnonimizat();
+    if(r==='share') showToast('Export anonimizat trimis.'); else if(r==='download') showToast('Export anonimizat descărcat.');
+  });
   document.getElementById('modal-export').addEventListener('click', async ()=>{
     const rezultat = await exportBackup();
     if(rezultat === 'share' || rezultat === 'download'){
@@ -4537,6 +4603,7 @@ function openSettingsModal(){
     if(!confirm('Importarea unui backup înlocuiește TOATE datele curente de pe acest dispozitiv cu cele din fișier. Continui?')) return;
     importBackupFile(file, (ok)=>{
       if(ok){ backdrop.remove(); render(); showToast('Backup importat cu succes.'); }
+      else if(ok===null){ /* anulat de utilizator */ }
       else{ showToast('Fișierul nu pare un backup valid.'); }
     });
   });

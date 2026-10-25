@@ -448,7 +448,7 @@ let state = {
   tehnicaExecutie: [],  // {id, eleviId, probaId, valoare} — nota de corectitudine tehnică, dată manual de profesor, o dată per probă
   orar: [],  // {id, zi:'LU'..'VI', ora: number, claseId} — orarul săptămânal fix, pentru tot anul
   planificari: [],  // {id, an:'IX'..'XII', data, tema, recAfara, recInterior, recMixt} — planificarea pe lecție, pe an de studiu + dată
-  pppAfisareCatalog: true  // în tabul PPP arată și nota rotunjită pentru catalog (comutator)
+  pppAfisareCatalog: true  // în secțiunea PPP arată și nota rotunjită pentru catalog (comutator)
 };
 
 const STARE_IMPLICITA = JSON.parse(JSON.stringify(state)); // valorile de pornire, pentru datele aduse din cont
@@ -589,7 +589,7 @@ function migreazaDate(){
     if(a.stare==='motivat' || a.stare==='nemotivat') a.stare = 'absent';
   });
   if(!state.planificari) state.planificari = [];
-  // migrare: intrările vechi erau legate de an, nu de clasă — le păstrăm needitate, dar de-acum tabul Planificare scrie direct cu claseId
+  // migrare: intrările vechi erau legate de an, nu de clasă — le păstrăm needitate, dar de-acum secțiunea Planificare scrie direct cu claseId
   if(!state.settings.taburiAscunse) state.settings.taburiAscunse = [];
   if(state.settings.ultimulExport===undefined) state.settings.ultimulExport = null;
   if(!state.module) state.module = [];
@@ -1292,7 +1292,7 @@ function renderArhiva(main){
   main.innerHTML = `
     <h2>Arhivă</h2>
     <p class="tab-desc">Clasele arhivate nu mai apar în selectoare, dar datele lor (elevi, note, absențe) rămân intacte — le poți restaura oricând.</p>
-    ${arhivate.length===0 ? emptyState('Nicio clasă arhivată.', 'Arhivezi o clasă din tabul „Clase”, cu butonul 📦 Arhivează.') : `
+    ${arhivate.length===0 ? emptyState('Nicio clasă arhivată.', 'Arhivezi o clasă din secțiunea „Clase”, cu butonul 📦 Arhivează.') : `
     <div class="class-grid">
       ${arhivate.map(c=>{
         const nr = eleviDinClasa(c.id).length;
@@ -1441,7 +1441,7 @@ function renderModule(main){
 /* ================= TAB: PPP (Performanță + Progres + Participare activă) ================= */
 function renderPPP(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>PPT</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>PPT</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în secțiunea „Clase”.');
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
@@ -1491,7 +1491,7 @@ function renderPPP(main){
         Arată nota rotunjită pentru catalog (de la ,50 în sus) — cea exactă rămâne dedesubt
       </label>
     </div>
-    ${state.module.length===0 ? `<div class="card" style="background:#FBEBD3; border-color:#E3A23C;">Nu ai definit încă module — Participarea activă nu poate fi calculată (dacă e inclusă în formulă). Adaugă module în tabul „Module”.</div>` : ''}
+    ${state.module.length===0 ? `<div class="card" style="background:#FBEBD3; border-color:#E3A23C;">Nu ai definit încă module — Participarea activă nu poate fi calculată (dacă e inclusă în formulă). Adaugă module în secțiunea „Module”.</div>` : ''}
     <div class="row" style="margin-bottom:16px;">
       <div class="field">
         <label>Clasă</label>
@@ -1507,8 +1507,8 @@ function renderPPP(main){
         </select>
       </div>
     </div>
-    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') :
-      probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') : `
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') :
+      probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în secțiunea „Probe” pentru această clasă.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
         <thead><tr><th>Nr.</th><th>Elev</th><th>${esteCalif?'Performanță (test final)':'Performanță'}</th>${esteCalif?'':'<th>Progres</th>'}<th>Tehnică</th><th>Participare</th><th>Modul</th><th>${state.pppAfisareCatalog ? 'Catalog · PPT' : 'Nota PPT'}</th></tr></thead>
@@ -1611,7 +1611,7 @@ function renderPPP(main){
 /* ================= TAB: COMBINAT (media mai multor probe într-o singură notă, doar de vizualizare) ================= */
 function renderCombinat(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>Combinat</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>Combinat</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în secțiunea „Clase”.');
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
@@ -1737,8 +1737,8 @@ function renderOrar(main){
   };
   main.innerHTML = `
     <h2>Orar</h2>
-    <p class="tab-desc">Orarul tău fix, pe tot anul. Alege clasa în fiecare celulă; ora în care ești acum se colorează automat. Îl folosește și tabul „Azi”.</p>
-    ${claseActive().length===0 ? emptyState('Nicio clasă adăugată.', 'Adaugă clase în tabul „Clase”, apoi completează orarul.') : `
+    <p class="tab-desc">Orarul tău fix, pe tot anul. Alege clasa în fiecare celulă; ora în care ești acum se colorează automat. Îl folosește și secțiunea „Azi”.</p>
+    ${claseActive().length===0 ? emptyState('Nicio clasă adăugată.', 'Adaugă clase în secțiunea „Clase”, apoi completează orarul.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="orar-grid">
         <thead><tr><th class="ora-col">Ora</th>${ZILE.map(z=>`<th data-orar-zi-th="${z}">${ZILE_NUME[z]}</th>`).join('')}</tr></thead>
@@ -1793,7 +1793,7 @@ function renderPlanificare(main){
   const clasaAleasa = claseAn.find(c=>c.id===ui.planificareClasa);
   main.innerHTML = `
     <h2>Planificare lecții</h2>
-    <p class="tab-desc">Tema principală + recomandări pentru fiecare lecție, pe clasă și dată. Tabul „Azi” o caută automat, după clasa pe care o ai la oră — clase diferite din același an pot avea planificări diferite (zile diferite, practică comasată diferită).</p>
+    <p class="tab-desc">Tema principală + recomandări pentru fiecare lecție, pe clasă și dată. Secțiunea „Azi” o caută automat, după clasa pe care o ai la oră — clase diferite din același an pot avea planificări diferite (zile diferite, practică comasată diferită).</p>
 
     <div class="row" style="margin-bottom:12px; gap:6px;">
       ${ANI.map(a=>`<button class="btn ${a===ui.planificareAn?'btn-primary':'btn-ghost'}" data-plan-an-tab="${a}">Clasa a ${a}-a</button>`).join('')}
@@ -1808,7 +1808,7 @@ function renderPlanificare(main){
       </div>
     </div>
 
-    ${claseAn.length===0 ? emptyState('Nicio clasă activă pentru acest an.', 'Adaugă una în tabul „Clase”.') : `
+    ${claseAn.length===0 ? emptyState('Nicio clasă activă pentru acest an.', 'Adaugă una în secțiunea „Clase”.') : `
     <div class="card">
       <div style="font-weight:700; color:var(--infield); margin-bottom:8px;">Adaugă o lecție — clasa ${escapeHtml(clasaAleasa?clasaAleasa.nume:'')}</div>
       <div class="row">
@@ -1931,8 +1931,8 @@ function renderAzi(main){
       </div>
     ` : ''}
     ${esteWeekend ? emptyState('E weekend — nicio oră programată.', 'Orarul se aplică doar Luni-Vineri.') :
-      state.orar.length===0 ? emptyState('N-ai completat încă Orarul.', 'Du-te în tabul „Orar” și adaugă zilele și orele tale.') :
-      oreAzi.length===0 ? emptyState(`Nicio oră trecută pentru ${ZILE_NUME[ziAzi]} în Orar.`, 'Adaugă-le în tabul „Orar”.') : `
+      state.orar.length===0 ? emptyState('N-ai completat încă Orarul.', 'Du-te în secțiunea „Orar” și adaugă zilele și orele tale.') :
+      oreAzi.length===0 ? emptyState(`Nicio oră trecută pentru ${ZILE_NUME[ziAzi]} în Orar.`, 'Adaugă-le în secțiunea „Orar”.') : `
     <div style="display:flex; flex-direction:column; gap:12px;">
       ${oreAzi.map(o=>{
         const clasa = state.clase.find(c=>c.id===o.claseId);
@@ -2091,7 +2091,7 @@ function renderFisaOra(main){
 /* ================= TAB: NOTE CURENTE (în afara probelor, cu motiv) ================= */
 function renderCurente(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>Note curente</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>Note curente</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în secțiunea „Clase”.');
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
@@ -2123,7 +2123,7 @@ function renderCurente(main){
       </div>
       <div style="font-size:12px; color:var(--muted); margin-top:4px;">${plan?'Tema a fost preluată din planificarea clasei pentru această dată.':'Nicio planificare pentru această dată — scrie tu activitatea.'}</div>
     </div>
-    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
         <thead><tr><th>Nr.</th><th>Elev</th><th>Nota</th><th>Observație (opțional)</th></tr></thead>
@@ -2206,7 +2206,7 @@ function avertismenteEchipa(e, cat, m){
   else if(blocheazaNotarea(e)) out.push('<span class="pill pill-danger" title="Scutire medicală totală activă">scutit medical</span>');
   else if(scutirePartialaActiva(e)) out.push('<span class="pill pill-blue" title="Scutire parțială — verifică ce are voie">scutire parțială</span>');
   const an = anNastereElev(e);
-  if(an==null) out.push('<span class="pill pill-yellow" title="Completează data nașterii în tabul Elevi">fără dată naștere</span>');
+  if(an==null) out.push('<span class="pill pill-yellow" title="Completează data nașterii în secțiunea Elevi">fără dată naștere</span>');
   else if(cat && an < limiteEchipe()[cat]) out.push(`<span class="pill pill-danger" title="Născut în ${an}; limita ${cat}: ${limiteEchipe()[cat]} sau mai târziu">peste limita ${cat}</span>`);
   if(m){
     if(m.aviz && m.aviz < todayISO()) out.push('<span class="pill pill-danger" title="Avizul medical sportiv a expirat">aviz expirat</span>');
@@ -2467,7 +2467,7 @@ function renderClase(main){
   main.querySelectorAll('[data-arhiveaza]').forEach(b=>{
     b.addEventListener('click', ()=>{
       const c = state.clase.find(c=>c.id===b.dataset.arhiveaza);
-      if(!confirm(`Muți clasa „${c.nume}” la Arhivă? Nu dispare nimic — o poți restaura oricând din tabul Arhivă.`)) return;
+      if(!confirm(`Muți clasa „${c.nume}” la Arhivă? Nu dispare nimic — o poți restaura oricând din secțiunea Arhivă.`)) return;
       c.arhivata = true;
       saveState(); render(); showToast('Clasă arhivată.');
     });
@@ -2502,7 +2502,7 @@ function renderClase(main){
 /* ================= TAB: SINTEZĂ (vedere generală pe clasă) ================= */
 function renderSinteza(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>Sinteză</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>Sinteză</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în secțiunea „Clase”.');
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
@@ -2532,7 +2532,7 @@ function renderSinteza(main){
       <button class="btn btn-secondary" id="btn-raport-excel">📊 Excel clasă</button>
     </div>
 
-    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') : `
 
     <h3 style="font-size:16px; color:var(--infield); margin-bottom:8px;">Note pe probe</h3>
     <p class="tab-desc" style="margin-top:-4px;">Pentru fiecare probă apare rezultatul testării finale, dacă există — altfel al celei inițiale.</p>
@@ -2931,7 +2931,7 @@ function escapeHtmlKeepPill(html){ return html; }
 /* ================= TAB: ELEVI ================= */
 function renderElevi(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>Elevi</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>Elevi</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în secțiunea „Clase”.');
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
@@ -3376,7 +3376,7 @@ function renderBareme(main){
     <h2>Bareme</h2>
     <p class="tab-desc">
       Definește pragurile de notare pentru fiecare probă. Denumirea baremului trebuie să fie identică
-      cu denumirea probei (din tabul „Probe”), ca să se facă legătura automat la notare.
+      cu denumirea probei (din secțiunea „Probe”), ca să se facă legătura automat la notare.
     </p>
     <div class="card">
       <div class="row">
@@ -3403,7 +3403,7 @@ function renderBareme(main){
     ui.baremeSelectat = e.target.value || null; render();
   });
   document.getElementById('btn-barem-nou').addEventListener('click', ()=>{
-    const nume = prompt('Denumirea probei pentru acest barem (identică cu cea din tabul „Probe”):');
+    const nume = prompt('Denumirea probei pentru acest barem (identică cu cea din secțiunea „Probe”):');
     if(!nume || !nume.trim()) return;
     const nb = baremNou(nume.trim(), 'desc');
     state.bareme.push(nb);
@@ -3573,8 +3573,8 @@ function renderNotare(main){
         ca să-ți calculeze automat nota. Baremul e același pentru testarea inițială și cea finală.
       </div>
     ` : ''}
-    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') :
-      probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în tabul „Probe” pentru această clasă.') :
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') :
+      probeDisponibile.length===0 ? emptyState('Nicio probă disponibilă.', 'Adaugă o probă în secțiunea „Probe” pentru această clasă.') :
       afisareDubla ? `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
@@ -3802,7 +3802,7 @@ function totalBadgeHTML(eleviId){
 }
 function renderAbsente(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>Absențe</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>Absențe</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în secțiunea „Clase”.');
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
@@ -3869,7 +3869,7 @@ function renderAbsente(main){
       </div>
     </div>
 
-    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : `
+    ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
         <thead><tr><th>Nr.</th><th>Elev</th><th>Stare</th><th>Absent</th><th>Observație (doar la prezent)</th><th>Total absențe</th></tr></thead>
@@ -4009,7 +4009,7 @@ function renderAbsente(main){
 /* ================= TAB: ISTORIC ELEV ================= */
 function renderIstoric(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>Istoric elev</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>Istoric elev</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în secțiunea „Clase”.');
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;
@@ -4039,7 +4039,7 @@ function renderIstoric(main){
       </div>
       ${elev ? `<button class="btn btn-secondary" id="btn-raport-elev" style="align-self:flex-end;">🖨 Raport elev</button>` : ''}
     </div>
-    ${!elev ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în tabul „Elevi”.') : (()=>{
+    ${!elev ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') : (()=>{
       const inregistrari = state.absente.filter(a=>a.eleviId===elev.id).sort((a,b)=>a.data.localeCompare(b.data));
       const totalAbsente = inregistrari.filter(a=>a.stare==='absent').length;
       let cumulat = 0;
@@ -4071,7 +4071,7 @@ function renderIstoric(main){
             <thead><tr><th>Data</th><th>Nota</th><th>Motiv</th><th>Detalii</th></tr></thead>
             <tbody>${nc.map(n=>`<tr><td>${formatDataRo(n.data)}</td><td><strong>${n.valoare}</strong></td><td>${escapeHtml(n.motiv||'')}</td><td>${escapeHtml([n.detalii,n.obs].filter(Boolean).join(' — '))}</td></tr>`).join('')}</tbody>
           </table></div>`; })()}
-        ${inregistrari.length===0 ? emptyState('Niciun eveniment înregistrat.', 'Absențele și observațiile pentru acest elev vor apărea aici, pe măsură ce le adaugi în tabul „Absențe”.') : `
+        ${inregistrari.length===0 ? emptyState('Niciun eveniment înregistrat.', 'Absențele și observațiile pentru acest elev vor apărea aici, pe măsură ce le adaugi în secțiunea „Absențe”.') : `
         <p class="tab-desc" style="margin-top:-6px;">Poți corecta direct aici starea sau observația unei zile trecute, sau șterge complet o înregistrare greșită.</p>
         <div class="card" style="padding:0; overflow-x:auto;">
           <table>
@@ -4217,7 +4217,7 @@ function genereazaRaportElev(eleviId){
 /* ================= TAB: PRACTICĂ COMASATĂ ================= */
 function renderPractica(main){
   if(claseActive().length===0){
-    main.innerHTML = `<h2>Practică comasată</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în tabul „Clase”.');
+    main.innerHTML = `<h2>Practică comasată</h2>` + emptyState('Nu ai nicio clasă.', 'Adaugă mai întâi o clasă în secțiunea „Clase”.');
     return;
   }
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)) ui.clasaCurenta = claseActive()[0].id;

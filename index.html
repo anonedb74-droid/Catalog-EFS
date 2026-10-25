@@ -3839,14 +3839,14 @@ function renderAbsente(main){
               <td style="text-align:center;">
                 <input type="checkbox" class="chk-absent" data-elev="${e.id}" ${esteAbsent?'checked':''} style="width:22px; height:22px; cursor:pointer;"/>
               </td>
-              <td style="max-width:150px; opacity:${esteAbsent?'0.35':'1'};">
-                <select class="select-observatie" data-elev="${e.id}" ${esteAbsent?'disabled':''} style="max-width:150px;">
+              <td style="max-width:380px; opacity:${esteAbsent?'0.35':'1'};">
+                <select class="select-observatie" data-elev="${e.id}" ${esteAbsent?'disabled':''} style="max-width:380px; width:100%; min-width:260px;">
                   <option value="">— fără observație —</option>
                   ${toateObservatiile().map(o=>`<option value="${escapeHtml(o)}" ${nota===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}
                   <option value="__custom__" ${esteCustom?'selected':''}>Altă observație...</option>
                 </select>
                 <input type="text" class="input-observatie-custom" data-elev="${e.id}" value="${esteCustom?escapeHtml(nota):''}" ${esteAbsent?'disabled':''}
-                  style="width:100%; max-width:150px; margin-top:5px; display:${esteCustom?'block':'none'};" placeholder="scrie observația ta"/>
+                  style="width:100%; max-width:380px; margin-top:5px; display:${esteCustom?'block':'none'};" placeholder="scrie observația ta"/>
               </td>
               <td>${totalBadgeHTML(e.id)}</td>
             </tr>`;

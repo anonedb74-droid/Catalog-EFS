@@ -2533,7 +2533,7 @@ function renderSinteza(main){
             return `<tr>
               <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?'<span class="pill pill-blue" style="margin-left:4px; padding:1px 6px;">parțial</span>':''} ${cesTagHTML(e)}</td>
               ${celule.map(c=>`<td>${c}</td>`).join('')}
-              <td style="min-width:100px; max-width:120px;"><div style="display:flex; flex-wrap:wrap; gap:2px; align-items:center;">${celulaCurente}</div></td>
+              <td style="max-width:110px;"><div style="display:flex; flex-wrap:wrap; gap:2px; align-items:center;">${celulaCurente}</div></td>
               <td><strong>${medie}</strong></td>
             </tr>`;
           }).join('')}

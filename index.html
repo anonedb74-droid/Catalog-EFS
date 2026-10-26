@@ -3565,7 +3565,7 @@ function renderNotare(main){
     </div>
     ${probaSelectata ? (()=>{ const st = statusProba(ui.clasaCurenta, probaSelectata.id); return `
       <label id="lbl-clasa-notata" class="${st.fin?'notata-ok':''}"><input type="checkbox" id="chk-clasa-notata" ${st.fin?'checked':''}/> <span>Clasa notată la această probă <span style="font-weight:400; color:var(--muted);">(${st.notati}/${st.total} elevi cu notă)</span></span></label>`; })() : ''}
-    ${probaSelectata && tipNotare==='calificativ' ? `<div class="tab-desc" style="margin-bottom:10px;">Probă cu calificative: <b>testarea inițială nu se notează</b> (rămâne punctul de plecare). Nota se formează din <b>testul final</b> + <b>tehnica de execuție</b> (o singură notă pentru ambele testări, o poți ajusta pe parcurs), cu procentele din secțiunea PPT. Dacă un elev n-a avut testare finală, trece tu calificativul la testul final.</div>` : ''}
+    ${probaSelectata && tipNotare==='calificativ' ? `<div class="tab-desc" style="margin-bottom:10px;">Probă cu calificative: <b>testarea inițială nu se notează</b>: încadrezi elevul într-una din cele 4 categorii (NS, S, B, FB), ca punct de plecare. La <b>testul final</b> folosești toată scara, cu stele. Nota se formează din <b>testul final</b> + <b>tehnica de execuție</b> (o singură notă pentru ambele testări, o poți ajusta pe parcurs), cu procentele din secțiunea PPT. Dacă un elev n-a avut testare finală, trece tu calificativul la testul final.</div>` : ''}
     ${probaSelectata && tipNotare==='barem' && !barem ? `
       <div class="card" style="background:#FBEBD3; border-color:#E3A23C;">
         Nu există un barem definit pentru „${escapeHtml(probaSelectata.nume)}” — introduci direct timpul/rezultatul, sau
@@ -3598,9 +3598,9 @@ function renderNotare(main){
                 return `<td style="padding:4px 6px;"><div style="display:flex; align-items:center; gap:5px; white-space:nowrap;">
                   <select class="calificativ-input" data-elev="${e.id}" data-moment="${momentStr}">
                     <option value="">—</option>
-                    ${CALIFICATIVE.map(c=>`<option value="${c.cod}" title="${escapeHtml(c.label)}" ${v===c.cod?'selected':''}>${c.cod}</option>`).join('')}
+                    ${CALIFICATIVE.filter(c=>momentStr!=='initial' || ['NS','S','B','FB'].includes(c.cod) || c.cod===v).map(c=>`<option value="${c.cod}" title="${escapeHtml(c.label)}" ${v===c.cod?'selected':''}>${c.cod}</option>`).join('')}
                   </select>
-                  <span class="pill pill-ok nota-calc-calif" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nc!=null?nc:'—'}</span>
+                  ${momentStr==='initial' ? '' : `<span class="pill pill-ok nota-calc-calif" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nc!=null?nc:'—'}</span>`}
                   ${rec ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" data-moment="${momentStr}" title="Șterge" style="padding:3px 6px; min-height:28px;">${ICONS.trash}</button>` : ''}
                 </div></td>`;
               }

@@ -3898,11 +3898,12 @@ function renderAbsente(main){
     <h3 style="font-size:16px; color:var(--infield); margin:24px 0 8px;">Absențe și observații</h3>
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Elev</th><th>Absențe</th><th>Observații</th></tr></thead>
+        <thead><tr><th>Elev</th><th>Absențe</th><th>Datele absențelor</th><th>Observații</th></tr></thead>
         <tbody>
           ${lista.map(e=>{
             const absElev = state.absente.filter(a=>a.eleviId===e.id);
             const absente = absElev.filter(a=>a.stare==='absent').length;
+            const dateAbs = absElev.filter(a=>a.stare==='absent').map(a=>a.data).sort().map(formatDataRo).join(', ');
             const observatii = absElev.filter(a=>a.nota && a.nota.trim())
                                        .sort((a,b)=>a.data.localeCompare(b.data))
                                        .map(a=>`${formatDataRo(a.data)}: ${escapeHtml(a.nota)}`)
@@ -3910,6 +3911,7 @@ function renderAbsente(main){
             return `<tr>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
               <td>${absente>0?`<span class="pill pill-danger">${absente}</span>`:'—'}</td>
+              <td style="font-size:13px;">${dateAbs || '<span style="color:var(--muted);">—</span>'}</td>
               <td style="font-size:13px;">${observatii || '<span style="color:var(--muted);">—</span>'}</td>
             </tr>`;
           }).join('')}

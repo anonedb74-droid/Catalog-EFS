@@ -2557,7 +2557,7 @@ function renderSinteza(main){
           ${lista.map(e=>{
             const noteNumerice = [];
             const celule = probeClasa.map(p=>{
-              if(blocheazaNotarea(e)) return esteInactiv(e) ? `<span class="pill pill-yellow">${motivBlocareText(e)}</span>` : '<span class="exempt-note">scutit</span>';
+              if(blocheazaNotarea(e)) return null;
               const rec = notaPentruSinteza(e.id, p.id);
               if(!rec) return '<span style="color:var(--muted);">—</span>';
               const eticheta = rec.moment==='final' ? 'F' : 'I';
@@ -2577,7 +2577,9 @@ function renderSinteza(main){
             const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
             return `<tr>
               <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?'<span class="pill pill-blue" style="margin-left:4px; padding:1px 6px;">parțial</span>':''} ${cesTagHTML(e)}</td>
-              ${celule.map(c=>`<td>${c}</td>`).join('')}
+              ${blocheazaNotarea(e)
+                ? `<td colspan="${probeClasa.length}">${esteInactiv(e) ? `<span class="pill pill-yellow">${motivBlocareText(e)}</span>` : '<span class="exempt-note">scutit</span>'}</td>`
+                : celule.map(c=>`<td>${c}</td>`).join('')}
               <td style="max-width:110px;"><div style="display:flex; flex-wrap:wrap; gap:2px; align-items:center;">${celulaCurente}</div></td>
               <td><strong>${medie}</strong></td>
             </tr>`;
@@ -2587,27 +2589,6 @@ function renderSinteza(main){
     </div>
     `}
 
-    <h3 style="font-size:16px; color:var(--infield); margin-bottom:8px;">Absențe și observații</h3>
-    <div class="card" style="padding:0; overflow-x:auto;">
-      <table>
-        <thead><tr><th>Elev</th><th>Absențe</th><th>Observații</th></tr></thead>
-        <tbody>
-          ${lista.map(e=>{
-            const absElev = state.absente.filter(a=>a.eleviId===e.id);
-            const absente = absElev.filter(a=>a.stare==='absent').length;
-            const observatii = absElev.filter(a=>a.nota && a.nota.trim())
-                                       .sort((a,b)=>a.data.localeCompare(b.data))
-                                       .map(a=>`${formatDataRo(a.data)}: ${escapeHtml(a.nota)}`)
-                                       .join('<br>');
-            return `<tr>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
-              <td>${absente>0?`<span class="pill pill-danger">${absente}</span>`:'—'}</td>
-              <td style="font-size:13px;">${observatii || '<span style="color:var(--muted);">—</span>'}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
     `}
   `;
   document.getElementById('select-sinteza-clasa').addEventListener('change', e=>{
@@ -3908,6 +3889,28 @@ function renderAbsente(main){
                   style="width:100%; max-width:380px; margin-top:5px; display:${esteCustom?'block':'none'};" placeholder="scrie observația ta"/>
               </td>
               <td>${totalBadgeHTML(e.id)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:16px; color:var(--infield); margin:24px 0 8px;">Absențe și observații</h3>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Elev</th><th>Absențe</th><th>Observații</th></tr></thead>
+        <tbody>
+          ${lista.map(e=>{
+            const absElev = state.absente.filter(a=>a.eleviId===e.id);
+            const absente = absElev.filter(a=>a.stare==='absent').length;
+            const observatii = absElev.filter(a=>a.nota && a.nota.trim())
+                                       .sort((a,b)=>a.data.localeCompare(b.data))
+                                       .map(a=>`${formatDataRo(a.data)}: ${escapeHtml(a.nota)}`)
+                                       .join('<br>');
+            return `<tr>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
+              <td>${absente>0?`<span class="pill pill-danger">${absente}</span>`:'—'}</td>
+              <td style="font-size:13px;">${observatii || '<span style="color:var(--muted);">—</span>'}</td>
             </tr>`;
           }).join('')}
         </tbody>

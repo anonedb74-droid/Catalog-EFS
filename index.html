@@ -4439,13 +4439,37 @@ function renderScutiri(main){
       <table>
         <thead><tr><th>Elev</th><th>Clasă</th><th>Fel</th><th>Motiv</th><th></th></tr></thead>
         <tbody>
-          ${scutiti.map(e=>`
+          ${scutiti.map(e=> ui.scutireEdit===e.id ? `
+            <tr style="background:var(--bg, #f6f4ee);">
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
+              <td>${escapeHtml(claseNume(e.claseId))}</td>
+              <td colspan="2">
+                <div class="row" style="gap:8px; align-items:flex-end;">
+                  <div class="field" style="min-width:150px;"><label>Fel</label>
+                    <select id="edit-scutire-tip">
+                      <option value="totala_anuala" ${e.scutireTip==='totala_anuala'?'selected':''}>Totală anuală</option>
+                      <option value="partiala" ${e.scutireTip==='partiala'?'selected':''}>Parțială</option>
+                      <option value="temporara" ${e.scutireTip==='temporara'?'selected':''}>Temporară</option>
+                    </select></div>
+                  <div class="field edit-temp" style="min-width:120px;"><label>Fel (temporară)</label>
+                    <select id="edit-scutire-subtip">
+                      <option value="totala" ${e.scutireSubTip!=='partiala'?'selected':''}>Totală</option>
+                      <option value="partiala" ${e.scutireSubTip==='partiala'?'selected':''}>Parțială</option>
+                    </select></div>
+                  <div class="field edit-temp"><label>De la</label><input type="date" id="edit-scutire-start" value="${e.scutireStart||todayISO()}"/></div>
+                  <div class="field edit-temp"><label>Până la</label><input type="date" id="edit-scutire-end" value="${e.scutireEnd||todayISO()}"/></div>
+                  <div class="field" style="flex:1; min-width:200px;"><label>Motiv</label><input type="text" id="edit-scutire-motiv" value="${escapeHtml(e.motivScutire||'')}"/></div>
+                </div>
+              </td>
+              <td style="white-space:nowrap;"><button class="btn btn-primary" data-scutire-salveaza="${e.id}">Salvează</button> <button class="btn btn-ghost" id="btn-scutire-renunta">Renunță</button></td>
+            </tr>
+          ` : `
             <tr>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}</td>
               <td>${escapeHtml(claseNume(e.claseId))}</td>
               <td>${scutirePillHTML(e)}</td>
               <td>${escapeHtml(e.motivScutire) || '—'}${istoricScutiriHTML(e)}</td>
-              <td style="white-space:nowrap;"><button class="btn btn-secondary" data-scutirenoua="${e.id}">+ Scutire nouă</button> <button class="btn btn-ghost" data-unscutire="${e.id}">Anulează scutirea</button></td>
+              <td style="white-space:nowrap;"><button class="btn btn-secondary" data-scutire-modifica="${e.id}">Modifică</button> <button class="btn btn-secondary" data-scutirenoua="${e.id}">+ Scutire nouă</button> <button class="btn btn-ghost" data-unscutire="${e.id}">Anulează scutirea</button></td>
             </tr>
           `).join('')}
         </tbody>
@@ -4549,6 +4573,35 @@ function renderScutiri(main){
       const sel = document.getElementById('select-scutire-elev');
       if(sel){ sel.scrollIntoView({behavior:'smooth', block:'center'}); sel.focus(); }
       showToast('Completează scutirea nouă în formular.');
+    });
+  });
+  // „Modifică”: corectează scutirea existentă pe loc (nu o trimite în istoric — e o corecție, nu o scutire nouă)
+  main.querySelectorAll('[data-scutire-modifica]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ui.scutireEdit = b.dataset.scutireModifica; render(); });
+  });
+  const btnRenunta = document.getElementById('btn-scutire-renunta');
+  if(btnRenunta) btnRenunta.addEventListener('click', ()=>{ ui.scutireEdit = null; render(); });
+  const tipEd = document.getElementById('edit-scutire-tip');
+  if(tipEd){
+    const arataTemp = ()=>main.querySelectorAll('.edit-temp').forEach(x=>x.style.display = tipEd.value==='temporara' ? '' : 'none');
+    tipEd.addEventListener('change', arataTemp); arataTemp();
+  }
+  main.querySelectorAll('[data-scutire-salveaza]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const e = state.elevi.find(x=>x.id===b.dataset.scutireSalveaza);
+      const tip = document.getElementById('edit-scutire-tip').value;
+      let subTip=null, start=null, end=null;
+      if(tip==='temporara'){
+        subTip = document.getElementById('edit-scutire-subtip').value;
+        start = document.getElementById('edit-scutire-start').value;
+        end = document.getElementById('edit-scutire-end').value;
+        if(!start || !end) return showToast('Completează perioada (de la - până la).');
+        if(end<start) return showToast('Data „până la” nu poate fi înainte de „de la”.');
+      }
+      e.scutireTip = tip; e.scutireSubTip = subTip; e.scutireStart = start; e.scutireEnd = end;
+      e.motivScutire = document.getElementById('edit-scutire-motiv').value.trim();
+      ui.scutireEdit = null;
+      saveState(); render(); showToast('Scutire modificată.');
     });
   });
   main.querySelectorAll('[data-unscutire]').forEach(b=>{

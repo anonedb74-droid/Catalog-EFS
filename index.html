@@ -646,7 +646,7 @@ function absentePPTHTML(e, probaId){
   if(absente.includes(azi) && azi!==pr.data) out += `<div style="font-size:12px; font-weight:700; color:var(--danger); margin-top:2px;">● Absent azi (${formatDataRo(azi)})</div>`;
   if(inProba) out += `<div style="font-size:12px; font-weight:700; color:var(--danger); margin-top:2px;">● Absent în ziua probei (${formatDataRo(pr.data)})</div>`;
   if(inModul.length) out += `<div style="font-size:12px; color:var(--muted); margin-top:1px;">Absențe în ${escapeHtml(modul.nume)}: <b>${inModul.length}</b> (${inModul.map(fmt).join(', ')})</div>`;
-  return out;
+  return out + observatieAziHTML(e);
 }
 function calculeazaParticipare(eleviId, modul){
   if(!modul) return null;
@@ -743,7 +743,15 @@ function bannerPracticaHTML(claseId){
 function absentAziHTML(e){
   const azi = todayISO();
   const abs = state.absente.some(a=>a.eleviId===e.id && a.data===azi && a.stare==='absent');
-  return abs ? `<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent azi</div>` : '';
+  return (abs ? `<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent azi</div>` : '') + observatieAziHTML(e);
+}
+// observația primită azi la oră (din secțiunea Absențe) — apare lângă numele elevului, în toate secțiunile de lucru,
+// ca să știi pe loc, de pildă, că nu are echipament sau nu participă din motive medicale
+function observatieAziHTML(e){
+  const azi = todayISO();
+  const rec = state.absente.find(a=>a.eleviId===e.id && a.data===azi && a.stare!=='absent');
+  const txt = rec && rec.nota ? String(rec.nota).trim() : '';
+  return txt ? `<div class="obs-azi" style="font-size:12px; font-weight:600; color:#9a5b00; margin-top:2px; line-height:1.25;">● Observație azi: ${escapeHtml(txt)}</div>` : '';
 }
 // scutirea e activă azi? (o scutire temporară expiră automat singură, elevul redevine apt)
 function esteScutitActiv(e){
@@ -2130,7 +2138,7 @@ function renderCurente(main){
         <tbody>
           ${lista.map((e,idx)=>`<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>
             <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-            <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}${absentLaData(e.id)?'<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent</div>':''}${noteCurenteElev(e.id).length?`<div style="margin-top:2px;">${noteCurenteElev(e.id).slice(-4).map(notaCurentaPillHTML).join('')}</div>`:''}</td>
+            <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}${absentLaData(e.id)?'<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent</div>':''}${observatieAziHTML(e)}${noteCurenteElev(e.id).length?`<div style="margin-top:2px;">${noteCurenteElev(e.id).slice(-4).map(notaCurentaPillHTML).join('')}</div>`:''}</td>
             <td>${blocheazaNotarea(e) ? motivBlocareHTML(e,true) : `<input type="number" inputmode="decimal" min="1" max="10" step="0.5" class="grade-input inp-curenta" data-elev="${e.id}" placeholder="—"/>`}</td>
             <td>${blocheazaNotarea(e) ? '' : `<input type="text" class="inp-curenta-obs" data-elev="${e.id}" placeholder="opțional" style="width:100%; min-width:120px;"/>`}</td>
           </tr>`).join('')}

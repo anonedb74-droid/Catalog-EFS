@@ -3746,7 +3746,31 @@ function renderNotare(main){
         const urmator = campuriNotare[idx+1];
         if(urmator){ urmator.focus(); urmator.select(); }
         else{ inp.blur(); render(); }
+        return;
       }
+      // săgețile: sus/jos = același câmp la elevul de deasupra/dedesubt; stânga/dreapta = câmpul vecin din rând (doar când cursorul e la margine)
+      const k = ev.key;
+      if(k!=='ArrowDown' && k!=='ArrowUp' && k!=='ArrowLeft' && k!=='ArrowRight') return;
+      const rand = inp.closest('tr');
+      const coloana = Array.from(rand.querySelectorAll('input.grade-input[data-elev], input.input-tehnica-notare[data-elev]')).indexOf(inp);
+      let tinta = null;
+      if(k==='ArrowDown' || k==='ArrowUp'){
+        let r = rand;
+        while((r = k==='ArrowDown' ? r.nextElementSibling : r.previousElementSibling)){
+          const cs = r.querySelectorAll('input.grade-input[data-elev], input.input-tehnica-notare[data-elev]');
+          if(cs.length){ tinta = cs[Math.min(coloana, cs.length-1)]; break; }
+        }
+      } else {
+        const lungime = (inp.value||'').length;
+        let poz = null; try{ poz = inp.selectionStart; }catch(e){}
+        const totSelectat = (poz!==null && inp.selectionStart===0 && inp.selectionEnd===lungime);
+        const laMargine = (poz===null) || totSelectat || (inp.selectionStart===inp.selectionEnd && (k==='ArrowLeft' ? poz===0 : poz>=lungime));
+        if(!laMargine) return;
+        const cs = Array.from(rand.querySelectorAll('input.grade-input[data-elev], input.input-tehnica-notare[data-elev]'));
+        tinta = cs[coloana + (k==='ArrowRight' ? 1 : -1)] || null;
+      }
+      ev.preventDefault();
+      if(tinta){ tinta.focus(); tinta.select(); }
     });
   });
   // Ștergere rapidă a unei note deja salvate, dintr-un click

@@ -4392,7 +4392,17 @@ function istoricScutiriHTML(e){
   return `<div style="margin-top:6px; font-size:12px; color:var(--muted);"><b>Scutiri anterioare:</b>${ist.map(x=>`<div>• ${escapeHtml(descriereScutire(x))}${x.motiv?` — ${escapeHtml(x.motiv)}`:''}</div>`).join('')}</div>`;
 }
 function renderScutiri(main){
-  const scutiti = state.elevi.filter(e=>e.scutit && e.scutireTip);
+  const toatescutiti = state.elevi.filter(e=>e.scutit && e.scutireTip);
+  // cele mai noi sus (după data adăugării); cele introduse înainte să se rețină data rămân dedesubt, în ordinea de până acum
+  const scutitiOrdonati = toatescutiti.map((e,i)=>({e,i})).sort((a,b)=>{
+    const ta = a.e.scutireAdaugata||'', tb = b.e.scutireAdaugata||'';
+    if(ta && tb) return tb.localeCompare(ta);
+    if(ta) return -1; if(tb) return 1;
+    return a.i-b.i;
+  }).map(x=>x.e);
+  const claseCuScutiri = claseActive().filter(c=>toatescutiti.some(e=>e.claseId===c.id));
+  if(ui.scutireFiltruClasa && !claseCuScutiri.find(c=>c.id===ui.scutireFiltruClasa)) ui.scutireFiltruClasa = '';
+  const scutiti = ui.scutireFiltruClasa ? scutitiOrdonati.filter(e=>e.claseId===ui.scutireFiltruClasa) : scutitiOrdonati;
   if(!ui.clasaCurenta || !claseActive().find(c=>c.id===ui.clasaCurenta)){
     ui.clasaCurenta = claseActive().length ? claseActive()[0].id : null;
   }
@@ -4458,6 +4468,17 @@ function renderScutiri(main){
         <button class="btn btn-primary" id="btn-add-scutire">+ Adaugă scutirea</button>
       </div>
     </div>
+    ${toatescutiti.length>0 ? `
+    <div class="row" style="margin:14px 0 8px; align-items:flex-end;">
+      <div class="field" style="min-width:200px;">
+        <label>Arată scutirile din</label>
+        <select id="select-scutire-filtru">
+          <option value="">Toate clasele (${toatescutiti.length})</option>
+          ${claseCuScutiri.map(c=>`<option value="${c.id}" ${ui.scutireFiltruClasa===c.id?'selected':''}>${escapeHtml(c.nume)} (${toatescutiti.filter(e=>e.claseId===c.id).length})</option>`).join('')}
+        </select>
+      </div>
+      <div class="tab-desc" style="margin:0 0 8px;">Cele mai noi scutiri sunt sus.</div>
+    </div>` : ''}
     ${scutiti.length===0 ? emptyState('Niciun elev scutit momentan.', 'Adaugă o scutire folosind formularul de mai sus.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
@@ -4535,6 +4556,8 @@ function renderScutiri(main){
       </table>
     </div>`}
   `;
+  const selFiltruScutiri = document.getElementById('select-scutire-filtru');
+  if(selFiltruScutiri) selFiltruScutiri.addEventListener('change', e=>{ ui.scutireFiltruClasa = e.target.value; render(); });
   document.getElementById('select-scutire-clasa').addEventListener('change', e=>{
     ui.clasaCurenta = e.target.value; render();
   });
@@ -4581,6 +4604,7 @@ function renderScutiri(main){
     e.scutit = true;
     e.scutireTip = tip;
     e.motivScutire = motiv;
+    e.scutireAdaugata = new Date().toISOString();
     ui.scutireElevSel = null;
     if(tip==='temporara'){
       e.scutireSubTip = subTip; e.scutireStart = start; e.scutireEnd = end;

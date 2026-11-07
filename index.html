@@ -1676,7 +1676,7 @@ function renderProtectiaMuncii(main){
         return `<tr><td style="font-weight:700;">${escapeHtml(c.nume)}</td>
           <td>${u ? formatDataRo(u.data) : '—'} ${stare}</td>
           <td>${u ? `<b>${st.semnat} / ${st.total}</b>` : `0 / ${elevi.length}`}</td>
-          <td style="white-space:nowrap;">${u ? `<button class="btn btn-secondary" data-pm-deschide="${u.id}">Deschide</button> <button class="btn btn-secondary" data-pm-pdf="${u.id}">⬇ PDF</button> <button class="btn btn-secondary" data-pm-print="${u.id}">🖨 Tipărește</button>${u.inchis && nesem.length ? ` <button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ PV pentru nesemnați</button>` : ''}` : `<button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ Proces-verbal</button>`}</td></tr>
+          <td style="white-space:nowrap;">${u ? `<button class="btn btn-secondary" data-pm-deschide="${u.id}">Deschide</button> <button class="btn btn-secondary" data-pm-pdf="${u.id}">⬇ PDF</button> <button class="btn btn-secondary" data-pm-print="${u.id}">🖨 Tipărește</button> <button class="btn btn-ghost" data-pm-sterge="${u.id}" title="Șterge procesul-verbal (clasa revine la Neefectuat)">🗑 Șterge</button>${u.inchis && nesem.length ? ` <button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ PV pentru nesemnați</button>` : ''}` : `<button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ Proces-verbal</button>`}</td></tr>
           ${u && nesem.length ? `<tr><td colspan="4" style="font-size:12px; color:#1F4E8C; border-top:none; padding-top:0;">Nesemnat (${nesem.length}): ${nesem.map(e=>escapeHtml(e.nume+' '+e.prenume)).join(', ')}</td></tr>` : ''}`; }).join('')}
       </tbody></table></div>
       <div class="row" style="margin-top:10px; gap:8px; align-items:center; flex-wrap:wrap;"><button class="btn btn-secondary" id="pm-semn-toate">✍ Pune semnătura mea pe toate procesele-verbale</button><span style="font-size:12px; color:var(--muted);">Se ia semnătura ta din ultimul proces-verbal semnat de tine (ex. IX G) și se aplică celorlalte; cele noi o primesc automat.</span></div>
@@ -1739,7 +1739,9 @@ function renderProtectiaMuncii(main){
   });
   main.querySelectorAll('[data-pm-deschide]').forEach(b=>b.addEventListener('click', ()=>{ ui.pmSesiune = b.dataset.pmDeschide; render(); }));
   main.querySelectorAll('[data-pm-sterge]').forEach(b=>b.addEventListener('click', ()=>{
-    if(!confirm('Ștergi procesul-verbal și toate semnăturile din el?')) return;
+    const x = state.pm.sesiuni.find(z=>z.id===b.dataset.pmSterge);
+    const nrS = x && x.semnaturi ? Object.keys(x.semnaturi).length : 0;
+    if(!confirm(nrS ? `Ștergi procesul-verbal și cele ${nrS} semnături din el? Nu se poate anula.` : 'Ștergi procesul-verbal (nu are nicio semnătură)? Clasa revine la „Neefectuat”.')) return;
     state.pm.sesiuni = state.pm.sesiuni.filter(s=>s.id!==b.dataset.pmSterge); saveState(); render(); showToast('Proces-verbal șters.');
   }));
   document.getElementById('pm-salveaza-text').addEventListener('click', ()=>{ state.pm.text = document.getElementById('pm-text').value; saveState(); showToast('Text salvat ✓'); });

@@ -799,9 +799,23 @@ function scutirePartialaActiva(e){
   return esteScutitActiv(e) && !blocheazaNotarea(e);
 }
 // eticheta CES (cerințe educaționale speciale) — elevul e notat normal, doar marcat vizual, peste tot
+// „probleme de sănătate” declarate de elev la început de an (bifate în procesul-verbal de la Protecția muncii).
+// Rămâne pe elev până o debifezi tu din procesul-verbal; se vede peste tot lângă nume, ca să nu mai poată fi motivate absențele sau lipsa de notă fără adeverință.
+function zileDeLa(iso){ if(!iso) return 0; return Math.max(0, Math.floor((new Date(todayISO()) - new Date(iso))/86400000)); }
+function sanatateTagHTML(e){
+  if(!e || !e.sanatateDecl) return '';
+  const areScutire = !!(e.scutit && e.scutireTip);
+  const z = zileDeLa(e.sanatateDecl.data);
+  const stil = areScutire
+    ? 'background:#F6E7C8; color:#6B4A00; border:1px solid #D8B25A;'
+    : 'background:#E04F2A; color:#fff; border:1px solid #B33A1B;';
+  const txt = areScutire ? 'Probleme sănătate · cu scutire' : `Probleme sănătate · fără adeverință (declarat ${formatDataRo(e.sanatateDecl.data)}${z>0?`, de ${z} ${z===1?'zi':'zile'}`:''})`;
+  return `<span class="pill" title="Declarat la procesul-verbal de protecția muncii" style="margin-left:4px; padding:2px 8px; font-weight:700; font-size:12px; ${stil}">${escapeHtml(txt)}</span>`;
+}
 function cesTagHTML(e){
-  if(!e || !e.ces) return '';
-  return `<span class="pill pill-purple" title="${escapeHtml(e.cesDetalii||'')}" style="margin-left:4px; padding:1px 6px;">CES</span>`;
+  const sanatate = sanatateTagHTML(e);
+  if(!e || !e.ces) return sanatate;
+  return `<span class="pill pill-purple" title="${escapeHtml(e.cesDetalii||'')}" style="margin-left:4px; padding:1px 6px;">CES</span>` + sanatate;
 }
 function scutirePillHTML(e){
   if(!e.scutit || !e.scutireTip) return '—';
@@ -1387,16 +1401,15 @@ function pmDocumentHTML(s, pentruDoc){
   const rows = eleviS.map((e,i)=>{
     const sg = s.semnaturi && s.semnaturi[e.id];
     const inactiv = esteInactiv(e);
-    const sc = pmScutireText(e);
-    return `<tr><td style="width:30px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td style="font-size:12px;">${sc?'☑ ':'☐ '}${escapeHtml(sc)}</td><td style="font-size:12px;">${escapeHtml((s.obs&&s.obs[e.id])||'')}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td></tr>`;
+    return `<tr><td style="width:30px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td><td style="font-size:12px;">${escapeHtml((s.obs&&s.obs[e.id])||'')}</td><td style="text-align:center; font-size:16px;">${e.sanatateDecl?'☑':'☐'}</td></tr>`;
   }).join('');
   const sgI = s.semnInstructor ? `<img src="${s.semnInstructor}" style="height:44px;" alt="semnătură"/>` : '______________';
   return `<h1>PROCES-VERBAL DE INSTRUIRE ÎN DOMENIUL PROTECȚIEI MUNCII</h1>
   <div class="sub">${escapeHtml(pmScoala())} · An școlar ${escapeHtml(state.settings.anScolar||'')}<br>
   Clasa ${escapeHtml(claseNume(s.claseId))} · Data ${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')}</div>
   ${pmTextHTML(s.text)}
-  <table><thead><tr><th>Nr.</th><th>Numele și prenumele elevului</th><th>Scutit medical</th><th>Observații</th><th>Semnătura</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="sem"><span>Profesor de educație fizică și sport,<br>${escapeHtml(s.instructor||pmInstructor())}<br>${sgI}</span><span>Director,<br><br>______________</span></div>`;
+  <table><thead><tr><th>Nr.</th><th>Numele și prenumele elevului</th><th>Semnătura</th><th>Observații</th><th>Probleme de sănătate</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="sem"><span>Profesor de educație fizică și sport,<br>${escapeHtml(s.instructor||pmInstructor())}<br>${sgI}</span></div>`;
 }
 function pmDeschideTipar(s){
   const w = window.open('', '_blank');
@@ -1493,29 +1506,27 @@ async function pmGenereazaPDF(s){
   });
   y+=20;
   // tabel
-  const cols=[50,225,265,225,315]; const x0=M; const tw=cols.reduce((a,b)=>a+b,0);
+  const cols=[50,280,290,290,150]; const x0=M; const tw=cols.reduce((a,b)=>a+b,0);
   const xs=[x0]; cols.forEach((c,i)=>xs.push(xs[i]+c));
   const antetTabel=()=>{ ajunge(70); ctx.fillStyle='#e9e9e9'; ctx.fillRect(x0,y,tw,46); ctx.fillStyle='#111'; ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.strokeRect(x0,y,tw,46);
-    ['Nr.','Elev','Scutit medical','Observații','Semnătura'].forEach((t,i)=>{ font(21,true); ctx.fillText(t,xs[i]+8,y+11); if(i) { ctx.beginPath(); ctx.moveTo(xs[i],y); ctx.lineTo(xs[i],y+46); ctx.stroke(); } }); y+=46; };
+    ['Nr.','Elev','Semnătura','Observații','Sănătate'].forEach((t,i)=>{ font(21,true); ctx.fillText(t,xs[i]+8,y+11); if(i) { ctx.beginPath(); ctx.moveTo(xs[i],y); ctx.lineTo(xs[i],y+46); ctx.stroke(); } }); y+=46; };
   antetTabel();
   eleviS.forEach((e,i)=>{
     const inactiv=esteInactiv(e);
     const nume=wrap(`${e.nume} ${e.prenume}`+(inactiv?` (${etichetaSituatie(e)})`:''),21,false,cols[1]-16);
-    const sc=pmScutireText(e); const scL = sc ? wrap(sc,18,false,cols[2]-16-34) : [];
     const ob=wrap((s.obs&&s.obs[e.id])||'',20,false,cols[3]-16);
-    const rh=Math.max(78, 16+nume.length*28, 16+Math.max(scL.length*24,30), 16+ob.length*27);
+    const rh=Math.max(78, 16+nume.length*28, 16+ob.length*27);
     if(y+rh > H-M-30){ nou(); antetTabel(); }
     ctx.strokeStyle='#333'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y,tw,rh);
     for(let k=1;k<5;k++){ ctx.beginPath(); ctx.moveTo(xs[k],y); ctx.lineTo(xs[k],y+rh); ctx.stroke(); }
     font(20,false); ctx.fillStyle='#111'; ctx.fillText(String(i+1),xs[0]+10,y+16);
     nume.forEach((l,k)=>{ font(21,false); ctx.fillText(l,xs[1]+8,y+12+k*28); });
-    // bifă scutit medical
-    const bx=xs[2]+8, by=y+14; ctx.strokeStyle='#111'; ctx.lineWidth=2.5; ctx.strokeRect(bx,by,26,26);
-    if(sc){ ctx.beginPath(); ctx.moveTo(bx+5,by+14); ctx.lineTo(bx+11,by+21); ctx.lineTo(bx+22,by+5); ctx.lineWidth=4; ctx.stroke(); }
-    scL.forEach((l,k)=>{ font(18,false); ctx.fillText(l,xs[2]+42,y+14+k*24); });
-    ob.forEach((l,k)=>{ font(20,false); ctx.fillText(l,xs[3]+8,y+12+k*27); });
     const im=img[e.id];
-    if(im){ const mw=cols[4]-20, mh=rh-14; const sc2=Math.min(mw/im.width, mh/im.height, 1.6); const iw=im.width*sc2, ih=im.height*sc2; ctx.drawImage(im, xs[4]+(cols[4]-iw)/2, y+(rh-ih)/2, iw, ih); }
+    if(im){ const mw=cols[2]-20, mh=rh-14; const sc2=Math.min(mw/im.width, mh/im.height, 1.6); const iw=im.width*sc2, ih=im.height*sc2; ctx.drawImage(im, xs[2]+(cols[2]-iw)/2, y+(rh-ih)/2, iw, ih); }
+    ob.forEach((l,k)=>{ font(20,false); ctx.fillText(l,xs[3]+8,y+12+k*27); });
+    // bifă probleme de sănătate
+    const bx=xs[4]+(cols[4]-30)/2, by=y+(rh-30)/2; ctx.strokeStyle='#111'; ctx.lineWidth=2.5; ctx.strokeRect(bx,by,30,30);
+    if(e.sanatateDecl){ ctx.beginPath(); ctx.moveTo(bx+6,by+16); ctx.lineTo(bx+13,by+24); ctx.lineTo(bx+25,by+6); ctx.lineWidth=4.5; ctx.stroke(); }
     y+=rh;
   });
   // semnături
@@ -1523,7 +1534,6 @@ async function pmGenereazaPDF(s){
   font(24,false); ctx.fillStyle='#111';
   ctx.fillText('Profesor de educație fizică și sport,',M,y); ctx.fillText(s.instructor||pmInstructor(),M,y+32);
   if(imgP){ const sc3=Math.min(300/imgP.width,90/imgP.height,1.6); ctx.drawImage(imgP,M,y+68,imgP.width*sc3,imgP.height*sc3); } else ctx.fillText('______________',M,y+80);
-  ctx.textAlign='right'; ctx.fillText('Director,',W-M,y); ctx.fillText('______________',W-M,y+80); ctx.textAlign='left';
   // numerotare pagini
   pagini.forEach((c,i)=>{ const cx=c.getContext('2d'); cx.fillStyle='#666'; cx.font=`20px ${FONT}`; cx.textAlign='center'; cx.textBaseline='top'; cx.fillText(`Pagina ${i+1} / ${pagini.length}`, W/2, H-60); });
   // PDF
@@ -1632,15 +1642,14 @@ function renderPMSesiune(main, s){
     <p class="tab-desc">${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')} · Semnat: <b>${st.semnat} / ${st.total}</b></p>
     <details class="card" style="padding:10px;"><summary style="cursor:pointer; font-weight:700; color:var(--infield);">Textul instructajului citit elevilor</summary><div style="margin-top:8px; font-size:14px;">${pmTextHTML(s.text)}</div></details>
     <div class="card" style="padding:0; overflow-x:auto;">
-      <table><thead><tr><th>Nr.</th><th>Elev</th><th>Scutit medical</th><th>Observații</th><th>Semnătura</th></tr></thead><tbody>
+      <table><thead><tr><th>Nr.</th><th>Elev</th><th>Semnătura</th><th>Observații</th><th>Probleme de sănătate</th></tr></thead><tbody>
       ${eleviS.map((e,i)=>{ const sg = s.semnaturi && s.semnaturi[e.id];
         if(!pmPotSemna(e)) return `<tr class="rand-inactiv"><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${motivBlocareHTML(e,true)}</td><td style="color:var(--muted);">—</td><td style="color:var(--muted);">—</td><td style="color:var(--muted);">—</td></tr>`;
-        const sc = pmScutireText(e);
         return `<tr><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
-          <td style="min-width:150px;"><label style="display:flex; gap:6px; align-items:flex-start; font-size:13px;"><input type="checkbox" disabled ${sc?'checked':''} style="width:20px; height:20px; margin-top:1px;"/><span>${sc?escapeHtml(sc):'<span style="color:var(--muted);">nu</span>'}</span></label></td>
-          <td><input type="text" class="pm-obs" data-pm-obs="${e.id}" value="${escapeHtml((s.obs&&s.obs[e.id])||'')}" placeholder="observații" style="width:100%; min-width:140px;"/></td>
           <td>${sg ? `<img src="${sg}" data-pm-elev="${e.id}" style="height:44px; cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 6px;" title="Atinge pentru a semna din nou"/>`
-                   : `<button class="btn btn-secondary" data-pm-elev="${e.id}">✍ Semnează</button>`}</td></tr>`; }).join('')}
+                   : `<button class="btn btn-secondary" data-pm-elev="${e.id}">✍ Semnează</button>`}</td>
+          <td><input type="text" class="pm-obs" data-pm-obs="${e.id}" value="${escapeHtml((s.obs&&s.obs[e.id])||'')}" placeholder="observații" style="width:100%; min-width:140px;"/></td>
+          <td style="text-align:center;"><label style="display:flex; flex-direction:column; align-items:center; gap:3px; font-size:12px; cursor:pointer;"><input type="checkbox" class="pm-sanatate" data-pm-sanatate="${e.id}" ${e.sanatateDecl?'checked':''} style="width:26px; height:26px;"/>${e.sanatateDecl?`<span style="color:#B33A1B; font-weight:700;">declarat ${formatDataRo(e.sanatateDecl.data)}</span>`:''}</label></td></tr>`; }).join('')}
       </tbody></table>
     </div>
     <div class="card"><div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Profesor de educație fizică și sport — ${escapeHtml(s.instructor||pmInstructor())}</div>
@@ -1651,6 +1660,13 @@ function renderPMSesiune(main, s){
   document.getElementById('pm-inapoi').addEventListener('click', ()=>{ ui.pmSesiune = null; render(); });
   document.getElementById('pm-tipar').addEventListener('click', ()=>pmDeschideTipar(s));
   document.getElementById('pm-pdf').addEventListener('click', ()=>pmDescarcaPDF(s));
+  // bifa „probleme de sănătate”: se bifează/debifează doar aici; marcajul apare în tot catalogul până o debifezi
+  main.querySelectorAll('.pm-sanatate').forEach(chk=>chk.addEventListener('change', ()=>{
+    const e = state.elevi.find(x=>x.id===chk.dataset.pmSanatate); if(!e) return;
+    if(chk.checked) e.sanatateDecl = {data: s.data || todayISO()}; else delete e.sanatateDecl;
+    saveState(); render();
+    showToast(chk.checked ? 'Elev marcat: probleme de sănătate, fără adeverință.' : 'Marcajul a fost scos.');
+  }));
   main.querySelectorAll('.pm-obs').forEach(inp=>inp.addEventListener('input', ()=>{ if(!s.obs) s.obs = {}; const v = inp.value; if(v.trim()) s.obs[inp.dataset.pmObs] = v; else delete s.obs[inp.dataset.pmObs]; saveState(); }));
   document.getElementById('pm-data').addEventListener('change', e=>{ s.data = e.target.value || s.data; saveState(); });
   document.getElementById('pm-tema').addEventListener('input', e=>{ s.tema = e.target.value; saveState(); });
@@ -4895,6 +4911,14 @@ function renderScutiri(main){
         <button class="btn btn-primary" id="btn-add-scutire">+ Adaugă scutirea</button>
       </div>
     </div>
+    ${(()=>{ const decl = state.elevi.filter(e=>e.sanatateDecl && !esteInactiv(e)).sort((a,b)=>(a.sanatateDecl.data||'').localeCompare(b.sanatateDecl.data||''));
+      const faraAdev = decl.filter(e=>!(e.scutit && e.scutireTip));
+      if(!decl.length) return '';
+      return `<div class="card" style="border:2px solid #E04F2A; background:#FDEEE9;">
+        <div style="font-weight:700; color:#B33A1B; margin-bottom:6px;">Probleme de sănătate declarate la protecția muncii: ${decl.length}${faraAdev.length?` · fără adeverință: ${faraAdev.length}`:''}</div>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:8px;">Marcajul se pune și se scoate numai din procesul-verbal de la Protecția muncii. Dacă elevul aduce adeverința, o adaugi mai sus, la „Scutire nouă”; marcajul rămâne.</div>
+        ${decl.map(e=>{ const are = !!(e.scutit && e.scutireTip); const z = zileDeLa(e.sanatateDecl.data); return `<div style="padding:4px 0; border-top:1px solid #F2C9BC;"><b>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</b> · ${escapeHtml(claseNume(e.claseId))} · declarat ${formatDataRo(e.sanatateDecl.data)}${z>0?` (de ${z} ${z===1?'zi':'zile'})`:''} — ${are?'<span style="color:#6B4A00;">are scutire în listă</span>':'<span style="color:#B33A1B; font-weight:700;">fără adeverință</span>'}</div>`; }).join('')}
+      </div>`; })()}
     ${toatescutiti.length>0 ? `
     <div class="row" style="margin:14px 0 8px; align-items:flex-end;">
       <div class="field" style="min-width:200px;">

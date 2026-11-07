@@ -1679,6 +1679,7 @@ function renderProtectiaMuncii(main){
           <td style="white-space:nowrap;">${u ? `<button class="btn btn-secondary" data-pm-deschide="${u.id}">Deschide</button> <button class="btn btn-secondary" data-pm-pdf="${u.id}">⬇ PDF</button> <button class="btn btn-secondary" data-pm-print="${u.id}">🖨 Tipărește</button>` : `<button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ Proces-verbal</button>`}</td></tr>
           ${u && nesem.length ? `<tr><td colspan="4" style="font-size:12px; color:#1F4E8C; border-top:none; padding-top:0;">Nesemnat (${nesem.length}): ${nesem.map(e=>escapeHtml(e.nume+' '+e.prenume)).join(', ')}</td></tr>` : ''}`; }).join('')}
       </tbody></table></div>
+      <div class="row" style="margin-top:10px; gap:8px; align-items:center; flex-wrap:wrap;"><button class="btn btn-secondary" id="pm-semn-toate">✍ Pune semnătura mea pe toate procesele-verbale</button><span style="font-size:12px; color:var(--muted);">Se ia semnătura ta din ultimul proces-verbal semnat de tine (ex. IX G) și se aplică celorlalte; cele noi o primesc automat.</span></div>
       <label style="display:flex; gap:8px; align-items:center; margin-top:10px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pm-marcaj" ${state.settings.pmMarcaj===false?'':'checked'} style="width:20px; height:20px;"/> Arată „✍ PM nesemnat” lângă numele elevilor care nu au semnat încă</label>`}
     </div>
     <div class="card">
@@ -1712,9 +1713,20 @@ function renderProtectiaMuncii(main){
   main.querySelectorAll('[data-pm-pdf]').forEach(b=>b.addEventListener('click', ()=>{ const x=state.pm.sesiuni.find(z=>z.id===b.dataset.pmPdf); if(x) pmDescarcaPDF(x); }));
   main.querySelectorAll('[data-pm-print]').forEach(b=>b.addEventListener('click', ()=>{ const x=state.pm.sesiuni.find(z=>z.id===b.dataset.pmPrint); if(x) pmDeschideTipar(x); }));
   main.querySelectorAll('[data-pm-nou-clasa]').forEach(b=>b.addEventListener('click', ()=>{
-    const x = {id:uid(), claseId:b.dataset.pmNouClasa, data:todayISO(), tema:'Instructaj de protecția muncii la orele de educație fizică și sport', text:state.pm.text, instructor:pmInstructor(), semnaturi:{}, semnInstructor:null, creat:new Date().toISOString()};
+    const x = {id:uid(), claseId:b.dataset.pmNouClasa, data:todayISO(), tema:'Instructaj de protecția muncii la orele de educație fizică și sport', text:state.pm.text, instructor:pmInstructor(), semnaturi:{}, semnInstructor:(state.pm.semnInstructor||null), creat:new Date().toISOString()};
     state.pm.sesiuni.push(x); ui.pmClasa = x.claseId; ui.pmSesiune = x.id; saveState(); render();
   }));
+  const bST = document.getElementById('pm-semn-toate');
+  if(bST) bST.addEventListener('click', ()=>{
+    const surse = state.pm.sesiuni.filter(x=>x.semnInstructor).sort((a,b)=>(b.creat||b.data||'').localeCompare(a.creat||a.data||''));
+    const src = state.pm.semnInstructor || (surse[0] && surse[0].semnInstructor);
+    if(!src){ showToast('Nu există încă nicio semnătură de profesor. Semneaz-o într-un proces-verbal (IX G).'); return; }
+    const faraSemn = state.pm.sesiuni.filter(x=>!x.semnInstructor).length;
+    const diferite = state.pm.sesiuni.filter(x=>x.semnInstructor && x.semnInstructor!==src).length;
+    if(!confirm(`Pui semnătura ta pe ${faraSemn} procese-verbale fără semnătură${diferite?` și o înlocuiești în încă ${diferite} unde e alta`:''}?`)) return;
+    state.pm.semnInstructor = src; state.pm.sesiuni.forEach(x=>{ x.semnInstructor = src; });
+    saveState(); render(); showToast('Semnătura a fost pusă pe toate procesele-verbale ✓');
+  });
   const chM = document.getElementById('pm-marcaj'); if(chM) chM.addEventListener('change', ()=>{ state.settings.pmMarcaj = chM.checked; saveState(); render(); });
   const selC = document.getElementById('pm-clasa'); if(selC) selC.addEventListener('change', e=>{ ui.pmClasa = e.target.value; render(); });
   const bAd = document.getElementById('pm-adauga');
@@ -1722,7 +1734,7 @@ function renderProtectiaMuncii(main){
     if(!ui.pmClasa) return;
     const data = document.getElementById('pm-data-noua').value || todayISO();
     const tema = document.getElementById('pm-tema-noua').value.trim() || 'Instructaj de protecția muncii';
-    const s = {id:uid(), claseId:ui.pmClasa, data, tema, text:state.pm.text, instructor:pmInstructor(), semnaturi:{}, semnInstructor:null, creat:new Date().toISOString()};
+    const s = {id:uid(), claseId:ui.pmClasa, data, tema, text:state.pm.text, instructor:pmInstructor(), semnaturi:{}, semnInstructor:(state.pm.semnInstructor||null), creat:new Date().toISOString()};
     state.pm.sesiuni.push(s); ui.pmSesiune = s.id; saveState(); render();
   });
   main.querySelectorAll('[data-pm-deschide]').forEach(b=>b.addEventListener('click', ()=>{ ui.pmSesiune = b.dataset.pmDeschide; render(); }));
@@ -1795,7 +1807,7 @@ function renderPMSesiune(main, s){
   main.querySelectorAll('[data-pm-elev]').forEach(el=>el.addEventListener('click', ()=>semneaza(el.dataset.pmElev)));
   document.getElementById('pm-sg-instr').addEventListener('click', ()=>pmDeschideSemnatura({
     titlu: 'Semnătura profesorului', areExistenta: !!s.semnInstructor, areUrmator: false,
-    laSalvat: img=>{ s.semnInstructor = img; saveState(); render(); }, laSters: ()=>{ s.semnInstructor = null; saveState(); render(); }
+    laSalvat: img=>{ s.semnInstructor = img; state.pm.semnInstructor = img; saveState(); render(); }, laSters: ()=>{ s.semnInstructor = null; saveState(); render(); }
   }));
 }
 

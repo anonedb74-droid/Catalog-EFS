@@ -1383,6 +1383,24 @@ function pmInit(){
   if(typeof state.pm.text!=='string' || !state.pm.text.trim()) state.pm.text = PM_TEXT_IMPLICIT;
   if(!Array.isArray(state.pm.sesiuni)) state.pm.sesiuni = [];
   if(state.pm.instructor===undefined) state.pm.instructor = null;
+  // o singură dată: pune bold pe frazele importante și adaugă punctele 10.3–10.4 în textele salvate înainte de această versiune (păstrează modificările tale)
+  if(!state.pm.boldV1){
+    state.pm.text = pmImbunatatesteText(state.pm.text);
+    state.pm.sesiuni.forEach(x=>{ if(typeof x.text==='string') x.text = pmImbunatatesteText(x.text); });
+    state.pm.boldV1 = true;
+  }
+}
+const PM_FRAZE_BOLD = ['numai sub supravegherea profesorului','fără aprobarea profesorului','la comanda sau la semnalul acestuia','anunță profesorul înainte de începerea lecției','predă la timp adeverința medicală','întrerupe imediat exercițiul și anunță profesorul','este interzisă','nu participă la exercițiile practice','este obligatorie','numai la comanda profesorului','fără învoirea profesorului','se anunță imediat profesorului','nu mută elevul accidentat','obligația de a-și informa familia','obligația de a anunța profesorul și școala, în scris','se obligă să le respecte','distanța de siguranță'];
+function pmImbunatatesteText(t){
+  t = String(t||'');
+  if(t.includes('**')) return t;
+  PM_FRAZE_BOLD.forEach(p=>{ const i=t.indexOf(p); if(i>=0 && t.indexOf(p,i+p.length)<0) t = t.slice(0,i)+'**'+p+'**'+t.slice(i+p.length); });
+  if(!/(^|\n)\s*10\.3\./.test(t)){
+    const m = t.match(/(^|\n)(10\.2\.[^\n]*)/);
+    if(m){ const poz = m.index + m[0].length;
+      t = t.slice(0,poz)+"\n10.3. Elevul are **obligația de a-și informa familia** (părinții sau reprezentantul legal) despre normele de protecție a muncii prezentate, despre activitățile care urmează să se desfășoare la orele de educație fizică și sport și despre regulile de participare, inclusiv despre eventualele probleme de sănătate care îl împiedică să participe.\n10.4. Familia are **obligația de a anunța profesorul și școala, în scris**, despre orice problemă de sănătate a elevului și de a prezenta adeverința medicală în termenul stabilit."+t.slice(poz); }
+  }
+  return t;
 }
 // text simplu -> HTML: „## ” = titlu de secțiune, rândurile goale despart paragrafele
 function pmTextHTML(t){

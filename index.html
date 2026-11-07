@@ -1430,6 +1430,7 @@ function pmDescarcaDoc(nume, corpHTML){
 // chenar mare de semnătură: creion (cu apăsare) sau deget; la salvare se taie marginile goale, ca imaginea să rămână mică
 function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator}){
   const b = smModal(`<h3 style="margin-bottom:4px;">${escapeHtml(titlu)}</h3>
+    <div style="margin:6px 0 10px; padding:10px 12px; border:2px solid #B33A1B; background:#FDEEE9; border-radius:8px; text-align:center; font-weight:800; font-size:22px; line-height:1.25; color:#B33A1B; letter-spacing:.3px;">AM PARTICIPAT LA INSTRUIRE ȘI SEMNEZ PROCESUL&#8209;VERBAL.</div>
     <p class="tab-desc" style="margin:0 0 8px;">Semnează în chenar, cu creionul sau cu degetul.</p>
     <div style="border:3px solid var(--infield); border-radius:12px; background:#fff; touch-action:none;">
       <canvas id="pm-canvas" style="display:block; width:100%; height:min(46vh, 320px); touch-action:none; border-radius:10px;"></canvas>

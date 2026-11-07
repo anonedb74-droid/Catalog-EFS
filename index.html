@@ -1490,16 +1490,19 @@ function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator
   const b = smModal(`<h3 style="margin-bottom:4px;">${escapeHtml(titlu)}</h3>
     <div style="margin:6px 0 10px; padding:10px 12px; border:2px solid #B33A1B; background:#FDEEE9; border-radius:8px; text-align:center; font-weight:800; font-size:22px; line-height:1.25; color:#B33A1B; letter-spacing:.3px;">AM FOST INSTRUIT, AM ÎNȚELES ȘI MĂ OBLIG SĂ RESPECT NORMELE. VOI ANUNȚA FAMILIA.</div>
     <p class="tab-desc" style="margin:0 0 8px;">Semnează în chenar, cu creionul sau cu degetul.</p>
-    <div style="border:3px solid var(--infield); border-radius:12px; background:#fff; touch-action:none;">
-      <canvas id="pm-canvas" style="display:block; width:100%; height:min(46vh, 320px); touch-action:none; border-radius:10px;"></canvas>
-    </div>
-    <div class="row" style="justify-content:space-between; gap:8px; margin-top:12px; flex-wrap:wrap;">
+    <div class="row" style="justify-content:space-between; gap:8px; margin:4px 0 12px; flex-wrap:wrap;">
       <div style="display:flex; gap:8px;"><button class="btn btn-ghost" id="pm-sterge">↺ Șterge și reia</button>${areExistenta?'<button class="btn btn-danger" id="pm-elimina">Elimină semnătura</button>':''}</div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-ghost" id="pm-anuleaza">Anulează</button>
         ${areUrmator?'<button class="btn btn-secondary" id="pm-salveaza-urm">Salvează și următorul →</button>':''}
         <button class="btn btn-primary" id="pm-salveaza">Salvează</button></div>
-    </div>`);
+    </div>
+    <div style="border:3px solid var(--infield); border-radius:12px; background:#fff; touch-action:none;">
+      <canvas id="pm-canvas" style="display:block; width:100%; height:min(46vh, 320px); touch-action:none; border-radius:10px;"></canvas>
+    </div>
+    `);
   b.querySelector('.modal').style.maxWidth = '760px'; b.querySelector('.modal').style.width = 'min(94vw, 760px)';
+  // fereastra stă jos pe ecran: caseta de semnat e cea mai de jos, iar butoanele sunt deasupra ei, ca să nu le atingă cu palma
+  b.style.alignItems='flex-end'; b.querySelector('.modal').style.marginBottom='10px';
   const cv = b.querySelector('#pm-canvas');
   const rect = cv.getBoundingClientRect(), dpr = Math.max(window.devicePixelRatio||1, 2);
   cv.width = Math.round(rect.width*dpr); cv.height = Math.round(rect.height*dpr);

@@ -1372,21 +1372,22 @@ function pmStatSemnat(s){
   const eligibili = pmElevi(s).filter(pmPotSemna);
   return {total: eligibili.length, semnat: eligibili.filter(e=>s.semnaturi && s.semnaturi[e.id]).length};
 }
-const PM_STIL_DOC = `body{font-family:Calibri,Arial,sans-serif; padding:24px; color:#111; font-size:13px;} h1{font-size:18px; text-align:center; margin:0 0 4px;} .sub{text-align:center; color:#333; font-size:13px; margin-bottom:12px;} table{width:100%; border-collapse:collapse; margin-top:10px;} th,td{border:1px solid #333; padding:5px 8px; text-align:left; vertical-align:middle;} th{background:#eee;} td.sg{height:44px; width:34%;} td.sg img{height:38px;} .sem{margin-top:26px; display:flex; justify-content:space-between; font-size:13px;} .btn-print{padding:8px 14px; margin-bottom:12px;} @media print{.btn-print{display:none;}}`;
+const PM_STIL_DOC = `body{font-family:Calibri,Arial,sans-serif; padding:24px; color:#111; font-size:13px;} h1{font-size:18px; text-align:center; margin:0 0 4px;} .sub{text-align:center; color:#333; font-size:13px; margin-bottom:12px;} table{width:100%; border-collapse:collapse; margin-top:10px;} th,td{border:1px solid #333; padding:5px 8px; text-align:left; vertical-align:middle;} th{background:#eee;} td.sg{height:44px; width:26%;} td.sg img{height:38px;} .sem{margin-top:26px; display:flex; justify-content:space-between; font-size:13px;} .btn-print{padding:8px 14px; margin-bottom:12px;} @media print{.btn-print{display:none;}}`;
 function pmDocumentHTML(s, pentruDoc){
   const eleviS = pmElevi(s);
   const rows = eleviS.map((e,i)=>{
     const sg = s.semnaturi && s.semnaturi[e.id];
     const inactiv = esteInactiv(e);
-    return `<tr><td style="width:36px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td></tr>`;
+    const sc = pmScutireText(e);
+    return `<tr><td style="width:30px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td style="font-size:12px;">${sc?'☑ ':'☐ '}${escapeHtml(sc)}</td><td style="font-size:12px;">${escapeHtml((s.obs&&s.obs[e.id])||'')}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td></tr>`;
   }).join('');
   const sgI = s.semnInstructor ? `<img src="${s.semnInstructor}" style="height:44px;" alt="semnătură"/>` : '______________';
   return `<h1>PROCES-VERBAL DE INSTRUIRE ÎN DOMENIUL PROTECȚIEI MUNCII</h1>
   <div class="sub">${escapeHtml(pmScoala())} · An școlar ${escapeHtml(state.settings.anScolar||'')}<br>
   Clasa ${escapeHtml(claseNume(s.claseId))} · Data ${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')}</div>
   ${pmTextHTML(s.text)}
-  <table><thead><tr><th>Nr.</th><th>Numele și prenumele elevului</th><th>Semnătura</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="sem"><span>Instructor (profesor),<br>${escapeHtml(s.instructor||pmInstructor())}<br>${sgI}</span><span>Director,<br><br>______________</span></div>`;
+  <table><thead><tr><th>Nr.</th><th>Numele și prenumele elevului</th><th>Scutit medical</th><th>Observații</th><th>Semnătura</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="sem"><span>Profesor de educație fizică și sport,<br>${escapeHtml(s.instructor||pmInstructor())}<br>${sgI}</span><span>Director,<br><br>______________</span></div>`;
 }
 function pmDeschideTipar(s){
   const w = window.open('', '_blank');
@@ -1446,6 +1447,106 @@ function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator
   const salveaza = urm=>{ const img = exporta(); if(!img){ showToast('Semnează mai întâi în chenar.'); return; } smClose(); laSalvat(img, urm); };
   b.querySelector('#pm-salveaza').onclick = ()=>salveaza(false);
   const su = b.querySelector('#pm-salveaza-urm'); if(su) su.onclick = ()=>salveaza(true);
+}
+// ---- PDF pentru ePortofoliu: pagini A4 desenate pe canvas (cu semnăturile elevilor) și împachetate într-un PDF, fără biblioteci externe ----
+function pmScutireText(e){
+  if(!esteScutitActiv(e)) return '';
+  let t = e.scutireTip==='totala_anuala' ? 'Totală anuală' : e.scutireTip==='partiala' ? 'Parțială'
+        : `Temporară (${e.scutireSubTip==='partiala'?'parțială':'totală'}) ${formatDataRo(e.scutireStart)}–${formatDataRo(e.scutireEnd)}`;
+  if((e.motivScutire||'').trim()) t += ' — ' + e.motivScutire.trim();
+  return t;
+}
+async function pmGenereazaPDF(s){
+  const W=1240, H=1754, M=90, FONT='Arial, Helvetica, sans-serif';
+  const pagini=[]; let cv, ctx, y;
+  const nou=()=>{ cv=document.createElement('canvas'); cv.width=W; cv.height=H; ctx=cv.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#111'; ctx.textBaseline='top'; y=M; pagini.push(cv); };
+  const font=(px,b)=>{ ctx.font=`${b?'bold ':''}${px}px ${FONT}`; };
+  const wrap=(txt,px,b,maxW)=>{ font(px,b); const cuv=String(txt).split(/\s+/).filter(Boolean); const out=[]; let cur='';
+    cuv.forEach(w=>{ const t=cur?cur+' '+w:w; if(ctx.measureText(t).width>maxW && cur){ out.push(cur); cur=w; } else cur=t; }); if(cur) out.push(cur); return out; };
+  const ajunge=h=>{ if(y+h > H-M-30) nou(); };
+  const incarca=src=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=src; });
+  const img={}; const eleviS = pmElevi(s);
+  for(const e of eleviS){ if(s.semnaturi && s.semnaturi[e.id]) img[e.id]=await incarca(s.semnaturi[e.id]); }
+  const imgP = s.semnInstructor ? await incarca(s.semnInstructor) : null;
+  nou();
+  // antet
+  wrap('PROCES-VERBAL DE INSTRUIRE ÎN DOMENIUL PROTECȚIEI MUNCII',34,true,W-2*M).forEach(l=>{ font(34,true); ctx.textAlign='center'; ctx.fillText(l,W/2,y); y+=44; });
+  ctx.textAlign='center';
+  [`${pmScoala()} · An școlar ${state.settings.anScolar||''}`, `Clasa ${claseNume(s.claseId)} · Data ${formatDataRo(s.data)}`, s.tema||''].forEach(l=>{ wrap(l,24,false,W-2*M).forEach(x=>{ font(24,false); ctx.fillText(x,W/2,y); y+=32; }); });
+  ctx.textAlign='left'; y+=18;
+  // textul instructajului
+  String(s.text||'').split(/\n+/).map(r=>r.trim()).filter(Boolean).forEach(r=>{
+    const titlu = r.startsWith('## '); const t = titlu ? r.slice(3) : r;
+    const px = titlu?26:22, lh = titlu?36:30;
+    if(titlu) y+=8;
+    wrap(t,px,titlu,W-2*M).forEach(l=>{ ajunge(lh); font(px,titlu); ctx.fillText(l,M,y); y+=lh; });
+    y+= titlu?2:5;
+  });
+  y+=20;
+  // tabel
+  const cols=[50,225,265,225,315]; const x0=M; const tw=cols.reduce((a,b)=>a+b,0);
+  const xs=[x0]; cols.forEach((c,i)=>xs.push(xs[i]+c));
+  const antetTabel=()=>{ ajunge(70); ctx.fillStyle='#e9e9e9'; ctx.fillRect(x0,y,tw,46); ctx.fillStyle='#111'; ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.strokeRect(x0,y,tw,46);
+    ['Nr.','Elev','Scutit medical','Observații','Semnătura'].forEach((t,i)=>{ font(21,true); ctx.fillText(t,xs[i]+8,y+11); if(i) { ctx.beginPath(); ctx.moveTo(xs[i],y); ctx.lineTo(xs[i],y+46); ctx.stroke(); } }); y+=46; };
+  antetTabel();
+  eleviS.forEach((e,i)=>{
+    const inactiv=esteInactiv(e);
+    const nume=wrap(`${e.nume} ${e.prenume}`+(inactiv?` (${etichetaSituatie(e)})`:''),21,false,cols[1]-16);
+    const sc=pmScutireText(e); const scL = sc ? wrap(sc,18,false,cols[2]-16-34) : [];
+    const ob=wrap((s.obs&&s.obs[e.id])||'',20,false,cols[3]-16);
+    const rh=Math.max(78, 16+nume.length*28, 16+Math.max(scL.length*24,30), 16+ob.length*27);
+    if(y+rh > H-M-30){ nou(); antetTabel(); }
+    ctx.strokeStyle='#333'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y,tw,rh);
+    for(let k=1;k<5;k++){ ctx.beginPath(); ctx.moveTo(xs[k],y); ctx.lineTo(xs[k],y+rh); ctx.stroke(); }
+    font(20,false); ctx.fillStyle='#111'; ctx.fillText(String(i+1),xs[0]+10,y+16);
+    nume.forEach((l,k)=>{ font(21,false); ctx.fillText(l,xs[1]+8,y+12+k*28); });
+    // bifă scutit medical
+    const bx=xs[2]+8, by=y+14; ctx.strokeStyle='#111'; ctx.lineWidth=2.5; ctx.strokeRect(bx,by,26,26);
+    if(sc){ ctx.beginPath(); ctx.moveTo(bx+5,by+14); ctx.lineTo(bx+11,by+21); ctx.lineTo(bx+22,by+5); ctx.lineWidth=4; ctx.stroke(); }
+    scL.forEach((l,k)=>{ font(18,false); ctx.fillText(l,xs[2]+42,y+14+k*24); });
+    ob.forEach((l,k)=>{ font(20,false); ctx.fillText(l,xs[3]+8,y+12+k*27); });
+    const im=img[e.id];
+    if(im){ const mw=cols[4]-20, mh=rh-14; const sc2=Math.min(mw/im.width, mh/im.height, 1.6); const iw=im.width*sc2, ih=im.height*sc2; ctx.drawImage(im, xs[4]+(cols[4]-iw)/2, y+(rh-ih)/2, iw, ih); }
+    y+=rh;
+  });
+  // semnături
+  y+=36; ajunge(200);
+  font(24,false); ctx.fillStyle='#111';
+  ctx.fillText('Profesor de educație fizică și sport,',M,y); ctx.fillText(s.instructor||pmInstructor(),M,y+32);
+  if(imgP){ const sc3=Math.min(300/imgP.width,90/imgP.height,1.6); ctx.drawImage(imgP,M,y+68,imgP.width*sc3,imgP.height*sc3); } else ctx.fillText('______________',M,y+80);
+  ctx.textAlign='right'; ctx.fillText('Director,',W-M,y); ctx.fillText('______________',W-M,y+80); ctx.textAlign='left';
+  // numerotare pagini
+  pagini.forEach((c,i)=>{ const cx=c.getContext('2d'); cx.fillStyle='#666'; cx.font=`20px ${FONT}`; cx.textAlign='center'; cx.textBaseline='top'; cx.fillText(`Pagina ${i+1} / ${pagini.length}`, W/2, H-60); });
+  // PDF
+  const jpgs=[]; for(const c of pagini){ const b=await new Promise(r=>c.toBlob(r,'image/jpeg',0.86)); jpgs.push(new Uint8Array(await b.arrayBuffer())); }
+  const enc=new TextEncoder(), parts=[], offs=[]; let len=0;
+  const push=d=>{ const u=typeof d==='string'?enc.encode(d):d; parts.push(u); len+=u.length; };
+  const n=jpgs.length, PW=595.28, PH=841.89;
+  push('%PDF-1.4\n');
+  offs[1]=len; push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  offs[2]=len; push(`2 0 obj\n<< /Type /Pages /Kids [${jpgs.map((_,i)=>`${5+3*i} 0 R`).join(' ')}] /Count ${n} >>\nendobj\n`);
+  jpgs.forEach((j,i)=>{
+    const ii=3+3*i, ci=4+3*i, pi=5+3*i;
+    offs[ii]=len; push(`${ii} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${W} /Height ${H} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${j.length} >>\nstream\n`); push(j); push('\nendstream\nendobj\n');
+    const cont=`q ${PW} 0 0 ${PH} 0 0 cm /Im0 Do Q`;
+    offs[ci]=len; push(`${ci} 0 obj\n<< /Length ${cont.length} >>\nstream\n${cont}\nendstream\nendobj\n`);
+    offs[pi]=len; push(`${pi} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im0 ${ii} 0 R >> >> /Contents ${ci} 0 R >>\nendobj\n`);
+  });
+  const total=3*n+3, xref=len;
+  let x=`xref\n0 ${total}\n0000000000 65535 f \n`;
+  for(let k=1;k<total;k++) x+=String(offs[k]).padStart(10,'0')+' 00000 n \n';
+  push(x+`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts,{type:'application/pdf'});
+}
+async function pmDescarcaPDF(s){
+  showToast('Pregătesc PDF-ul…');
+  try{
+    const blob = await pmGenereazaPDF(s);
+    const nume = `Proces_verbal_protectia_muncii_${claseNume(s.claseId).replace(/\s+/g,'_')}_${s.data}.pdf`;
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nume; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    showToast('PDF pregătit ✓');
+  }catch(err){ console.error(err); showToast('Nu am putut crea PDF-ul.'); }
 }
 function renderProtectiaMuncii(main){
   pmInit();
@@ -1517,27 +1618,31 @@ function renderPMSesiune(main, s){
   const st = pmStatSemnat(s);
   main.innerHTML = `
     <div class="top-actions" style="justify-content:space-between; align-items:center;"><button class="btn btn-ghost" id="pm-inapoi">← Înapoi la procese-verbale</button>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-secondary" id="pm-doc">⬇ Descarcă (Word)</button><button class="btn btn-secondary" id="pm-tipar">🖨 Tipărește / PDF</button></div></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-primary" id="pm-pdf">⬇ Descarcă PDF</button><button class="btn btn-secondary" id="pm-tipar">🖨 Tipărește</button></div></div>
     <h2>Proces-verbal — clasa ${escapeHtml(claseNume(s.claseId))}</h2>
     <p class="tab-desc">${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')} · Semnat: <b>${st.semnat} / ${st.total}</b></p>
     <details class="card" style="padding:10px;"><summary style="cursor:pointer; font-weight:700; color:var(--infield);">Textul instructajului citit elevilor</summary><div style="margin-top:8px; font-size:14px;">${pmTextHTML(s.text)}</div></details>
     <div class="card" style="padding:0; overflow-x:auto;">
-      <table><thead><tr><th>Nr.</th><th>Elev</th><th>Semnătura</th></tr></thead><tbody>
+      <table><thead><tr><th>Nr.</th><th>Elev</th><th>Scutit medical</th><th>Observații</th><th>Semnătura</th></tr></thead><tbody>
       ${eleviS.map((e,i)=>{ const sg = s.semnaturi && s.semnaturi[e.id];
-        if(!pmPotSemna(e)) return `<tr class="rand-inactiv"><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${motivBlocareHTML(e,true)}</td><td style="color:var(--muted);">—</td></tr>`;
+        if(!pmPotSemna(e)) return `<tr class="rand-inactiv"><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${motivBlocareHTML(e,true)}</td><td style="color:var(--muted);">—</td><td style="color:var(--muted);">—</td><td style="color:var(--muted);">—</td></tr>`;
+        const sc = pmScutireText(e);
         return `<tr><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+          <td style="min-width:150px;"><label style="display:flex; gap:6px; align-items:flex-start; font-size:13px;"><input type="checkbox" disabled ${sc?'checked':''} style="width:20px; height:20px; margin-top:1px;"/><span>${sc?escapeHtml(sc):'<span style="color:var(--muted);">nu</span>'}</span></label></td>
+          <td><input type="text" class="pm-obs" data-pm-obs="${e.id}" value="${escapeHtml((s.obs&&s.obs[e.id])||'')}" placeholder="observații" style="width:100%; min-width:140px;"/></td>
           <td>${sg ? `<img src="${sg}" data-pm-elev="${e.id}" style="height:44px; cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 6px;" title="Atinge pentru a semna din nou"/>`
                    : `<button class="btn btn-secondary" data-pm-elev="${e.id}">✍ Semnează</button>`}</td></tr>`; }).join('')}
       </tbody></table>
     </div>
-    <div class="card"><div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Instructor — ${escapeHtml(s.instructor||pmInstructor())}</div>
-      ${s.semnInstructor ? `<img src="${s.semnInstructor}" id="pm-sg-instr" style="height:50px; cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 8px;" title="Atinge pentru a semna din nou"/>` : `<button class="btn btn-secondary" id="pm-sg-instr">✍ Semnează ca instructor</button>`}
+    <div class="card"><div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Profesor de educație fizică și sport — ${escapeHtml(s.instructor||pmInstructor())}</div>
+      ${s.semnInstructor ? `<img src="${s.semnInstructor}" id="pm-sg-instr" style="height:50px; cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 8px;" title="Atinge pentru a semna din nou"/>` : `<button class="btn btn-secondary" id="pm-sg-instr">✍ Semnează ca profesor</button>`}
     </div>
     <div class="row"><div class="field"><label>Data</label><input type="date" id="pm-data" value="${s.data}"/></div>
       <div class="field" style="flex:1; min-width:220px;"><label>Tema</label><input type="text" id="pm-tema" value="${escapeHtml(s.tema||'')}"/></div></div>`;
   document.getElementById('pm-inapoi').addEventListener('click', ()=>{ ui.pmSesiune = null; render(); });
   document.getElementById('pm-tipar').addEventListener('click', ()=>pmDeschideTipar(s));
-  document.getElementById('pm-doc').addEventListener('click', ()=>pmDescarcaDoc('Proces_verbal_PM_'+claseNume(s.claseId).replace(/\s+/g,'_'), pmDocumentHTML(s, true)));
+  document.getElementById('pm-pdf').addEventListener('click', ()=>pmDescarcaPDF(s));
+  main.querySelectorAll('.pm-obs').forEach(inp=>inp.addEventListener('input', ()=>{ if(!s.obs) s.obs = {}; const v = inp.value; if(v.trim()) s.obs[inp.dataset.pmObs] = v; else delete s.obs[inp.dataset.pmObs]; saveState(); }));
   document.getElementById('pm-data').addEventListener('change', e=>{ s.data = e.target.value || s.data; saveState(); });
   document.getElementById('pm-tema').addEventListener('input', e=>{ s.tema = e.target.value; saveState(); });
   const eligibili = eleviS.filter(pmPotSemna);
@@ -1553,7 +1658,7 @@ function renderPMSesiune(main, s){
   };
   main.querySelectorAll('[data-pm-elev]').forEach(el=>el.addEventListener('click', ()=>semneaza(el.dataset.pmElev)));
   document.getElementById('pm-sg-instr').addEventListener('click', ()=>pmDeschideSemnatura({
-    titlu: 'Semnătura instructorului', areExistenta: !!s.semnInstructor, areUrmator: false,
+    titlu: 'Semnătura profesorului', areExistenta: !!s.semnInstructor, areUrmator: false,
     laSalvat: img=>{ s.semnInstructor = img; saveState(); render(); }, laSters: ()=>{ s.semnInstructor = null; saveState(); render(); }
   }));
 }

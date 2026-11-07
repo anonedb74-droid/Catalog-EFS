@@ -188,6 +188,18 @@
     nav.bottombar button.active{color:#fff;}
     nav.bottombar button.active svg{stroke:var(--track);}
   }
+  /* ---------- BARA DE JOS PE TABLETĂ: butoane mai mari, în chenar, cu numele secțiunii mai mare ---------- */
+  @media (min-width:560px) and (max-width:1100px){
+    nav.bottombar{align-items:stretch; gap:6px; padding:8px 8px calc(8px + env(safe-area-inset-bottom)); overflow-x:auto; scrollbar-width:none;}
+    nav.bottombar::-webkit-scrollbar{display:none;}
+    nav.bottombar button{flex:0 0 112px !important; padding:8px 4px 9px !important; gap:5px; border:2px solid rgba(255,255,255,.45); border-radius:12px; background:rgba(255,255,255,.06); font-size:15px;}
+    nav.bottombar button span{font-size:15px !important; font-weight:700; line-height:1.15;}
+    nav.bottombar button svg{width:28px; height:28px;}
+    nav.bottombar button.active{background:rgba(255,255,255,.2); border-color:var(--track);}
+  }
+  @media (min-width:560px) and (max-width:760px){
+    main{padding-bottom:calc(128px + env(safe-area-inset-bottom)) !important;}
+  }
   /* ---------- MOD COMPACT PE ECRAN ÎN PORTRET (tabletă) — mai mulți elevi vizibili pe pagină ---------- */
   @media (orientation: portrait){
     header{padding:8px 14px;}
@@ -589,6 +601,7 @@ function migreazaDate(){
     if(a.stare==='motivat' || a.stare==='nemotivat') a.stare = 'absent';
   });
   if(!state.oreZi) state.oreZi = {};
+  if(!state.pm) state.pm = {text:'', sesiuni:[]};
   if(!state.planificari) state.planificari = [];
   // migrare: intrările vechi erau legate de an, nu de clasă — le păstrăm needitate, dar de-acum secțiunea Planificare scrie direct cu claseId
   if(!state.settings.taburiAscunse) state.settings.taburiAscunse = [];
@@ -965,6 +978,7 @@ const ICONS = {
   probe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/><path d="M12 2v3"/></svg>',
   notare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11l2 2 4-4"/></svg>',
   absente: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18"/><path d="M9 14l2 2 4-4"/></svg>',
+  protectia: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
   scutiri: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 5-3.2 7.8-7 9-3.8-1.2-7-4-7-9V6z"/><path d="M12 9v5"/><path d="M9.5 11.5h5"/></svg>',
   bareme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16"/><path d="M6 20V10l4-6 4 6v10"/><path d="M6 14h8"/><path d="M17 20v-7l2-3 2 3v7"/></svg>',
   sinteza: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.2"/><rect x="14" y="3" width="7" height="5" rx="1.2"/><rect x="14" y="12" width="7" height="9" rx="1.2"/><rect x="3" y="16" width="7" height="5" rx="1.2"/></svg>',
@@ -1005,6 +1019,7 @@ const TABS = [
   {id:'practica', label:'Practică'},
   {id:'istoric', label:'Istoric elev'},
   {id:'scutiri', label:'Scutiri'},
+  {id:'protectia', label:'Protecția muncii'},
   {id:'arhiva', label:'Arhivă'},
 ];
 
@@ -1271,6 +1286,278 @@ function render(){
   saveUIState();
 }
 
+/* ================= TAB: PROTECȚIA MUNCII ================= */
+// Instructajul (textul normelor) se poate edita și descărca; procesele-verbale pe clase se semnează de elevi cu creionul / degetul pe tabletă.
+const PM_TEXT_IMPLICIT = `## Temei legal
+Legea securității și sănătății în muncă nr. 319/2006 și normele ei metodologice de aplicare (H.G. nr. 1425/2006); Legea învățământului preuniversitar nr. 198/2023; Regulamentul de organizare și funcționare a unităților de învățământ preuniversitar; Regulamentul intern și normele proprii de securitate și sănătate în muncă ale școlii; reglementările în vigoare privind educația fizică și sportul școlar. (Verifică actele cu cele aplicate în școala ta și completează-le dacă e nevoie.)
+
+## 1. Dispoziții generale
+1.1. Orele de educație fizică și sport se desfășoară numai sub supravegherea profesorului. Elevul nu începe niciun exercițiu, nu folosește niciun material sportiv și nu pleacă din spațiul de lucru fără aprobarea profesorului.
+1.2. Elevul execută numai exercițiile, în ordinea și în felul indicate de profesor, la comanda sau la semnalul acestuia.
+1.3. Elevul are obligația să cunoască și să respecte prezentele norme, ale căror reguli le-a luat la cunoștință prin instructajul de la începutul anului școlar și prin cel periodic.
+
+## 2. Starea de sănătate
+2.1. Elevul care are o problemă de sănătate, un disconfort, o accidentare mai veche sau un tratament în desfășurare anunță profesorul înainte de începerea lecției.
+2.2. Elevul scutit medical (total sau parțial) predă la timp adeverința medicală profesorului și respectă recomandările medicului. Ce are voie să facă elevul scutit parțial stabilește medicul, iar profesorul aplică recomandarea la lecție.
+2.3. Elevul care se simte rău în timpul efortului (amețeală, durere, greață, dificultăți de respirație, palpitații) întrerupe imediat exercițiul și anunță profesorul.
+2.4. Participarea la lecție sub influența alcoolului, a tutunului, a substanțelor interzise sau a medicamentelor care scad atenția este interzisă.
+
+## 3. Echipament și ținută
+3.1. Elevul poartă echipament sportiv curat și adecvat activității și anotimpului: tricou, pantaloni sau trening, încălțăminte sportivă cu talpă antiderapantă, legată strâns.
+3.2. Se scot ceasurile, brățările, lănțișoarele, inelele, cerceii mari, agrafele și orice obiect care poate răni elevul sau colegii. Unghiile se țin scurte, iar părul lung se leagă.
+3.3. Telefoanele și obiectele de valoare se lasă la loc sigur, stabilit de profesor. Folosirea telefonului, fotografierea și filmarea în timpul orelor se fac numai cu acordul profesorului. Gumele de mestecat și alimentele se scot înaintea lecției.
+3.4. Elevul fără echipament adecvat nu participă la exercițiile practice, ci îndeplinește sarcinile date de profesor, iar lipsa echipamentului se consemnează.
+
+## 4. Înainte de lecție
+4.1. Elevii intră în sală sau pe teren numai împreună cu profesorul sau cu aprobarea lui și se așază în formația indicată.
+4.2. Se verifică să nu existe obiecte, bănci, saltele sau materiale așezate în locuri periculoase. Elevul semnalează profesorului orice defecțiune sau pericol (podea umedă sau alunecoasă, mochetă ruptă, materiale deteriorate, pietre, sticlă, obiecte ascuțite).
+4.3. Pregătirea organismului pentru efort (încălzirea) este obligatorie și se execută complet, în ordinea stabilită de profesor.
+
+## 5. Reguli în timpul lecției
+5.1. Se păstrează distanța de siguranță față de colegi, față de pereți, spalier, bănci și materiale; exercițiile se execută în același sens și în același timp, la comandă.
+5.2. Aruncările, săriturile, alergările și transportul materialelor se fac numai la comanda profesorului, după ce spațiul este liber.
+5.3. Materialele sportive (mingi, jaloane, greutăți, saltele, bănci) se folosesc numai conform destinației lor și se transportă și se așază în siguranță. Este interzis să te agăți de spalier, porți, panouri sau alte instalații ori să le urci fără aprobare.
+5.4. Elevul nu se joacă, nu se împinge, nu se bate, nu aruncă obiecte spre colegi și nu face glume cu materialele sportive.
+5.5. Elevul nu atinge întrerupătoare, prize, tablouri electrice, calorifere sau instalații de apă și nu schimbă singur poziția aparatelor.
+5.6. Elevul nu părăsește locul de muncă și nu iese din sală sau de pe teren fără învoirea profesorului.
+
+## 6. Reguli pe categorii de exerciții
+6.1. Alergări și curse de viteză: se aleargă numai pe culoarul indicat, în direcția stabilită, după ce zona de sosire este liberă; după trecerea liniei se oprește treptat, fără frânare bruscă. Încălțămintea se leagă bine, iar pe suprafață umedă sau alunecoasă se reduce viteza.
+6.2. Sărituri: aterizarea se face pe ambele picioare, cu genunchii ușor flectați, pe suprafața amenajată (saltea, groapă, mochetă). Înaintea săriturii se verifică locul de aterizare, iar săritura se execută doar când nu se află nimeni în zona de aterizare.
+6.3. Aruncări (greutate, mingi): se aruncă numai la comandă, în direcția și în sectorul stabilite; nimeni nu se află în sectorul de aruncare; materialul se ridică numai după ce profesorul a permis acest lucru; nu se aruncă spre colegi.
+6.4. Exerciții de forță și de sprijin (flotări, abdomene, tracțiuni, exerciții cu greutatea propriului corp sau cu greutăți): se execută în ritmul și cu numărul de repetări stabilite de profesor, cu respirație corectă și coloana în poziție corectă; la obosire se oprește exercițiul. Greutățile se ridică numai cu aprobarea profesorului.
+6.5. Gimnastică acrobatică și sărituri la aparate: se lucrează numai pe saltele așezate corect și numai cu asigurarea profesorului sau a unui coleg desemnat; elementele noi se execută doar după demonstrația profesorului; se respectă ordinea de intrare la exercițiu și intervalul dintre execuții.
+6.6. Tenis de masă: se respectă spațiul din jurul mesei; mingile căzute pe jos se ridică cu atenție, pentru a evita alunecarea; paletele nu se aruncă.
+6.7. Jocuri sportive (fotbal și altele): se joacă după regulile stabilite, fără intrări dure sau periculoase, fără împingeri și fără a juca cu mingea spre colegi de aproape; se interzice urcatul pe porți; mingile se folosesc numai la ordin.
+6.8. În sala de sport nu se folosesc mingi și nici jocuri sportive, decât dacă profesorul stabilește altfel; spațiul fiind limitat, exercițiile se fac pe loc sau în formații, la comandă.
+
+## 7. Hidratare și igienă
+7.1. Apa se bea în pauzele stabilite de profesor, în cantități mici și nu rece după un efort mare. Nu se consumă alimente în timpul lecției.
+7.2. După lecție elevul se spală pe mâini cu apă și săpun, își schimbă tricoul, dacă este nevoie, și păstrează curățenia vestiarului și a spațiului folosit. Nu se scuipă în sală și nu se aruncă gunoaie.
+
+## 8. Accidente și primul ajutor
+8.1. Orice accidentare, oricât de mică, se anunță imediat profesorului. Elevul nu își „rezolvă singur” problema și nu își ascunde durerea.
+8.2. Profesorul acordă primul ajutor, anunță conducerea școlii, părinții și, la nevoie, serviciul de urgență 112 și consemnează evenimentul.
+8.3. Colegii nu mută elevul accidentat și nu îl ridică din locul unde a căzut, ci anunță profesorul.
+
+## 9. Evacuare și situații de urgență
+9.1. Elevii cunosc căile de evacuare și ieșirile din sală și de pe teren. În caz de alarmă, cutremur sau incendiu, părăsesc spațiul în ordine, fără a se grăbi și fără a-și lua lucrurile, și se adună în locul stabilit, unde profesorul face prezența.
+9.2. Pe teren, în caz de furtună, ploaie torențială, vânt puternic, caniculă, ger sau polei, lecția se oprește sau se mută în spațiu adăpostit, la decizia profesorului.
+
+## 10. Răspunderea
+10.1. Elevul răspunde pentru stricăciunile produse cu intenție sau din neglijență materialelor, instalațiilor sau echipamentelor școlii.
+10.2. Nerespectarea prezentelor norme atrage sancțiuni prevăzute de regulamentul intern, iar în caz de accidentare din vina elevului, sancțiunile prevăzute de lege.
+
+Elevii au luat cunoștință de prezentele norme, le-au înțeles și se obligă să le respecte, ceea ce confirmă prin semnătura de mai jos.`;
+
+function pmInit(){
+  if(!state.pm) state.pm = {};
+  if(typeof state.pm.text!=='string' || !state.pm.text.trim()) state.pm.text = PM_TEXT_IMPLICIT;
+  if(!Array.isArray(state.pm.sesiuni)) state.pm.sesiuni = [];
+  if(state.pm.instructor===undefined) state.pm.instructor = null;
+}
+// text simplu -> HTML: „## ” = titlu de secțiune, rândurile goale despart paragrafele
+function pmTextHTML(t){
+  return String(t||'').split(/\n+/).map(r=>r.trim()).filter(Boolean).map(r=>
+    r.startsWith('## ') ? `<h3 style="margin:14px 0 4px; font-size:15px;">${escapeHtml(r.slice(3))}</h3>` : `<p style="margin:3px 0;">${escapeHtml(r)}</p>`
+  ).join('');
+}
+function pmScoala(){ return (state.settings.scoalaTabel||'').trim() || 'Liceul Tehnologic „Al. Vlahuță” Șendriceni'; }
+function pmInstructor(){ return (state.settings.profesorTabel||'').trim() || 'Daniel Botezatu'; }
+function pmSesiuniClasa(claseId){ return state.pm.sesiuni.filter(s=>s.claseId===claseId).sort((a,b)=>b.data.localeCompare(a.data)); }
+function pmElevi(s){ return eleviDinClasa(s.claseId); }
+// elevii care pot semna: toți, mai puțin cei marcați transferat/abandon etc.
+function pmPotSemna(e){ return !esteInactiv(e); }
+function pmStatSemnat(s){
+  const eligibili = pmElevi(s).filter(pmPotSemna);
+  return {total: eligibili.length, semnat: eligibili.filter(e=>s.semnaturi && s.semnaturi[e.id]).length};
+}
+const PM_STIL_DOC = `body{font-family:Calibri,Arial,sans-serif; padding:24px; color:#111; font-size:13px;} h1{font-size:18px; text-align:center; margin:0 0 4px;} .sub{text-align:center; color:#333; font-size:13px; margin-bottom:12px;} table{width:100%; border-collapse:collapse; margin-top:10px;} th,td{border:1px solid #333; padding:5px 8px; text-align:left; vertical-align:middle;} th{background:#eee;} td.sg{height:44px; width:34%;} td.sg img{height:38px;} .sem{margin-top:26px; display:flex; justify-content:space-between; font-size:13px;} .btn-print{padding:8px 14px; margin-bottom:12px;} @media print{.btn-print{display:none;}}`;
+function pmDocumentHTML(s, pentruDoc){
+  const eleviS = pmElevi(s);
+  const rows = eleviS.map((e,i)=>{
+    const sg = s.semnaturi && s.semnaturi[e.id];
+    const inactiv = esteInactiv(e);
+    return `<tr><td style="width:36px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td></tr>`;
+  }).join('');
+  const sgI = s.semnInstructor ? `<img src="${s.semnInstructor}" style="height:44px;" alt="semnătură"/>` : '______________';
+  return `<h1>PROCES-VERBAL DE INSTRUIRE ÎN DOMENIUL PROTECȚIEI MUNCII</h1>
+  <div class="sub">${escapeHtml(pmScoala())} · An școlar ${escapeHtml(state.settings.anScolar||'')}<br>
+  Clasa ${escapeHtml(claseNume(s.claseId))} · Data ${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')}</div>
+  ${pmTextHTML(s.text)}
+  <table><thead><tr><th>Nr.</th><th>Numele și prenumele elevului</th><th>Semnătura</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="sem"><span>Instructor (profesor),<br>${escapeHtml(s.instructor||pmInstructor())}<br>${sgI}</span><span>Director,<br><br>______________</span></div>`;
+}
+function pmDeschideTipar(s){
+  const w = window.open('', '_blank');
+  if(!w){ showToast('Permite ferestrele noi pentru a tipări.'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>Proces-verbal protecția muncii ${escapeHtml(claseNume(s.claseId))}</title><style>${PM_STIL_DOC}</style></head><body><button class="btn-print" onclick="window.print()">🖨 Tipărește / Salvează PDF</button>${pmDocumentHTML(s)}</body></html>`);
+  w.document.close();
+}
+function pmDescarcaDoc(nume, corpHTML){
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${escapeHtml(nume)}</title><style>${PM_STIL_DOC}</style></head><body>${corpHTML}</body></html>`;
+  const blob = new Blob(['﻿', html], {type:'application/msword'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nume + '.doc';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+// chenar mare de semnătură: creion (cu apăsare) sau deget; la salvare se taie marginile goale, ca imaginea să rămână mică
+function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator}){
+  const b = smModal(`<h3 style="margin-bottom:4px;">${escapeHtml(titlu)}</h3>
+    <p class="tab-desc" style="margin:0 0 8px;">Semnează în chenar, cu creionul sau cu degetul.</p>
+    <div style="border:3px solid var(--infield); border-radius:12px; background:#fff; touch-action:none;">
+      <canvas id="pm-canvas" style="display:block; width:100%; height:min(46vh, 320px); touch-action:none; border-radius:10px;"></canvas>
+    </div>
+    <div class="row" style="justify-content:space-between; gap:8px; margin-top:12px; flex-wrap:wrap;">
+      <div style="display:flex; gap:8px;"><button class="btn btn-ghost" id="pm-sterge">↺ Șterge și reia</button>${areExistenta?'<button class="btn btn-danger" id="pm-elimina">Elimină semnătura</button>':''}</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-ghost" id="pm-anuleaza">Anulează</button>
+        ${areUrmator?'<button class="btn btn-secondary" id="pm-salveaza-urm">Salvează și următorul →</button>':''}
+        <button class="btn btn-primary" id="pm-salveaza">Salvează</button></div>
+    </div>`);
+  b.querySelector('.modal').style.maxWidth = '760px'; b.querySelector('.modal').style.width = 'min(94vw, 760px)';
+  const cv = b.querySelector('#pm-canvas');
+  const rect = cv.getBoundingClientRect(), dpr = Math.max(window.devicePixelRatio||1, 2);
+  cv.width = Math.round(rect.width*dpr); cv.height = Math.round(rect.height*dpr);
+  const ctx = cv.getContext('2d'); ctx.scale(dpr,dpr); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0b2a6f';
+  let deseneaza = false, ultim = null, areTrasaturi = false;
+  const poz = ev=>{ const r = cv.getBoundingClientRect(); return {x:ev.clientX-r.left, y:ev.clientY-r.top, p:(ev.pointerType==='pen' && ev.pressure>0) ? ev.pressure : 0.5}; };
+  cv.addEventListener('pointerdown', ev=>{ ev.preventDefault(); cv.setPointerCapture(ev.pointerId); deseneaza = true; ultim = poz(ev); areTrasaturi = true;
+    ctx.beginPath(); ctx.fillStyle = '#0b2a6f'; ctx.arc(ultim.x, ultim.y, 1.2, 0, 6.3); ctx.fill(); });
+  cv.addEventListener('pointermove', ev=>{ if(!deseneaza) return; ev.preventDefault();
+    const evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
+    (evs.length?evs:[ev]).forEach(e2=>{ const p = poz(e2); ctx.lineWidth = 1.4 + p.p*3.2; ctx.beginPath(); ctx.moveTo(ultim.x, ultim.y); ctx.lineTo(p.x, p.y); ctx.stroke(); ultim = p; }); });
+  const opreste = ev=>{ deseneaza = false; };
+  cv.addEventListener('pointerup', opreste); cv.addEventListener('pointercancel', opreste); cv.addEventListener('pointerleave', opreste);
+  const exporta = ()=>{
+    const w = cv.width, h = cv.height, d = ctx.getImageData ? cv.getContext('2d').getImageData(0,0,w,h).data : null;
+    let x0=w, y0=h, x1=0, y1=0;
+    for(let y=0;y<h;y+=2){ for(let x=0;x<w;x+=2){ if(d[(y*w+x)*4+3]>20){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } } }
+    if(x1<=x0 || y1<=y0) return null;
+    const m = 8*dpr/2; x0=Math.max(0,x0-m); y0=Math.max(0,y0-m); x1=Math.min(w,x1+m); y1=Math.min(h,y1+m);
+    const cw = x1-x0, ch = y1-y0, sc = Math.min(1, 360/cw);
+    const o = document.createElement('canvas'); o.width = Math.max(1,Math.round(cw*sc)); o.height = Math.max(1,Math.round(ch*sc));
+    o.getContext('2d').drawImage(cv, x0, y0, cw, ch, 0, 0, o.width, o.height);
+    return o.toDataURL('image/png');
+  };
+  b.querySelector('#pm-sterge').onclick = ()=>{ ctx.clearRect(0,0,rect.width,rect.height); areTrasaturi = false; };
+  b.querySelector('#pm-anuleaza').onclick = smClose;
+  const elimina = b.querySelector('#pm-elimina'); if(elimina) elimina.onclick = ()=>{ smClose(); laSters(); };
+  const salveaza = urm=>{ const img = exporta(); if(!img){ showToast('Semnează mai întâi în chenar.'); return; } smClose(); laSalvat(img, urm); };
+  b.querySelector('#pm-salveaza').onclick = ()=>salveaza(false);
+  const su = b.querySelector('#pm-salveaza-urm'); if(su) su.onclick = ()=>salveaza(true);
+}
+function renderProtectiaMuncii(main){
+  pmInit();
+  if(state.clase.length && (!ui.pmClasa || !claseActive().find(c=>c.id===ui.pmClasa))) ui.pmClasa = claseActive()[0] ? claseActive()[0].id : null;
+  const sesiune = ui.pmSesiune ? state.pm.sesiuni.find(s=>s.id===ui.pmSesiune) : null;
+  if(ui.pmSesiune && !sesiune) ui.pmSesiune = null;
+  if(sesiune) return renderPMSesiune(main, sesiune);
+  const sesClasa = ui.pmClasa ? pmSesiuniClasa(ui.pmClasa) : [];
+  main.innerHTML = `
+    <h2>Protecția muncii</h2>
+    <p class="tab-desc">Instructajul de protecția muncii pentru orele de educație fizică și sport: textul normelor (îl poți modifica și descărca) și procesele-verbale pe clase, semnate de elevi pe tabletă.</p>
+    <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Procese-verbale pe clase</div>
+      ${state.clase.length===0 ? '<div style="color:var(--muted);">Adaugă mai întâi clase și elevi.</div>' : `
+      <div class="row" style="align-items:flex-end; margin-bottom:10px;">
+        <div class="field"><label>Clasă</label><select id="pm-clasa">${claseActive().map(c=>`<option value="${c.id}" ${c.id===ui.pmClasa?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}</select></div>
+        <div class="field"><label>Data instructajului</label><input type="date" id="pm-data-noua" value="${todayISO()}"/></div>
+        <div class="field" style="flex:1; min-width:220px;"><label>Tema</label><input type="text" id="pm-tema-noua" value="Instructaj de protecția muncii la orele de educație fizică și sport"/></div>
+        <button class="btn btn-primary" id="pm-adauga">+ Proces-verbal nou</button>
+      </div>
+      ${sesClasa.length===0 ? '<div style="color:var(--muted);">Niciun proces-verbal pentru această clasă. Apasă „+ Proces-verbal nou”.</div>' : `
+      <table><thead><tr><th>Data</th><th>Tema</th><th>Semnături</th><th></th></tr></thead><tbody>
+      ${sesClasa.map(s=>{ const st = pmStatSemnat(s); return `<tr><td>${formatDataRo(s.data)}</td><td>${escapeHtml(s.tema||'')}</td>
+        <td><span class="pill ${st.semnat===st.total && st.total>0 ? 'pill-ok':'pill-yellow'}">${st.semnat} / ${st.total}</span></td>
+        <td style="white-space:nowrap;"><button class="btn btn-secondary" data-pm-deschide="${s.id}">Deschide</button> <button class="btn btn-ghost" data-pm-sterge="${s.id}">Șterge</button></td></tr>`; }).join('')}
+      </tbody></table>`}`}
+    </div>
+    <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Textul instructajului (normele)</div>
+      <p class="tab-desc" style="margin-top:-2px;">Editează liber textul: începe un rând cu „## ” ca să-l faci titlu de secțiune. Procesele-verbale noi păstrează textul de la momentul creării lor, deci cele vechi nu se schimbă. Verifică normele cu regulamentul și cu responsabilul de protecția muncii din școală.</p>
+      <textarea id="pm-text" style="width:100%; min-height:320px; font-size:14px; line-height:1.4; padding:10px;">${escapeHtml(state.pm.text)}</textarea>
+      <div class="row" style="margin-top:10px; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="pm-salveaza-text">Salvează textul</button>
+        <button class="btn btn-secondary" id="pm-descarca-text">⬇ Descarcă (Word)</button>
+        <button class="btn btn-secondary" id="pm-tipareste-text">🖨 Tipărește / PDF</button>
+        <button class="btn btn-ghost" id="pm-reset-text">Revino la textul propus</button>
+      </div>
+    </div>
+    <p class="tab-desc">Semnătura desenată pe ecran este o imagine păstrată în aplicație. Verifică cu directorul dacă școala o acceptă ca proces-verbal; dacă nu, tipărești tabelul și îl semnezi pe hârtie. Semnăturile sunt date personale ale elevilor și se salvează odată cu restul datelor din aplicație, inclusiv în copia de siguranță și la sincronizare.</p>`;
+  const selC = document.getElementById('pm-clasa'); if(selC) selC.addEventListener('change', e=>{ ui.pmClasa = e.target.value; render(); });
+  const bAd = document.getElementById('pm-adauga');
+  if(bAd) bAd.addEventListener('click', ()=>{
+    if(!ui.pmClasa) return;
+    const data = document.getElementById('pm-data-noua').value || todayISO();
+    const tema = document.getElementById('pm-tema-noua').value.trim() || 'Instructaj de protecția muncii';
+    const s = {id:uid(), claseId:ui.pmClasa, data, tema, text:state.pm.text, instructor:pmInstructor(), semnaturi:{}, semnInstructor:null, creat:new Date().toISOString()};
+    state.pm.sesiuni.push(s); ui.pmSesiune = s.id; saveState(); render();
+  });
+  main.querySelectorAll('[data-pm-deschide]').forEach(b=>b.addEventListener('click', ()=>{ ui.pmSesiune = b.dataset.pmDeschide; render(); }));
+  main.querySelectorAll('[data-pm-sterge]').forEach(b=>b.addEventListener('click', ()=>{
+    if(!confirm('Ștergi procesul-verbal și toate semnăturile din el?')) return;
+    state.pm.sesiuni = state.pm.sesiuni.filter(s=>s.id!==b.dataset.pmSterge); saveState(); render(); showToast('Proces-verbal șters.');
+  }));
+  document.getElementById('pm-salveaza-text').addEventListener('click', ()=>{ state.pm.text = document.getElementById('pm-text').value; saveState(); showToast('Text salvat ✓'); });
+  const titluDoc = ()=>`<h1>INSTRUCTAJ DE PROTECȚIA MUNCII LA ORELE DE EDUCAȚIE FIZICĂ ȘI SPORT</h1><div class="sub">${escapeHtml(pmScoala())} · An școlar ${escapeHtml(state.settings.anScolar||'')}</div>`;
+  document.getElementById('pm-descarca-text').addEventListener('click', ()=>{ state.pm.text = document.getElementById('pm-text').value; saveState(); pmDescarcaDoc('Instructaj_protectia_muncii_EFS', titluDoc()+pmTextHTML(state.pm.text)); });
+  document.getElementById('pm-tipareste-text').addEventListener('click', ()=>{
+    state.pm.text = document.getElementById('pm-text').value; saveState();
+    const w = window.open('', '_blank'); if(!w){ showToast('Permite ferestrele noi pentru a tipări.'); return; }
+    w.document.write(`<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>Instructaj protecția muncii</title><style>${PM_STIL_DOC}</style></head><body><button class="btn-print" onclick="window.print()">🖨 Tipărește / Salvează PDF</button>${titluDoc()}${pmTextHTML(state.pm.text)}</body></html>`); w.document.close();
+  });
+  document.getElementById('pm-reset-text').addEventListener('click', ()=>{
+    if(!confirm('Înlocuiești textul de acum cu textul propus inițial? Modificările tale din text se pierd (procesele-verbale deja create nu se schimbă).')) return;
+    state.pm.text = PM_TEXT_IMPLICIT; saveState(); render();
+  });
+}
+function renderPMSesiune(main, s){
+  const eleviS = pmElevi(s);
+  const st = pmStatSemnat(s);
+  main.innerHTML = `
+    <div class="top-actions" style="justify-content:space-between; align-items:center;"><button class="btn btn-ghost" id="pm-inapoi">← Înapoi la procese-verbale</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-secondary" id="pm-doc">⬇ Descarcă (Word)</button><button class="btn btn-secondary" id="pm-tipar">🖨 Tipărește / PDF</button></div></div>
+    <h2>Proces-verbal — clasa ${escapeHtml(claseNume(s.claseId))}</h2>
+    <p class="tab-desc">${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')} · Semnat: <b>${st.semnat} / ${st.total}</b></p>
+    <details class="card" style="padding:10px;"><summary style="cursor:pointer; font-weight:700; color:var(--infield);">Textul instructajului citit elevilor</summary><div style="margin-top:8px; font-size:14px;">${pmTextHTML(s.text)}</div></details>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table><thead><tr><th>Nr.</th><th>Elev</th><th>Semnătura</th></tr></thead><tbody>
+      ${eleviS.map((e,i)=>{ const sg = s.semnaturi && s.semnaturi[e.id];
+        if(!pmPotSemna(e)) return `<tr class="rand-inactiv"><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${motivBlocareHTML(e,true)}</td><td style="color:var(--muted);">—</td></tr>`;
+        return `<tr><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
+          <td>${sg ? `<img src="${sg}" data-pm-elev="${e.id}" style="height:44px; cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 6px;" title="Atinge pentru a semna din nou"/>`
+                   : `<button class="btn btn-secondary" data-pm-elev="${e.id}">✍ Semnează</button>`}</td></tr>`; }).join('')}
+      </tbody></table>
+    </div>
+    <div class="card"><div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Instructor — ${escapeHtml(s.instructor||pmInstructor())}</div>
+      ${s.semnInstructor ? `<img src="${s.semnInstructor}" id="pm-sg-instr" style="height:50px; cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 8px;" title="Atinge pentru a semna din nou"/>` : `<button class="btn btn-secondary" id="pm-sg-instr">✍ Semnează ca instructor</button>`}
+    </div>
+    <div class="row"><div class="field"><label>Data</label><input type="date" id="pm-data" value="${s.data}"/></div>
+      <div class="field" style="flex:1; min-width:220px;"><label>Tema</label><input type="text" id="pm-tema" value="${escapeHtml(s.tema||'')}"/></div></div>`;
+  document.getElementById('pm-inapoi').addEventListener('click', ()=>{ ui.pmSesiune = null; render(); });
+  document.getElementById('pm-tipar').addEventListener('click', ()=>pmDeschideTipar(s));
+  document.getElementById('pm-doc').addEventListener('click', ()=>pmDescarcaDoc('Proces_verbal_PM_'+claseNume(s.claseId).replace(/\s+/g,'_'), pmDocumentHTML(s, true)));
+  document.getElementById('pm-data').addEventListener('change', e=>{ s.data = e.target.value || s.data; saveState(); });
+  document.getElementById('pm-tema').addEventListener('input', e=>{ s.tema = e.target.value; saveState(); });
+  const eligibili = eleviS.filter(pmPotSemna);
+  const semneaza = (eleviId)=>{
+    const e = state.elevi.find(x=>x.id===eleviId); if(!e) return;
+    const urmatorulNesemnat = ()=>{ const i = eligibili.findIndex(x=>x.id===eleviId); return eligibili.slice(i+1).find(x=>!(s.semnaturi && s.semnaturi[x.id])) || null; };
+    const urm = urmatorulNesemnat();
+    pmDeschideSemnatura({
+      titlu: `${e.nume} ${e.prenume} — semnătura`, areExistenta: !!(s.semnaturi && s.semnaturi[eleviId]), areUrmator: !!urm,
+      laSalvat: (img, treciUrmator)=>{ if(!s.semnaturi) s.semnaturi = {}; s.semnaturi[eleviId] = img; saveState(); render(); if(treciUrmator && urm) semneaza(urm.id); },
+      laSters: ()=>{ delete s.semnaturi[eleviId]; saveState(); render(); }
+    });
+  };
+  main.querySelectorAll('[data-pm-elev]').forEach(el=>el.addEventListener('click', ()=>semneaza(el.dataset.pmElev)));
+  document.getElementById('pm-sg-instr').addEventListener('click', ()=>pmDeschideSemnatura({
+    titlu: 'Semnătura instructorului', areExistenta: !!s.semnInstructor, areUrmator: false,
+    laSalvat: img=>{ s.semnInstructor = img; saveState(); render(); }, laSters: ()=>{ s.semnInstructor = null; saveState(); render(); }
+  }));
+}
+
 function renderTab(){
   const main = document.getElementById('main');
   if(currentTab==='dashboard') return renderDashboard(main);
@@ -1286,6 +1573,7 @@ function renderTab(){
   if(currentTab==='istoric') return renderIstoric(main);
   if(currentTab==='practica') return renderPractica(main);
   if(currentTab==='scutiri') return renderScutiri(main);
+  if(currentTab==='protectia') return renderProtectiaMuncii(main);
   if(currentTab==='arhiva') return renderArhiva(main);
   if(currentTab==='module') return renderModule(main);
   if(currentTab==='ppp') return renderPPP(main);

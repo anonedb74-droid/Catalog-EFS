@@ -1410,7 +1410,7 @@ function pmDocumentHTML(s, pentruDoc){
   <div class="sub">${escapeHtml(pmScoala())} · An școlar ${escapeHtml(state.settings.anScolar||'')}<br>
   Clasa ${escapeHtml(claseNume(s.claseId))} · Data ${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')}</div>
   ${pmTextHTML(s.text)}
-  <table><thead><tr><th>Nr.</th><th>Numele și prenumele elevului</th><th>Semnătura<div style="font-weight:400; font-size:11px;">Am participat la instruire și semnez procesul-verbal.</div></th><th>Observații</th><th>Probleme de sănătate</th></tr></thead><tbody>${rows}</tbody></table>
+  <table><thead><tr><th>Nr.</th><th>Numele și prenumele elevului</th><th>Semnătura<div style="font-weight:400; font-size:11px;">Am fost instruit, am înțeles și mă oblig să respect normele. Voi anunța familia.</div></th><th>Observații</th><th>Probleme de sănătate</th></tr></thead><tbody>${rows}</tbody></table>
   <div class="sem"><span>Profesor de educație fizică și sport,<br>${escapeHtml(s.instructor||pmInstructor())}<br>${sgI}</span></div>`;
 }
 function pmDeschideTipar(s){
@@ -1430,7 +1430,7 @@ function pmDescarcaDoc(nume, corpHTML){
 // chenar mare de semnătură: creion (cu apăsare) sau deget; la salvare se taie marginile goale, ca imaginea să rămână mică
 function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator}){
   const b = smModal(`<h3 style="margin-bottom:4px;">${escapeHtml(titlu)}</h3>
-    <div style="margin:6px 0 10px; padding:10px 12px; border:2px solid #B33A1B; background:#FDEEE9; border-radius:8px; text-align:center; font-weight:800; font-size:22px; line-height:1.25; color:#B33A1B; letter-spacing:.3px;">AM PARTICIPAT LA INSTRUIRE ȘI SEMNEZ PROCESUL&#8209;VERBAL.</div>
+    <div style="margin:6px 0 10px; padding:10px 12px; border:2px solid #B33A1B; background:#FDEEE9; border-radius:8px; text-align:center; font-weight:800; font-size:22px; line-height:1.25; color:#B33A1B; letter-spacing:.3px;">AM FOST INSTRUIT, AM ÎNȚELES ȘI MĂ OBLIG SĂ RESPECT NORMELE. VOI ANUNȚA FAMILIA.</div>
     <p class="tab-desc" style="margin:0 0 8px;">Semnează în chenar, cu creionul sau cu degetul.</p>
     <div style="border:3px solid var(--infield); border-radius:12px; background:#fff; touch-action:none;">
       <canvas id="pm-canvas" style="display:block; width:100%; height:min(46vh, 320px); touch-action:none; border-radius:10px;"></canvas>
@@ -1522,9 +1522,9 @@ async function pmGenereazaPDF(s){
   // tabel
   const cols=[50,280,290,290,150]; const x0=M; const tw=cols.reduce((a,b)=>a+b,0);
   const xs=[x0]; cols.forEach((c,i)=>xs.push(xs[i]+c));
-  const antetTabel=()=>{ const HH=88; ajunge(HH+24); ctx.fillStyle='#e9e9e9'; ctx.fillRect(x0,y,tw,HH); ctx.fillStyle='#111'; ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.strokeRect(x0,y,tw,HH);
+  const antetTabel=()=>{ const HH=112; ajunge(HH+24); ctx.fillStyle='#e9e9e9'; ctx.fillRect(x0,y,tw,HH); ctx.fillStyle='#111'; ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.strokeRect(x0,y,tw,HH);
     ['Nr.','Elev','Semnătura','Observații','Sănătate'].forEach((t,i)=>{ font(21,true); ctx.fillText(t,xs[i]+8,y+11); if(i) { ctx.beginPath(); ctx.moveTo(xs[i],y); ctx.lineTo(xs[i],y+HH); ctx.stroke(); } });
-    wrap('Am participat la instruire și semnez procesul-verbal.',16,false,cols[2]-16).forEach((l,k)=>{ font(16,false); ctx.fillText(l,xs[2]+8,y+40+k*21); });
+    wrap('Am fost instruit, am înțeles și mă oblig să respect normele. Voi anunța familia.',16,false,cols[2]-16).forEach((l,k)=>{ font(16,false); ctx.fillText(l,xs[2]+8,y+40+k*21); });
     y+=HH; };
   antetTabel();
   eleviS.forEach((e,i)=>{
@@ -1658,7 +1658,7 @@ function renderPMSesiune(main, s){
     <p class="tab-desc">${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')} · Semnat: <b>${st.semnat} / ${st.total}</b></p>
     <details class="card" style="padding:10px;"><summary style="cursor:pointer; font-weight:700; color:var(--infield);">Textul instructajului citit elevilor</summary><div style="margin-top:8px; font-size:14px;">${pmTextHTML(s.text)}</div></details>
     <div class="card" style="padding:0; overflow-x:auto;">
-      <table><thead><tr><th>Nr.</th><th>Elev</th><th>Semnătura<div style="font-weight:400; font-size:11px;">Am participat la instruire și semnez procesul-verbal.</div></th><th>Observații</th><th>Probleme de sănătate</th></tr></thead><tbody>
+      <table><thead><tr><th>Nr.</th><th>Elev</th><th>Semnătura<div style="font-weight:400; font-size:11px;">Am fost instruit, am înțeles și mă oblig să respect normele. Voi anunța familia.</div></th><th>Observații</th><th>Probleme de sănătate</th></tr></thead><tbody>
       ${eleviS.map((e,i)=>{ const sg = s.semnaturi && s.semnaturi[e.id];
         if(!pmPotSemna(e)) return `<tr class="rand-inactiv"><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${motivBlocareHTML(e,true)}</td><td style="color:var(--muted);">—</td><td style="color:var(--muted);">—</td><td style="color:var(--muted);">—</td></tr>`;
         return `<tr><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>

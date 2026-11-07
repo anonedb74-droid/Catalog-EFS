@@ -1672,11 +1672,11 @@ function renderProtectiaMuncii(main){
         const ss = pmSesiuniClasa(c.id); const u = ss[0]; const st = u ? pmStatSemnat(u) : null;
         const elevi = eleviDinClasa(c.id).filter(pmPotSemna);
         const nesem = u ? elevi.filter(e=>!(u.semnaturi && u.semnaturi[e.id])) : elevi;
-        const stare = !u ? '<span class="pill" style="background:#F6D5D0; color:#B33A1B;">Neefectuat</span>' : (st.semnat===st.total && st.total>0 ? '<span class="pill pill-ok">Complet</span>' : '<span class="pill pill-yellow">În curs</span>');
+        const stare = !u ? '<span class="pill" style="background:#F6D5D0; color:#B33A1B;">Neefectuat</span>' : (st.semnat===st.total && st.total>0 ? '<span class="pill pill-ok">Complet</span>' : (u.inchis ? '<span class="pill pill-ok">Închis</span>' : '<span class="pill pill-yellow">În curs</span>'));
         return `<tr><td style="font-weight:700;">${escapeHtml(c.nume)}</td>
           <td>${u ? formatDataRo(u.data) : '—'} ${stare}</td>
           <td>${u ? `<b>${st.semnat} / ${st.total}</b>` : `0 / ${elevi.length}`}</td>
-          <td style="white-space:nowrap;">${u ? `<button class="btn btn-secondary" data-pm-deschide="${u.id}">Deschide</button> <button class="btn btn-secondary" data-pm-pdf="${u.id}">⬇ PDF</button> <button class="btn btn-secondary" data-pm-print="${u.id}">🖨 Tipărește</button>` : `<button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ Proces-verbal</button>`}</td></tr>
+          <td style="white-space:nowrap;">${u ? `<button class="btn btn-secondary" data-pm-deschide="${u.id}">Deschide</button> <button class="btn btn-secondary" data-pm-pdf="${u.id}">⬇ PDF</button> <button class="btn btn-secondary" data-pm-print="${u.id}">🖨 Tipărește</button>${u.inchis && nesem.length ? ` <button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ PV pentru nesemnați</button>` : ''}` : `<button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ Proces-verbal</button>`}</td></tr>
           ${u && nesem.length ? `<tr><td colspan="4" style="font-size:12px; color:#1F4E8C; border-top:none; padding-top:0;">Nesemnat (${nesem.length}): ${nesem.map(e=>escapeHtml(e.nume+' '+e.prenume)).join(', ')}</td></tr>` : ''}`; }).join('')}
       </tbody></table></div>
       <div class="row" style="margin-top:10px; gap:8px; align-items:center; flex-wrap:wrap;"><button class="btn btn-secondary" id="pm-semn-toate">✍ Pune semnătura mea pe toate procesele-verbale</button><span style="font-size:12px; color:var(--muted);">Se ia semnătura ta din ultimul proces-verbal semnat de tine (ex. IX G) și se aplică celorlalte; cele noi o primesc automat.</span></div>
@@ -1760,9 +1760,9 @@ function renderPMSesiune(main, s){
   const st = pmStatSemnat(s);
   main.innerHTML = `
     <div class="top-actions" style="justify-content:space-between; align-items:center;"><button class="btn btn-ghost" id="pm-inapoi">← Înapoi la procese-verbale</button>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-primary" id="pm-pdf">⬇ Descarcă PDF</button><button class="btn btn-secondary" id="pm-tipar">🖨 Tipărește</button></div></div>
-    <h2>Proces-verbal — clasa ${escapeHtml(claseNume(s.claseId))}</h2>
-    <p class="tab-desc">${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')} · Semnat: <b>${st.semnat} / ${st.total}</b></p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-primary" id="pm-pdf">⬇ Descarcă PDF</button><button class="btn btn-secondary" id="pm-tipar">🖨 Tipărește</button>${s.inchis ? '<button class="btn btn-secondary" id="pm-redeschide">↺ Redeschide</button>' : '<button class="btn btn-secondary" id="pm-inchide" style="border-color:var(--ok); color:var(--ok);">✔ Închide procesul-verbal</button>'}</div></div>
+    <h2>Proces-verbal — clasa ${escapeHtml(claseNume(s.claseId))} ${s.inchis ? '<span class="pill pill-ok" style="font-size:13px;">Închis</span>' : ''}</h2>
+    <p class="tab-desc">${formatDataRo(s.data)} · ${escapeHtml(s.tema||'')} · Semnat: <b>${st.semnat} / ${st.total}</b>${s.inchis ? ` · închis la ${formatDataRo(s.inchis)}${st.total-st.semnat>0?` · <b>${st.total-st.semnat} nesemnat${st.total-st.semnat===1?'':'e'}</b> (rămân marcați „PM nesemnat”)`:''}` : ''}</p>
     <details class="card" style="padding:10px;"><summary style="cursor:pointer; font-weight:700; color:var(--infield);">Textul instructajului citit elevilor</summary><div style="margin-top:8px; font-size:14px;">${pmTextHTML(s.text)}</div></details>
     <div class="card" style="padding:0; overflow-x:auto;">
       <table><thead><tr><th>Nr.</th><th>Elev</th><th>Semnătura<div style="font-weight:400; font-size:11px;">Am fost instruit, am înțeles și mă oblig să respect normele. Voi anunța familia.</div></th><th>Observații</th><th>Probleme de sănătate</th></tr></thead><tbody>
@@ -1781,6 +1781,15 @@ function renderPMSesiune(main, s){
     <div class="row"><div class="field"><label>Data</label><input type="date" id="pm-data" value="${s.data}"/></div>
       <div class="field" style="flex:1; min-width:220px;"><label>Tema</label><input type="text" id="pm-tema" value="${escapeHtml(s.tema||'')}"/></div></div>`;
   document.getElementById('pm-inapoi').addEventListener('click', ()=>{ ui.pmSesiune = null; render(); });
+  const bInch = document.getElementById('pm-inchide');
+  if(bInch) bInch.addEventListener('click', ()=>{
+    const lipsa = st.total - st.semnat;
+    const msg = lipsa>0 ? `${lipsa} elevi nu au semnat. Rămân marcați „✍ PM nesemnat” până semnează într-un alt proces-verbal. Închizi procesul-verbal?` : 'Toți elevii au semnat. Închizi procesul-verbal?';
+    if(!confirm(msg)) return;
+    s.inchis = todayISO(); saveState(); ui.pmSesiune = null; render(); showToast('Procesul-verbal a fost închis ✓');
+  });
+  const bRed = document.getElementById('pm-redeschide');
+  if(bRed) bRed.addEventListener('click', ()=>{ delete s.inchis; saveState(); render(); showToast('Procesul-verbal a fost redeschis.'); });
   document.getElementById('pm-tipar').addEventListener('click', ()=>pmDeschideTipar(s));
   document.getElementById('pm-pdf').addEventListener('click', ()=>pmDescarcaPDF(s));
   // bifa „probleme de sănătate”: se bifează/debifează doar aici; marcajul apare în tot catalogul până o debifezi
@@ -1796,6 +1805,7 @@ function renderPMSesiune(main, s){
   const eligibili = eleviS.filter(pmPotSemna);
   const semneaza = (eleviId)=>{
     const e = state.elevi.find(x=>x.id===eleviId); if(!e) return;
+    if(s.inchis){ showToast('Procesul-verbal este închis. Apasă „Redeschide” ca să mai semneze cineva.'); return; }
     const urmatorulNesemnat = ()=>{ const i = eligibili.findIndex(x=>x.id===eleviId); return eligibili.slice(i+1).find(x=>!(s.semnaturi && s.semnaturi[x.id])) || null; };
     const urm = urmatorulNesemnat();
     pmDeschideSemnatura({

@@ -190,24 +190,24 @@
   }
   /* ---------- BARA DE JOS PE TABLETĂ: butoane mai mari, în chenar, cu numele secțiunii mai mare ---------- */
   @media (min-width:560px) and (max-width:1100px){
-    nav.bottombar{align-items:stretch; gap:6px; padding:8px 8px calc(8px + env(safe-area-inset-bottom)); overflow-x:auto; scrollbar-width:none;}
+    nav.bottombar{align-items:stretch; gap:5px; padding:5px 6px calc(5px + env(safe-area-inset-bottom)); overflow-x:auto; scrollbar-width:none;}
     nav.bottombar::-webkit-scrollbar{display:none;}
-    nav.bottombar button{flex:0 0 112px !important; padding:8px 4px 9px !important; gap:5px; border:2px solid rgba(255,255,255,.45); border-radius:12px; background:rgba(255,255,255,.06); font-size:15px;}
-    nav.bottombar button span{font-size:15px !important; font-weight:700; line-height:1.15;}
-    nav.bottombar button svg{width:28px; height:28px;}
+    nav.bottombar button{flex:0 0 94px !important; padding:5px 3px 6px !important; gap:2px; border:2px solid rgba(255,255,255,.45); border-radius:10px; background:rgba(255,255,255,.06);}
+    nav.bottombar button span{font-size:13px !important; font-weight:700; line-height:1.1;}
+    nav.bottombar button svg{width:22px; height:22px;}
     nav.bottombar button.active{background:rgba(255,255,255,.2); border-color:var(--track);}
   }
   @media (min-width:560px) and (max-width:760px){
-    main{padding-bottom:calc(128px + env(safe-area-inset-bottom)) !important;}
+    main{padding-bottom:calc(94px + env(safe-area-inset-bottom)) !important;}
   }
   /* telefon: același chenar în jurul fiecărei secțiuni din bara de jos, ceva mai îngust */
   @media (max-width:559px){
     nav.bottombar{align-items:stretch; gap:5px; padding:6px 6px calc(6px + env(safe-area-inset-bottom)) !important;}
-    nav.bottombar button{flex:0 0 80px !important; padding:6px 3px 7px !important; gap:3px; border:2px solid rgba(255,255,255,.45); border-radius:10px; background:rgba(255,255,255,.06);}
-    nav.bottombar button span{font-size:12px !important; font-weight:700;}
-    nav.bottombar button svg{width:22px; height:22px;}
+    nav.bottombar button{flex:0 0 74px !important; padding:4px 2px 5px !important; gap:2px; border:2px solid rgba(255,255,255,.45); border-radius:10px; background:rgba(255,255,255,.06);}
+    nav.bottombar button span{font-size:11.5px !important; font-weight:700;}
+    nav.bottombar button svg{width:20px; height:20px;}
     nav.bottombar button.active{background:rgba(255,255,255,.2); border-color:var(--track);}
-    main{padding-bottom:calc(104px + env(safe-area-inset-bottom)) !important;}
+    main{padding-bottom:calc(86px + env(safe-area-inset-bottom)) !important;}
   }
   /* ---------- MOD COMPACT PE ECRAN ÎN PORTRET (tabletă) — mai mulți elevi vizibili pe pagină ---------- */
   @media (orientation: portrait){

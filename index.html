@@ -812,8 +812,18 @@ function sanatateTagHTML(e){
   const txt = areScutire ? 'Probleme sănătate · cu scutire' : `Probleme sănătate · fără adeverință (declarat ${formatDataRo(e.sanatateDecl.data)}${z>0?`, de ${z} ${z===1?'zi':'zile'}`:''})`;
   return `<span class="pill" title="Declarat la procesul-verbal de protecția muncii" style="margin-left:4px; padding:2px 8px; font-weight:700; font-size:12px; ${stil}">${escapeHtml(txt)}</span>`;
 }
+// elevul activ care nu a semnat încă niciun proces-verbal de protecția muncii (se poate opri din Protecția muncii)
+function pmElevNesemnat(e){
+  if(!e || esteInactiv(e) || !state.pm || !Array.isArray(state.pm.sesiuni)) return false;
+  if(state.settings && state.settings.pmMarcaj===false) return false;
+  return !state.pm.sesiuni.some(s=>s.semnaturi && s.semnaturi[e.id]);
+}
+function pmTagHTML(e){
+  if(!pmElevNesemnat(e)) return '';
+  return `<span class="pill" title="Nu a semnat procesul-verbal de instruire la protecția muncii" style="margin-left:4px; padding:1px 7px; font-size:11px; font-weight:700; background:#E3ECF8; color:#1F4E8C; border:1px solid #9DB8DD;">✍ PM nesemnat</span>`;
+}
 function cesTagHTML(e){
-  const sanatate = sanatateTagHTML(e);
+  const sanatate = sanatateTagHTML(e) + pmTagHTML(e);
   if(!e || !e.ces) return sanatate;
   return `<span class="pill pill-purple" title="${escapeHtml(e.cesDetalii||'')}" style="margin-left:4px; padding:1px 6px;">CES</span>` + sanatate;
 }
@@ -1655,6 +1665,23 @@ function renderProtectiaMuncii(main){
     <h2>Protecția muncii</h2>
     <p class="tab-desc">Instructajul de protecția muncii pentru orele de educație fizică și sport: textul normelor (îl poți modifica și descărca) și procesele-verbale pe clase, semnate de elevi pe tabletă.</p>
     <div class="card">
+      <div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Situația pe clase</div>
+      ${state.clase.length===0 ? '<div style="color:var(--muted);">Nicio clasă.</div>' : `
+      <div style="overflow-x:auto;"><table><thead><tr><th>Clasă</th><th>Instructaj</th><th>Semnat</th><th></th></tr></thead><tbody>
+      ${claseActive().map(c=>{
+        const ss = pmSesiuniClasa(c.id); const u = ss[0]; const st = u ? pmStatSemnat(u) : null;
+        const elevi = eleviDinClasa(c.id).filter(pmPotSemna);
+        const nesem = u ? elevi.filter(e=>!(u.semnaturi && u.semnaturi[e.id])) : elevi;
+        const stare = !u ? '<span class="pill" style="background:#F6D5D0; color:#B33A1B;">Neefectuat</span>' : (st.semnat===st.total && st.total>0 ? '<span class="pill pill-ok">Complet</span>' : '<span class="pill pill-yellow">În curs</span>');
+        return `<tr><td style="font-weight:700;">${escapeHtml(c.nume)}</td>
+          <td>${u ? formatDataRo(u.data) : '—'} ${stare}</td>
+          <td>${u ? `<b>${st.semnat} / ${st.total}</b>` : `0 / ${elevi.length}`}</td>
+          <td style="white-space:nowrap;">${u ? `<button class="btn btn-secondary" data-pm-deschide="${u.id}">Deschide</button> <button class="btn btn-secondary" data-pm-pdf="${u.id}">⬇ PDF</button> <button class="btn btn-secondary" data-pm-print="${u.id}">🖨 Tipărește</button>` : `<button class="btn btn-primary" data-pm-nou-clasa="${c.id}">+ Proces-verbal</button>`}</td></tr>
+          ${u && nesem.length ? `<tr><td colspan="4" style="font-size:12px; color:#1F4E8C; border-top:none; padding-top:0;">Nesemnat (${nesem.length}): ${nesem.map(e=>escapeHtml(e.nume+' '+e.prenume)).join(', ')}</td></tr>` : ''}`; }).join('')}
+      </tbody></table></div>
+      <label style="display:flex; gap:8px; align-items:center; margin-top:10px; font-size:13px; cursor:pointer;"><input type="checkbox" id="pm-marcaj" ${state.settings.pmMarcaj===false?'':'checked'} style="width:20px; height:20px;"/> Arată „✍ PM nesemnat” lângă numele elevilor care nu au semnat încă</label>`}
+    </div>
+    <div class="card">
       <div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Procese-verbale pe clase</div>
       ${state.clase.length===0 ? '<div style="color:var(--muted);">Adaugă mai întâi clase și elevi.</div>' : `
       <div class="row" style="align-items:flex-end; margin-bottom:10px;">
@@ -1682,6 +1709,13 @@ function renderProtectiaMuncii(main){
       </div>
     </div>
     <p class="tab-desc">Semnătura desenată pe ecran este o imagine păstrată în aplicație. Verifică cu directorul dacă școala o acceptă ca proces-verbal; dacă nu, tipărești tabelul și îl semnezi pe hârtie. Semnăturile sunt date personale ale elevilor și se salvează odată cu restul datelor din aplicație, inclusiv în copia de siguranță și la sincronizare.</p>`;
+  main.querySelectorAll('[data-pm-pdf]').forEach(b=>b.addEventListener('click', ()=>{ const x=state.pm.sesiuni.find(z=>z.id===b.dataset.pmPdf); if(x) pmDescarcaPDF(x); }));
+  main.querySelectorAll('[data-pm-print]').forEach(b=>b.addEventListener('click', ()=>{ const x=state.pm.sesiuni.find(z=>z.id===b.dataset.pmPrint); if(x) pmDeschideTipar(x); }));
+  main.querySelectorAll('[data-pm-nou-clasa]').forEach(b=>b.addEventListener('click', ()=>{
+    const x = {id:uid(), claseId:b.dataset.pmNouClasa, data:todayISO(), tema:'Instructaj de protecția muncii la orele de educație fizică și sport', text:state.pm.text, instructor:pmInstructor(), semnaturi:{}, semnInstructor:null, creat:new Date().toISOString()};
+    state.pm.sesiuni.push(x); ui.pmClasa = x.claseId; ui.pmSesiune = x.id; saveState(); render();
+  }));
+  const chM = document.getElementById('pm-marcaj'); if(chM) chM.addEventListener('change', ()=>{ state.settings.pmMarcaj = chM.checked; saveState(); render(); });
   const selC = document.getElementById('pm-clasa'); if(selC) selC.addEventListener('change', e=>{ ui.pmClasa = e.target.value; render(); });
   const bAd = document.getElementById('pm-adauga');
   if(bAd) bAd.addEventListener('click', ()=>{

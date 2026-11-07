@@ -1311,6 +1311,9 @@ function render(){
 
 /* ================= TAB: PROTECȚIA MUNCII ================= */
 // Instructajul (textul normelor) se poate edita și descărca; procesele-verbale pe clase se semnează de elevi cu creionul / degetul pe tabletă.
+const PM_DECL = 'Am fost instruit, am înțeles și mă oblig să respect normele. Voi anunța familia.';
+// coloana Observații: dacă elevul a semnat apare declarația; dacă nu, motivul scris de profesor
+function pmObsText(s,e){ return (s.semnaturi && s.semnaturi[e.id]) ? PM_DECL : ((s.obs&&s.obs[e.id])||''); }
 const PM_TEXT_IMPLICIT = `## Temei legal
 Legea securității și sănătății în muncă nr. 319/2006 și normele ei metodologice de aplicare (H.G. nr. 1425/2006); Legea învățământului preuniversitar nr. 198/2023; Regulamentul de organizare și funcționare a unităților de învățământ preuniversitar; Regulamentul intern și normele proprii de securitate și sănătate în muncă ale școlii; reglementările în vigoare privind educația fizică și sportul școlar. (Verifică actele cu cele aplicate în școala ta și completează-le dacă e nevoie.)
 
@@ -1403,7 +1406,7 @@ function pmDocumentHTML(s, pentruDoc){
   const rows = eleviS.map((e,i)=>{
     const sg = s.semnaturi && s.semnaturi[e.id];
     const inactiv = esteInactiv(e);
-    return `<tr><td style="width:30px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td><td style="font-size:12px;">${escapeHtml((s.obs&&s.obs[e.id])||'')}</td><td style="text-align:center; font-size:16px;">${e.sanatateDecl?'☑':'☐'}</td></tr>`;
+    return `<tr><td style="width:30px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td><td style="font-size:12px;">${escapeHtml(pmObsText(s,e))}</td><td style="text-align:center; font-size:16px;">${e.sanatateDecl?'☑':'☐'}</td></tr>`;
   }).join('');
   const sgI = s.semnInstructor ? `<img src="${s.semnInstructor}" style="height:44px;" alt="semnătură"/>` : '______________';
   return `<h1>PROCES-VERBAL DE INSTRUIRE ÎN DOMENIUL PROTECȚIEI MUNCII</h1>
@@ -1530,7 +1533,7 @@ async function pmGenereazaPDF(s){
   eleviS.forEach((e,i)=>{
     const inactiv=esteInactiv(e);
     const nume=wrap(`${e.nume} ${e.prenume}`+(inactiv?` (${etichetaSituatie(e)})`:''),21,false,cols[1]-16);
-    const ob=wrap((s.obs&&s.obs[e.id])||'',20,false,cols[3]-16);
+    const ob=wrap(pmObsText(s,e),20,false,cols[3]-16);
     const rh=Math.max(78, 16+nume.length*28, 16+ob.length*27);
     if(y+rh > H-M-30){ nou(); antetTabel(); }
     ctx.strokeStyle='#333'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y,tw,rh);
@@ -1664,7 +1667,7 @@ function renderPMSesiune(main, s){
         return `<tr><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
           <td>${sg ? `<img src="${sg}" data-pm-elev="${e.id}" style="height:44px; cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 6px;" title="Atinge pentru a semna din nou"/>`
                    : `<button class="btn btn-secondary" data-pm-elev="${e.id}">✍ Semnează</button>`}</td>
-          <td><input type="text" class="pm-obs" data-pm-obs="${e.id}" value="${escapeHtml((s.obs&&s.obs[e.id])||'')}" placeholder="observații" style="width:100%; min-width:140px;"/></td>
+          <td>${sg ? `<span style="font-size:12px; font-weight:700; color:var(--infield);">${escapeHtml(PM_DECL)}</span>` : `<input type="text" class="pm-obs" data-pm-obs="${e.id}" value="${escapeHtml((s.obs&&s.obs[e.id])||'')}" placeholder="de ce nu a semnat" style="width:100%; min-width:140px;"/>`}</td>
           <td style="text-align:center;"><label style="display:flex; flex-direction:column; align-items:center; gap:3px; font-size:12px; cursor:pointer;"><input type="checkbox" class="pm-sanatate" data-pm-sanatate="${e.id}" ${e.sanatateDecl?'checked':''} style="width:26px; height:26px;"/>${e.sanatateDecl?`<span style="color:#B33A1B; font-weight:700;">declarat ${formatDataRo(e.sanatateDecl.data)}</span>`:''}</label></td></tr>`; }).join('')}
       </tbody></table>
     </div>

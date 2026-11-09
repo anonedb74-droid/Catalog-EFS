@@ -1625,7 +1625,10 @@ async function pmGenereazaPDF(s){
   if(imgP){ const sc3=Math.min(300/imgP.width,90/imgP.height,1.6); ctx.drawImage(imgP,M,y+68,imgP.width*sc3,imgP.height*sc3); } else ctx.fillText('______________',M,y+80);
   // numerotare pagini
   pagini.forEach((c,i)=>{ const cx=c.getContext('2d'); cx.fillStyle='#666'; cx.font=`20px ${FONT}`; cx.textAlign='center'; cx.textBaseline='top'; cx.fillText(`Pagina ${i+1} / ${pagini.length}`, W/2, H-60); });
-  // PDF
+  return pdfDinCanvase(pagini, W, H);
+}
+// împachetează paginile desenate pe canvas într-un PDF A4 (JPEG, fără biblioteci)
+async function pdfDinCanvase(pagini, W, H){
   const jpgs=[]; for(const c of pagini){ const b=await new Promise(r=>c.toBlob(r,'image/jpeg',0.86)); jpgs.push(new Uint8Array(await b.arrayBuffer())); }
   const enc=new TextEncoder(), parts=[], offs=[]; let len=0;
   const push=d=>{ const u=typeof d==='string'?enc.encode(d):d; parts.push(u); len+=u.length; };
@@ -1824,6 +1827,53 @@ function renderPMSesiune(main, s){
     titlu: 'Semnătura profesorului', areExistenta: !!s.semnInstructor, areUrmator: false,
     laSalvat: img=>{ s.semnInstructor = img; state.pm.semnInstructor = img; saveState(); render(); }, laSters: ()=>{ s.semnInstructor = null; saveState(); render(); }
   }));
+}
+
+// ---- PDF „Elevi scutiți medical” (toți elevii sau o clasă, după selecția din secțiunea Scutiri) ----
+async function scutiriGenereazaPDF(lista, titluClasa){
+  const W=1240, H=1754, M=80, FONT='Arial, Helvetica, sans-serif';
+  const pagini=[]; let cv, ctx, y;
+  const font=(px,b)=>{ ctx.font=`${b?'bold ':''}${px}px ${FONT}`; };
+  const wrap=(txt,px,b,maxW)=>{ font(px,b); const cuv=String(txt).split(/\s+/).filter(Boolean); const out=[]; let cur='';
+    cuv.forEach(w=>{ const t=cur?cur+' '+w:w; if(ctx.measureText(t).width>maxW && cur){ out.push(cur); cur=w; } else cur=t; }); if(cur) out.push(cur); return out; };
+  const nou=()=>{ cv=document.createElement('canvas'); cv.width=W; cv.height=H; ctx=cv.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#111'; ctx.textBaseline='top'; ctx.textAlign='left'; y=M; pagini.push(cv); };
+  const cols=[60,330,120,260,330]; const tw=cols.reduce((a,b)=>a+b,0); const xs=[]; { let x=M; cols.forEach(c=>{ xs.push(x); x+=c; }); }
+  const antet=()=>{ const HH=52; ctx.fillStyle='#e9e9e9'; ctx.fillRect(M,y,tw,HH); ctx.fillStyle='#111'; ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.strokeRect(M,y,tw,HH);
+    ['Nr.','Elev','Clasă','Scutire','Motiv / observații'].forEach((t,i)=>{ font(22,true); ctx.fillText(t,xs[i]+8,y+14); if(i){ ctx.beginPath(); ctx.moveTo(xs[i],y); ctx.lineTo(xs[i],y+HH); ctx.stroke(); } }); y+=HH; };
+  nou();
+  ctx.textAlign='center'; font(36,true); ctx.fillText('ELEVI SCUTIȚI MEDICAL',W/2,y); y+=50;
+  font(24,false); ctx.fillText(`${pmScoala()} · An școlar ${state.settings.anScolar||''}`,W/2,y); y+=34;
+  ctx.fillText(`${titluClasa} · ${lista.length} ${lista.length===1?'elev':'elevi'} · situație la ${formatDataRo(todayISO())}`,W/2,y); y+=50; ctx.textAlign='left';
+  antet();
+  lista.forEach((e,i)=>{
+    const numeL=wrap(`${e.nume} ${e.prenume}`,22,false,cols[1]-16);
+    const tip = e.scutireTip==='totala_anuala' ? 'Totală anuală' : e.scutireTip==='partiala' ? 'Parțială'
+      : `Temporară (${e.scutireSubTip==='partiala'?'parțială':'totală'}) ${formatDataRo(e.scutireStart)}–${formatDataRo(e.scutireEnd)}`;
+    const activa = esteScutitActiv(e);
+    const felL=wrap(tip+(activa?'':' — expirată'),21,false,cols[3]-16);
+    const motL=wrap((e.motivScutire||'').trim()||'—',21,false,cols[4]-16);
+    const rh=Math.max(54, 16+numeL.length*28, 16+felL.length*27, 16+motL.length*27);
+    if(y+rh > H-M-40){ nou(); antet(); }
+    ctx.strokeStyle='#333'; ctx.lineWidth=1.5; ctx.strokeRect(M,y,tw,rh); for(let k=1;k<5;k++){ ctx.beginPath(); ctx.moveTo(xs[k],y); ctx.lineTo(xs[k],y+rh); ctx.stroke(); }
+    font(21,false); ctx.fillStyle='#111'; ctx.fillText(String(i+1),xs[0]+10,y+14);
+    numeL.forEach((l,k)=>{ font(22,false); ctx.fillText(l,xs[1]+8,y+13+k*28); });
+    font(21,false); ctx.fillText(claseNume(e.claseId),xs[2]+8,y+14);
+    felL.forEach((l,k)=>{ font(21,false); ctx.fillStyle=activa?'#111':'#888'; ctx.fillText(l,xs[3]+8,y+14+k*27); ctx.fillStyle='#111'; });
+    motL.forEach((l,k)=>{ font(21,false); ctx.fillText(l,xs[4]+8,y+14+k*27); });
+    y+=rh;
+  });
+  pagini.forEach((c,i)=>{ const cx=c.getContext('2d'); cx.fillStyle='#666'; cx.font=`20px ${FONT}`; cx.textAlign='center'; cx.textBaseline='top'; cx.fillText(`Pagina ${i+1} / ${pagini.length}`, W/2, H-M+10); });
+  return pdfDinCanvase(pagini, W, H);
+}
+async function scutiriDescarcaPDF(lista, titluClasa){
+  showToast('Pregătesc PDF-ul…');
+  try{
+    const blob = await scutiriGenereazaPDF(lista, titluClasa);
+    const nume = `Elevi_scutiti_medical_${titluClasa.replace(/[^A-Za-z0-9ĂÂÎȘȚăâîșț]+/g,'_')}_${todayISO()}.pdf`;
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nume; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    showToast('PDF pregătit ✓');
+  }catch(err){ console.error(err); showToast('Nu am putut crea PDF-ul.'); }
 }
 
 function renderTab(){
@@ -5069,6 +5119,7 @@ function renderScutiri(main){
         </select>
       </div>
       <div class="tab-desc" style="margin:0 0 8px;">Cele mai noi scutiri sunt sus.</div>
+      <button class="btn btn-primary" id="btn-scutiri-pdf" style="margin:0 0 8px;">⬇ Salvează PDF (${ui.scutireFiltruClasa ? escapeHtml(claseNume(ui.scutireFiltruClasa)) : 'toate clasele'})</button>
     </div>` : ''}
     ${scutiti.length===0 ? emptyState('Niciun elev scutit momentan.', 'Adaugă o scutire folosind formularul de mai sus.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
@@ -5149,6 +5200,12 @@ function renderScutiri(main){
   `;
   const selFiltruScutiri = document.getElementById('select-scutire-filtru');
   if(selFiltruScutiri) selFiltruScutiri.addEventListener('change', e=>{ ui.scutireFiltruClasa = e.target.value; render(); });
+  const btnScutPDF = document.getElementById('btn-scutiri-pdf');
+  if(btnScutPDF) btnScutPDF.addEventListener('click', ()=>{
+    const ordine = new Map(claseActive().map((c,i)=>[c.id,i]));
+    const lista = scutiti.slice().sort((a,b)=>(ordine.get(a.claseId)??999)-(ordine.get(b.claseId)??999) || (a.nume+' '+a.prenume).localeCompare(b.nume+' '+b.prenume,'ro'));
+    scutiriDescarcaPDF(lista, ui.scutireFiltruClasa ? 'Clasa '+claseNume(ui.scutireFiltruClasa) : 'Toate clasele');
+  });
   document.getElementById('select-scutire-clasa').addEventListener('change', e=>{
     ui.clasaCurenta = e.target.value; render();
   });

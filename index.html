@@ -1496,13 +1496,14 @@ function pmDescarcaDoc(nume, corpHTML){
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 }
 // chenar mare de semnătură: creion (cu apăsare) sau deget; la salvare se taie marginile goale, ca imaginea să rămână mică
-function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator}){
+function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator, laSarit}){
   const b = smModal(`<h3 style="margin-bottom:4px;">${escapeHtml(titlu)}</h3>
     <div style="margin:6px 0 10px; padding:10px 12px; border:2px solid #B33A1B; background:#FDEEE9; border-radius:8px; text-align:center; font-weight:800; font-size:22px; line-height:1.25; color:#B33A1B; letter-spacing:.3px;">AM FOST INSTRUIT, AM ÎNȚELES ȘI MĂ OBLIG SĂ RESPECT NORMELE. VOI ANUNȚA FAMILIA.</div>
     <p class="tab-desc" style="margin:0 0 8px;">Semnează în chenar, cu creionul sau cu degetul.</p>
     <div class="row" style="justify-content:space-between; gap:8px; margin:4px 0 12px; flex-wrap:wrap;">
       <div style="display:flex; gap:8px;"><button class="btn btn-ghost" id="pm-sterge">↺ Șterge și reia</button>${areExistenta?'<button class="btn btn-danger" id="pm-elimina">Elimină semnătura</button>':''}</div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-ghost" id="pm-anuleaza">Anulează</button>
+        ${areUrmator && laSarit?'<button class="btn btn-secondary" id="pm-sari">Sari peste (absent) →</button>':''}
         ${areUrmator?'<button class="btn btn-secondary" id="pm-salveaza-urm">Salvează și următorul →</button>':''}
         <button class="btn btn-primary" id="pm-salveaza">Salvează</button></div>
     </div>
@@ -1542,6 +1543,7 @@ function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator
   const elimina = b.querySelector('#pm-elimina'); if(elimina) elimina.onclick = ()=>{ smClose(); laSters(); };
   const salveaza = urm=>{ const img = exporta(); if(!img){ showToast('Semnează mai întâi în chenar.'); return; } smClose(); laSalvat(img, urm); };
   b.querySelector('#pm-salveaza').onclick = ()=>salveaza(false);
+  const sari = b.querySelector('#pm-sari'); if(sari) sari.onclick = ()=>{ smClose(); laSarit(); };
   const su = b.querySelector('#pm-salveaza-urm'); if(su) su.onclick = ()=>salveaza(true);
 }
 // ---- PDF pentru ePortofoliu: pagini A4 desenate pe canvas (cu semnăturile elevilor) și împachetate într-un PDF, fără biblioteci externe ----
@@ -1813,7 +1815,8 @@ function renderPMSesiune(main, s){
     pmDeschideSemnatura({
       titlu: `${e.nume} ${e.prenume} — semnătura`, areExistenta: !!(s.semnaturi && s.semnaturi[eleviId]), areUrmator: !!urm,
       laSalvat: (img, treciUrmator)=>{ if(!s.semnaturi) s.semnaturi = {}; s.semnaturi[eleviId] = img; saveState(); render(); if(treciUrmator && urm) semneaza(urm.id); },
-      laSters: ()=>{ delete s.semnaturi[eleviId]; saveState(); render(); }
+      laSters: ()=>{ delete s.semnaturi[eleviId]; saveState(); render(); },
+      laSarit: ()=>{ if(urm) semneaza(urm.id); }
     });
   };
   main.querySelectorAll('[data-pm-elev]').forEach(el=>el.addEventListener('click', ()=>semneaza(el.dataset.pmElev)));

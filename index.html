@@ -4327,6 +4327,33 @@ function renderNotare(main){
       if(tinta){ tinta.focus(); tinta.select(); }
     });
   });
+  // Bară „Următorul” deasupra tastaturii (telefon/tabletă): tastatura numerică de pe iPhone nu are tastă de next
+  window._notareCampuri = campuriNotare;
+  campuriNotare.forEach(inp=>inp.setAttribute('enterkeyhint','next'));
+  if(!document.getElementById('bara-next')){
+    const bara = document.createElement('div'); bara.id='bara-next';
+    bara.style.cssText='position:fixed; left:0; right:0; z-index:9999; display:none; gap:8px; padding:6px 8px; background:#e9ecea; border-top:1px solid #b9c2bd; box-shadow:0 -2px 6px rgba(0,0,0,.15);';
+    bara.innerHTML = '<button type="button" data-n="-1" style="flex:1; height:42px; font-size:16px; font-weight:700; border:1px solid #888; border-radius:8px; background:#fff;">◀ Înapoi</button><button type="button" data-n="1" style="flex:2; height:42px; font-size:17px; font-weight:800; border:0; border-radius:8px; background:#c0392b; color:#fff;">Următorul ▶</button><button type="button" data-n="0" style="flex:1; height:42px; font-size:16px; font-weight:700; border:1px solid #888; border-radius:8px; background:#fff;">Gata</button>';
+    document.body.appendChild(bara);
+    const pozitioneaza = ()=>{ const vv = window.visualViewport; bara.style.bottom = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px' : '0px'; };
+    if(window.visualViewport){ window.visualViewport.addEventListener('resize', pozitioneaza); window.visualViewport.addEventListener('scroll', pozitioneaza); }
+    // pointerdown cu preventDefault: câmpul nu pierde focusul, deci tastatura rămâne deschisă
+    ['pointerdown','mousedown'].forEach(t=>bara.addEventListener(t, ev=>ev.preventDefault()));
+    bara.addEventListener('click', ev=>{
+      const b = ev.target.closest('button'); if(!b) return;
+      const lista = window._notareCampuri || []; const act = document.activeElement; const i = lista.indexOf(act);
+      const d = Number(b.dataset.n);
+      if(d===0){ if(act && act.blur) act.blur(); bara.style.display='none'; return; }
+      const t = lista[i + d];
+      if(t){ t.focus(); try{ t.select(); }catch(e){} t.scrollIntoView({block:'center', behavior:'smooth'}); }
+      else if(act && act.blur){ act.blur(); bara.style.display='none'; }
+    });
+    document.addEventListener('focusin', ev=>{
+      const lista = window._notareCampuri || [];
+      if(lista.indexOf(ev.target)>=0 && window.matchMedia('(pointer:coarse)').matches){ pozitioneaza(); bara.style.display='flex'; }
+    });
+    document.addEventListener('focusout', ()=>{ setTimeout(()=>{ const a=document.activeElement; if(!(window._notareCampuri||[]).includes(a)) bara.style.display='none'; }, 150); });
+  }
   // Ștergere rapidă a unei note deja salvate, dintr-un click
   main.querySelectorAll('.btn-sterge-nota').forEach(b=>{
     b.addEventListener('click', ()=>{

@@ -4327,10 +4327,8 @@ function renderNotare(main){
       if(tinta){ tinta.focus(); tinta.select(); }
     });
   });
-  // Tastă „Următorul” chiar în tastatură: pe iPhone tastatura numerică (inputmode=decimal) nu are deloc tastă de Enter/Next.
-  // Fără inputmode, câmpurile de tip număr primesc tastatura cu cifre și tastă „Următorul”; Enter trece la elevul următor (listener-ul de mai sus).
-  const esteIPhone = /iPhone|iPod/.test(navigator.userAgent);
-  campuriNotare.forEach(inp=>{ inp.setAttribute('enterkeyhint','next'); if(esteIPhone) inp.removeAttribute('inputmode'); });
+  // Tastatura numerică de pe iPhone nu are tastă Enter/Next (limită iOS); pe Android/tabletă/tastatură fizică, enterkeyhint=next + Enter trec la câmpul următor.
+  campuriNotare.forEach(inp=>inp.setAttribute('enterkeyhint','next'));
   // Ștergere rapidă a unei note deja salvate, dintr-un click
   main.querySelectorAll('.btn-sterge-nota').forEach(b=>{
     b.addEventListener('click', ()=>{

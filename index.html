@@ -4426,6 +4426,18 @@ function starePillHTML(stare, ore){
   if(stare==='absent') return '<span class="pill pill-danger">Absent'+(ore>1?' × '+ore:'')+'</span>';
   return '<span class="pill pill-ok">Prezent</span>';
 }
+// observație discretă, doar la fete: evidență personală a profesorului (nu se explică nicăieri în aplicație ce înseamnă)
+const OBS_PROBLEME = 'PROBLEME';
+function problemeInfoHTML(e){
+  if(e.sex!=='F') return '';
+  const azi = todayISO();
+  const date = state.absente.filter(a=>a.eleviId===e.id && a.stare!=='absent' && a.nota===OBS_PROBLEME && a.data<azi).map(a=>a.data).sort();
+  if(!date.length) return '';
+  const ultima = date[date.length-1];
+  const zile = Math.floor((new Date(azi)-new Date(ultima))/86400000);
+  const scurt = zile<28;
+  return `<div style="font-size:11px; margin-top:3px; color:${scurt?'#B33A1B':'#777'}; font-weight:${scurt?'700':'400'};">${OBS_PROBLEME}: ultima ${formatDataRo(ultima)} · acum ${zile} ${zile===1?'zi':'zile'}${scurt?' · sub 28':''}${date.length>1?` · de ${date.length} ori`:''}</div>`;
+}
 function toateObservatiile(){
   return [...OBSERVATII_PREDEFINITE, ...state.observatiiCustom];
 }
@@ -4523,7 +4535,7 @@ function renderAbsente(main){
             const stare = rec ? rec.stare : 'prezent';
             const esteAbsent = stare==='absent';
             const nota = rec ? (rec.nota || '') : '';
-            const esteCustom = nota && !toateObservatiile().includes(nota);
+            const esteCustom = nota && nota!==OBS_PROBLEME && !toateObservatiile().includes(nota);
             if(esteInactiv(e)){
               return `<tr data-row-elev="${e.id}" class="rand-inactiv"><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="4">${motivBlocareHTML(e)}</td></tr>`;
             }
@@ -4538,8 +4550,10 @@ function renderAbsente(main){
                 <select class="select-observatie" data-elev="${e.id}" ${esteAbsent?'disabled':''} style="max-width:380px; width:100%; min-width:260px;">
                   <option value="">— fără observație —</option>
                   ${toateObservatiile().map(o=>`<option value="${escapeHtml(o)}" ${nota===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}
+                  ${e.sex==='F' ? `<option value="${OBS_PROBLEME}" ${nota===OBS_PROBLEME?'selected':''}>${OBS_PROBLEME}</option>` : ''}
                   <option value="__custom__" ${esteCustom?'selected':''}>Altă observație...</option>
                 </select>
+                ${problemeInfoHTML(e)}
                 <input type="text" class="input-observatie-custom" data-elev="${e.id}" value="${esteCustom?escapeHtml(nota):''}" ${esteAbsent?'disabled':''}
                   style="width:100%; max-width:380px; margin-top:5px; display:${esteCustom?'block':'none'};" placeholder="scrie observația ta"/>
               </td>

@@ -1435,7 +1435,7 @@ function pmDocumentHTML(s, pentruDoc){
   const rows = eleviS.map((e,i)=>{
     const sg = s.semnaturi && s.semnaturi[e.id];
     const inactiv = esteInactiv(e);
-    return `<tr><td style="width:30px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td><td style="font-size:12px;">${escapeHtml(pmObsText(s,e))}</td><td style="text-align:center; font-size:16px;">${e.sanatateDecl?'☑':'☐'}</td></tr>`;
+    return `<tr><td style="width:30px;">${i+1}</td><td>${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}${inactiv?` <i>(${escapeHtml(etichetaSituatie(e))})</i>`:''}</td><td class="sg">${sg?`<img src="${sg}" alt="semnătură"/>`:''}</td><td style="font-size:12px;">${escapeHtml(pmObsText(s,e))}${pmScutireDetalii(e)?`<br><small style="color:#6B4A00;">${escapeHtml(pmScutireDetalii(e))}</small>`:''}</td><td style="text-align:center; font-size:16px;">${pmScutireDetalii(e)?'<small>scutit</small>':(e.sanatateDecl?'☑':'☐')}</td></tr>`;
   }).join('');
   const sgI = s.semnInstructor ? `<img src="${s.semnInstructor}" style="height:44px;" alt="semnătură"/>` : '______________';
   return `<h1>PROCES-VERBAL DE INSTRUIRE ÎN DOMENIUL PROTECȚIEI MUNCII</h1>
@@ -1548,6 +1548,15 @@ function pmDeschideSemnatura({titlu, areExistenta, laSalvat, laSters, areUrmator
   const su = b.querySelector('#pm-salveaza-urm'); if(su) su.onclick = ()=>salveaza(true);
 }
 // ---- PDF pentru ePortofoliu: pagini A4 desenate pe canvas (cu semnăturile elevilor) și împachetate într-un PDF, fără biblioteci externe ----
+// elev aflat în secțiunea Scutiri (activă sau expirată): toate specificațiile, pentru procesul-verbal
+function pmScutireDetalii(e){
+  if(!(e && e.scutit && e.scutireTip)) return '';
+  let t = e.scutireTip==='totala_anuala' ? 'Totală anuală' : e.scutireTip==='partiala' ? 'Parțială'
+        : `Temporară (${e.scutireSubTip==='partiala'?'parțială':'totală'}) ${formatDataRo(e.scutireStart)}–${formatDataRo(e.scutireEnd)}`;
+  if(!esteScutitActiv(e)) t += ' (expirată)';
+  if((e.motivScutire||'').trim()) t += ' — ' + e.motivScutire.trim();
+  return 'Scutit medical: ' + t;
+}
 function pmScutireText(e){
   if(!esteScutitActiv(e)) return '';
   let t = e.scutireTip==='totala_anuala' ? 'Totală anuală' : e.scutireTip==='partiala' ? 'Parțială'
@@ -1604,7 +1613,7 @@ async function pmGenereazaPDF(s){
   eleviS.forEach((e,i)=>{
     const inactiv=esteInactiv(e);
     const nume=wrap(`${e.nume} ${e.prenume}`+(inactiv?` (${etichetaSituatie(e)})`:''),21,false,cols[1]-16);
-    const ob=wrap(pmObsText(s,e),20,false,cols[3]-16);
+    const ob=wrap(pmObsText(s,e)+(pmScutireDetalii(e)?' '+pmScutireDetalii(e):''),20,false,cols[3]-16);
     const rh=Math.max(78, 16+nume.length*28, 16+ob.length*27);
     if(y+rh > H-M-30){ nou(); antetTabel(); }
     ctx.strokeStyle='#333'; ctx.lineWidth=1.5; ctx.strokeRect(x0,y,tw,rh);
@@ -1615,8 +1624,9 @@ async function pmGenereazaPDF(s){
     if(im){ const mw=cols[2]-20, mh=rh-14; const sc2=Math.min(mw/im.width, mh/im.height, 1.6); const iw=im.width*sc2, ih=im.height*sc2; ctx.drawImage(im, xs[2]+(cols[2]-iw)/2, y+(rh-ih)/2, iw, ih); }
     ob.forEach((l,k)=>{ font(20,false); ctx.fillText(l,xs[3]+8,y+12+k*27); });
     // bifă probleme de sănătate
-    const bx=xs[4]+(cols[4]-30)/2, by=y+(rh-30)/2; ctx.strokeStyle='#111'; ctx.lineWidth=2.5; ctx.strokeRect(bx,by,30,30);
-    if(e.sanatateDecl){ ctx.beginPath(); ctx.moveTo(bx+6,by+16); ctx.lineTo(bx+13,by+24); ctx.lineTo(bx+25,by+6); ctx.lineWidth=4.5; ctx.stroke(); }
+    const bx=xs[4]+(cols[4]-30)/2, by=y+(rh-30)/2; ctx.strokeStyle='#111'; ctx.lineWidth=2.5;
+    if(pmScutireDetalii(e)){ font(20,true); ctx.textAlign='center'; ctx.fillText('scutit',xs[4]+cols[4]/2,y+rh/2-10); ctx.textAlign='left'; } else ctx.strokeRect(bx,by,30,30);
+    if(!pmScutireDetalii(e) && e.sanatateDecl){ ctx.beginPath(); ctx.moveTo(bx+6,by+16); ctx.lineTo(bx+13,by+24); ctx.lineTo(bx+25,by+6); ctx.lineWidth=4.5; ctx.stroke(); }
     y+=rh;
   });
   // semnături
@@ -1779,8 +1789,8 @@ function renderPMSesiune(main, s){
         return `<tr><td style="color:var(--muted); text-align:center;">${i+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td>
           <td>${sg ? `<img src="${sg}" data-pm-elev="${e.id}" style="height:44px; cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 6px;" title="Atinge pentru a semna din nou"/>`
                    : `<button class="btn btn-secondary" data-pm-elev="${e.id}">✍ Semnează</button>`}</td>
-          <td>${sg ? `<span style="font-size:12px; font-weight:700; color:var(--infield);">${escapeHtml(PM_DECL)}</span>` : `<input type="text" class="pm-obs" data-pm-obs="${e.id}" value="${escapeHtml((s.obs&&s.obs[e.id])||'')}" placeholder="de ce nu a semnat" style="width:100%; min-width:140px;"/>`}</td>
-          <td style="text-align:center;"><label style="display:flex; flex-direction:column; align-items:center; gap:3px; font-size:12px; cursor:pointer;"><input type="checkbox" class="pm-sanatate" data-pm-sanatate="${e.id}" ${e.sanatateDecl?'checked':''} style="width:26px; height:26px;"/>${e.sanatateDecl?`<span style="color:#B33A1B; font-weight:700;">declarat ${formatDataRo(e.sanatateDecl.data)}</span>`:''}</label></td></tr>`; }).join('')}
+          <td>${sg ? `<span style="font-size:12px; font-weight:700; color:var(--infield);">${escapeHtml(PM_DECL)}</span>` : `<input type="text" class="pm-obs" data-pm-obs="${e.id}" value="${escapeHtml((s.obs&&s.obs[e.id])||'')}" placeholder="de ce nu a semnat" style="width:100%; min-width:140px;"/>`}${pmScutireDetalii(e) ? `<div style="font-size:11px; color:#6B4A00; margin-top:3px;">${escapeHtml(pmScutireDetalii(e))}</div>` : ''}</td>
+          <td style="text-align:center;">${pmScutireDetalii(e) ? '<span style="font-size:11px; font-weight:700; color:#6B4A00;">scutit</span>' : `<label style="display:flex; flex-direction:column; align-items:center; gap:3px; font-size:12px; cursor:pointer;"><input type="checkbox" class="pm-sanatate" data-pm-sanatate="${e.id}" ${e.sanatateDecl?'checked':''} style="width:26px; height:26px;"/>${e.sanatateDecl?`<span style="color:#B33A1B; font-weight:700;">declarat ${formatDataRo(e.sanatateDecl.data)}</span>`:''}</label>`}</td></tr>`; }).join('')}
       </tbody></table>
     </div>
     <div class="card"><div style="font-weight:700; color:var(--infield); margin-bottom:6px;">Profesor de educație fizică și sport — ${escapeHtml(s.instructor||pmInstructor())}</div>

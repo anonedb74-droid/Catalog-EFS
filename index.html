@@ -15,7 +15,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="format-detection" content="telephone=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- fonturile se încarcă fără să blocheze pagina: pe internet slab sau fără semnal aplicația pornește imediat, cu fonturile de rezervă -->
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <script src="xlsx.full.min.js"></script>
 <style>
   :root{
@@ -5603,7 +5604,7 @@ async function urca(){
   for(let i=parti.length; i<Math.max(parti.length, syncLocal.partiAnterioare||0); i++) b.delete(col.doc('p'+i));
   b.set(refMeta(), {versiune, parti:parti.length, actualizat:Date.now(), dispozitiv:syncLocal.deviceId, marime:json.length});
   try{
-    await b.commit();
+    await Promise.race([b.commit(), new Promise((_,rej)=>setTimeout(()=>rej({code:'timeout'}), 45000))]);
     syncLocal.baza=versiune; syncLocal.partiAnterioare=parti.length; syncLocal.uid=sync.uid;
     if(!sync.iarDupa) syncLocal.dirty=false;
     if(!sync.iarDupa) salveazaBaza(jsonUrcat);
@@ -5629,9 +5630,10 @@ async function descarca(m){
 function marcheazaModificat(){
   if(sync.suprim) return;
   syncLocal.dirty=true; syncLocal.modificat=Date.now(); salveazaSyncLocal();
-  if(sync.uid){ clearTimeout(sync.t); sync.t=setTimeout(urca, 1500); }
+  // trimitere în cont: nu după fiecare semnătură/notă (pe internet slab blochează), ci după o pauză; fără internet se amână până revine
+  if(sync.uid){ clearTimeout(sync.t); if(navigator.onLine!==false) sync.t=setTimeout(urca, 8000); else seteazaStareSync('offline'); }
 }
-window.addEventListener('online', ()=>{ if(sync.uid){ if(sync.stare!=='sincronizat') laConectare(sync.auth.currentUser||{uid:sync.uid, email:sync.email}); } });
+window.addEventListener('online', ()=>{ if(sync.uid && syncLocal.dirty){ clearTimeout(sync.t); sync.t=setTimeout(urca, 2000); } if(sync.uid){ if(sync.stare!=='sincronizat') laConectare(sync.auth.currentUser||{uid:sync.uid, email:sync.email}); } });
 function modalCont(){
   if(!sync.uid){
     const b=smModal(`<h3>Sincronizare tabletă ↔ laptop ↔ telefon</h3>

@@ -1,6 +1,6 @@
 // Service worker pentru Catalog EFS — face aplicația disponibilă offline,
 // oricât timp a trecut de la ultima deschidere cu internet.
-const CACHE_NAME = 'catalog-efs-cache-v5';
+const CACHE_NAME = 'catalog-efs-cache-v6';
 const FILES_DE_CACHE = [
   './',
   './index.html',
@@ -34,13 +34,15 @@ self.addEventListener('fetch', (event) => {
   // Conexiunile cu contul Google și baza de date (Firebase) nu trec prin cache
   const gazda = new URL(event.request.url).hostname;
   if ((gazda.endsWith('googleapis.com') && !gazda.startsWith('fonts.')) || gazda.endsWith('google.com') || gazda.endsWith('firebaseapp.com')) return;
+  // rețeaua primește cel mult 3 secunde; pe internet slab (nu doar fără semnal) servim imediat din cache, ca aplicația să nu rămână blocată
+  const dinCache = () => caches.match(event.request).then((r) => r || (event.request.mode === 'navigate' ? caches.match('./index.html') : Response.error()));
+  const dinRetea = fetch(event.request).then((raspuns) => {
+    const copie = raspuns.clone();
+    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copie));
+    return raspuns;
+  });
+  const limita = new Promise((resolve) => setTimeout(() => resolve(null), 3000));
   event.respondWith(
-    fetch(event.request)
-      .then((raspuns) => {
-        const copie = raspuns.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copie));
-        return raspuns;
-      })
-      .catch(() => caches.match(event.request).then((r) => r || (event.request.mode === 'navigate' ? caches.match('./index.html') : Response.error())))
+    Promise.race([dinRetea.catch(() => null), limita]).then((r) => r || dinCache().then((c) => c || dinRetea))
   );
 });

@@ -3160,6 +3160,10 @@ function renderSinteza(main){
 
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') : `
 
+    <h3 style="font-size:16px; color:var(--infield); margin-bottom:8px;">Ore neefectuate</h3>
+    <p class="tab-desc" style="margin-top:-4px;">Absențe și observații după care elevul nu a participat activ la oră, pe module (7 ore).</p>
+    ${oreNeefectuateHTML(lista)}
+
     <h3 style="font-size:16px; color:var(--infield); margin-bottom:8px;">Note pe probe</h3>
     <p class="tab-desc" style="margin-top:-4px;">Pentru fiecare probă apare rezultatul testării finale, dacă există — altfel al celei inițiale.</p>
     ${probeClasa.length===0 ? `<div class="tab-desc" style="margin-bottom:16px;">Nicio probă dată încă la această clasă.</div>` : `
@@ -4428,15 +4432,55 @@ function starePillHTML(stare, ore){
 }
 // observație discretă, doar la fete: evidență personală a profesorului (nu se explică nicăieri în aplicație ce înseamnă)
 const OBS_PROBLEME = 'PROBLEME';
-function problemeInfoHTML(e){
+function zileIntre(d1,d2){ return Math.round((new Date(d2)-new Date(d1))/86400000); }
+function dateProbleme(e){
+  return state.absente.filter(a=>a.eleviId===e.id && a.stare!=='absent' && a.nota===OBS_PROBLEME).map(a=>a.data).sort();
+}
+// marcaj lângă nume: numărătoare inversă de 28 de zile de la ultima dată PROBLEME; după 28 de zile dispare
+function problemeMarcajHTML(e){
   if(e.sex!=='F') return '';
   const azi = todayISO();
-  const date = state.absente.filter(a=>a.eleviId===e.id && a.stare!=='absent' && a.nota===OBS_PROBLEME && a.data<azi).map(a=>a.data).sort();
-  if(!date.length) return '';
-  const ultima = date[date.length-1];
-  const zile = Math.floor((new Date(azi)-new Date(ultima))/86400000);
-  const scurt = zile<28;
-  return `<div style="font-size:11px; margin-top:3px; color:${scurt?'#B33A1B':'#777'}; font-weight:${scurt?'700':'400'};">${OBS_PROBLEME}: ultima ${formatDataRo(ultima)} · acum ${zile} ${zile===1?'zi':'zile'}${scurt?' · sub 28':''}${date.length>1?` · de ${date.length} ori`:''}</div>`;
+  const ultima = dateProbleme(e).filter(d=>d<=azi).pop();
+  if(!ultima) return '';
+  const ramas = 28 - zileIntre(ultima, azi);
+  if(ramas<=0) return '';
+  return `<span class="pill" style="margin-left:6px; background:#FBE3EC; color:#9B2A55;" title="din ${formatDataRo(ultima)}">${OBS_PROBLEME} · ${ramas} ${ramas===1?'zi':'zile'}</span>`;
+}
+// avertisment: PROBLEME repetat în mai puțin de 28 de zile, fără scutire medicală
+function problemeRepetatHTML(e, data){
+  if(e.sex!=='F') return '';
+  const anterioara = dateProbleme(e).filter(d=>d<data).pop();
+  if(!anterioara || zileIntre(anterioara, data)>=28) return '';
+  if(esteScutitActiv(e)) return '';
+  return `<div style="font-size:11px; margin-top:3px; color:#B33A1B; font-weight:700;">⚠ repetat la ${zileIntre(anterioara,data)} zile (anterior ${formatDataRo(anterioara)}) · fără scutire</div>`;
+}
+// observații după care elevul nu participă activ la oră
+const OBS_NEPARTICIPARE = ['Nu s-a prezentat la oră în echipament sportiv','Nu participă la ore din motive medicale','Refuză participarea la oră', OBS_PROBLEME];
+function oreNeefectuateElev(e){
+  const rez = [];
+  state.absente.filter(a=>a.eleviId===e.id).forEach(a=>{
+    if(a.stare==='absent') rez.push({data:a.data, ore:a.ore||1, motiv:'Absent'});
+    else if(a.nota && OBS_NEPARTICIPARE.includes(a.nota)) rez.push({data:a.data, ore:1, motiv:a.nota===OBS_PROBLEME?'Nu a participat la oră':a.nota});
+  });
+  return rez.sort((x,y)=>x.data.localeCompare(y.data));
+}
+function oreNeefectuateHTML(lista){
+  const module_ = [...state.module].sort((a,b)=>a.start.localeCompare(b.start));
+  const randuri = lista.map(e=>{
+    const toate = oreNeefectuateElev(e);
+    if(!toate.length) return '';
+    const grupe = module_.map(m=>{
+      const ale = toate.filter(r=>r.data>=m.start && r.data<=m.end);
+      if(!ale.length) return '';
+      const total = ale.reduce((t,r)=>t+r.ore,0);
+      return `<div style="margin-bottom:4px;"><strong>${escapeHtml(m.nume)}: ${total} ${total===1?'oră':'ore'} din 7</strong><br><span style="font-size:12px; color:var(--muted);">${ale.map(r=>`${formatDataRo(r.data)} — ${escapeHtml(r.motiv)}${r.ore>1?' × '+r.ore:''}`).join('<br>')}</span></div>`;
+    }).join('');
+    const fara = toate.filter(r=>!module_.some(m=>r.data>=m.start && r.data<=m.end));
+    const grupaFara = fara.length ? `<div><strong>În afara modulelor: ${fara.reduce((t,r)=>t+r.ore,0)}</strong><br><span style="font-size:12px; color:var(--muted);">${fara.map(r=>`${formatDataRo(r.data)} — ${escapeHtml(r.motiv)}`).join('<br>')}</span></div>` : '';
+    return `<tr><td class="student-name" style="vertical-align:top;">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td>${grupe}${grupaFara}</td></tr>`;
+  }).join('');
+  if(!randuri) return `<div class="tab-desc" style="margin-bottom:24px;">Nicio oră neefectuată înregistrată.</div>`;
+  return `<div class="card" style="padding:0; overflow-x:auto; margin-bottom:24px;"><table><thead><tr><th>Elev</th><th>Ore neefectuate pe module</th></tr></thead><tbody>${randuri}</tbody></table></div>`;
 }
 function toateObservatiile(){
   return [...OBSERVATII_PREDEFINITE, ...state.observatiiCustom];
@@ -4541,7 +4585,7 @@ function renderAbsente(main){
             }
             return `<tr data-row-elev="${e.id}">
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''} ${cesTagHTML(e)}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''} ${cesTagHTML(e)}${problemeMarcajHTML(e)}</td>
               <td class="stare-badge-cell">${starePillHTML(stare, rec && rec.ore)}</td>
               <td style="text-align:center;">
                 <input type="checkbox" class="chk-absent" data-elev="${e.id}" ${esteAbsent?'checked':''} style="width:22px; height:22px; cursor:pointer;"/>
@@ -4553,7 +4597,7 @@ function renderAbsente(main){
                   ${e.sex==='F' ? `<option value="${OBS_PROBLEME}" ${nota===OBS_PROBLEME?'selected':''}>${OBS_PROBLEME}</option>` : ''}
                   <option value="__custom__" ${esteCustom?'selected':''}>Altă observație...</option>
                 </select>
-                ${problemeInfoHTML(e)}
+                ${nota===OBS_PROBLEME?problemeRepetatHTML(e, ui.absenteData):''}
                 <input type="text" class="input-observatie-custom" data-elev="${e.id}" value="${esteCustom?escapeHtml(nota):''}" ${esteAbsent?'disabled':''}
                   style="width:100%; max-width:380px; margin-top:5px; display:${esteCustom?'block':'none'};" placeholder="scrie observația ta"/>
               </td>

@@ -3160,10 +3160,6 @@ function renderSinteza(main){
 
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') : `
 
-    <h3 style="font-size:16px; color:var(--infield); margin-bottom:8px;">Ore neefectuate</h3>
-    <p class="tab-desc" style="margin-top:-4px;">Absențe și observații după care elevul nu a participat activ la oră, pe module (7 ore).</p>
-    ${oreNeefectuateHTML(lista)}
-
     <h3 style="font-size:16px; color:var(--infield); margin-bottom:8px;">Note pe probe</h3>
     <p class="tab-desc" style="margin-top:-4px;">Pentru fiecare probă apare rezultatul testării finale, dacă există — altfel al celei inițiale.</p>
     ${probeClasa.length===0 ? `<div class="tab-desc" style="margin-bottom:16px;">Nicio probă dată încă la această clasă.</div>` : `
@@ -3198,7 +3194,7 @@ function renderSinteza(main){
             const celulaCurente = noteCurenteElev(e.id).map(notaCurentaPillHTML).join('') || '<span style="color:var(--muted);">—</span>';
             const medie = noteNumerice.length ? (noteNumerice.reduce((a,b)=>a+b,0)/noteNumerice.length).toFixed(2) : '—';
             return `<tr>
-              <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?'<span class="pill pill-blue" style="margin-left:4px; padding:1px 6px;">parțial</span>':''} ${cesTagHTML(e)}</td>
+              <td class="student-name" style="position:sticky; left:0; background:var(--card);">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?'<span class="pill pill-blue" style="margin-left:4px; padding:1px 6px;">parțial</span>':''} ${cesTagHTML(e)}${oreNeefLinieHTML(e)}</td>
               ${blocheazaNotarea(e)
                 ? `<td colspan="${probeClasa.length}">${esteInactiv(e) ? `<span class="pill pill-yellow">${motivBlocareText(e)}</span>` : '<span class="exempt-note">scutit</span>'}</td>`
                 : celule.map(c=>`<td>${c}</td>`).join('')}
@@ -4464,23 +4460,15 @@ function oreNeefectuateElev(e){
   });
   return rez.sort((x,y)=>x.data.localeCompare(y.data));
 }
-function oreNeefectuateHTML(lista){
-  const module_ = [...state.module].sort((a,b)=>a.start.localeCompare(b.start));
-  const randuri = lista.map(e=>{
-    const toate = oreNeefectuateElev(e);
-    if(!toate.length) return '';
-    const grupe = module_.map(m=>{
-      const ale = toate.filter(r=>r.data>=m.start && r.data<=m.end);
-      if(!ale.length) return '';
-      const total = ale.reduce((t,r)=>t+r.ore,0);
-      return `<div style="margin-bottom:4px;"><strong>${escapeHtml(m.nume)}: ${total} ${total===1?'oră':'ore'} din 7</strong><br><span style="font-size:12px; color:var(--muted);">${ale.map(r=>`${formatDataRo(r.data)} — ${escapeHtml(r.motiv)}${r.ore>1?' × '+r.ore:''}`).join('<br>')}</span></div>`;
-    }).join('');
-    const fara = toate.filter(r=>!module_.some(m=>r.data>=m.start && r.data<=m.end));
-    const grupaFara = fara.length ? `<div><strong>În afara modulelor: ${fara.reduce((t,r)=>t+r.ore,0)}</strong><br><span style="font-size:12px; color:var(--muted);">${fara.map(r=>`${formatDataRo(r.data)} — ${escapeHtml(r.motiv)}`).join('<br>')}</span></div>` : '';
-    return `<tr><td class="student-name" style="vertical-align:top;">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</td><td>${grupe}${grupaFara}</td></tr>`;
-  }).join('');
-  if(!randuri) return `<div class="tab-desc" style="margin-bottom:24px;">Nicio oră neefectuată înregistrată.</div>`;
-  return `<div class="card" style="padding:0; overflow-x:auto; margin-bottom:24px;"><table><thead><tr><th>Elev</th><th>Ore neefectuate pe module</th></tr></thead><tbody>${randuri}</tbody></table></div>`;
+function oreNeefLinieHTML(e){
+  const m = moduleDupaData(todayISO());
+  if(!m) return '';
+  const ale = oreNeefectuateElev(e).filter(r=>r.data>=m.start && r.data<=m.end);
+  if(!ale.length) return '';
+  const total = ale.reduce((t,r)=>t+r.ore,0);
+  const rosu = total>3.5;
+  return `<div style="font-size:11px; margin-top:2px; cursor:pointer; color:${rosu?'#B33A1B':'var(--muted)'}; font-weight:${rosu?'700':'400'};" onclick="var n=this.nextElementSibling; n.style.display=n.style.display==='none'?'block':'none';">ore neefectuate ${total} din 7</div>
+    <div style="display:none; font-size:11px; color:var(--muted); font-weight:400;">${ale.map(r=>`${formatDataRo(r.data)} — ${escapeHtml(r.motiv)}${r.ore>1?' × '+r.ore:''}`).join('<br>')}</div>`;
 }
 function toateObservatiile(){
   return [...OBSERVATII_PREDEFINITE, ...state.observatiiCustom];

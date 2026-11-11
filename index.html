@@ -4571,7 +4571,7 @@ function renderAbsente(main){
             const nota = rec ? (rec.nota || '') : '';
             const esteCustom = nota && nota!==OBS_PROBLEME && !toateObservatiile().includes(nota);
             // elevii retrași / care nu mai vin rămân bifabili ca absenți până la cererea de retragere
-            return `<tr data-row-elev="${e.id}">
+            return `<tr data-row-elev="${e.id}" ${esteInactiv(e)?'class="rand-inactiv"':''}>
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
               <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''} ${cesTagHTML(e)}${problemeMarcajHTML(e)}${situatieElevHTML(e)}</td>
               <td class="stare-badge-cell">${starePillHTML(stare, rec && rec.ore)}</td>

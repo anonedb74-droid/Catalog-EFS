@@ -4570,12 +4570,10 @@ function renderAbsente(main){
             const esteAbsent = stare==='absent';
             const nota = rec ? (rec.nota || '') : '';
             const esteCustom = nota && nota!==OBS_PROBLEME && !toateObservatiile().includes(nota);
-            if(esteInactiv(e)){
-              return `<tr data-row-elev="${e.id}" class="rand-inactiv"><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="4">${motivBlocareHTML(e)}</td></tr>`;
-            }
+            // elevii retrași / care nu mai vin rămân bifabili ca absenți până la cererea de retragere
             return `<tr data-row-elev="${e.id}">
               <td style="color:var(--muted); text-align:center;">${idx+1}</td>
-              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''} ${cesTagHTML(e)}${problemeMarcajHTML(e)}</td>
+              <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${esteScutitActiv(e)?'<span class=\"pill pill-yellow\" style=\"margin-left:6px;\">scutit</span>':''} ${cesTagHTML(e)}${problemeMarcajHTML(e)}${situatieElevHTML(e)}</td>
               <td class="stare-badge-cell">${starePillHTML(stare, rec && rec.ore)}</td>
               <td style="text-align:center;">
                 <input type="checkbox" class="chk-absent" data-elev="${e.id}" ${esteAbsent?'checked':''} style="width:22px; height:22px; cursor:pointer;"/>

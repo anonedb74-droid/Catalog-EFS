@@ -525,9 +525,26 @@ function capitalizeazaNume(s){
    Pentru a le muta pe alt dispozitiv (laptop <-> tabletă), folosește
    Setări -> Exportă backup / Importă backup.
 ------------------------------------------------ */
+// IndexedDB: spațiu mult mai mare decât localStorage (care se umple cu semnăturile elevilor); păstrăm aici o copie a stării
+function idbCere(fn){ return new Promise(res=>{ try{
+  const rq = indexedDB.open('catalog_efs_db', 1);
+  rq.onupgradeneeded = ()=>rq.result.createObjectStore('kv');
+  rq.onerror = ()=>res(null);
+  rq.onsuccess = ()=>{ try{ const db = rq.result, tx = db.transaction('kv','readwrite'), st = tx.objectStore('kv'); const r = fn(st);
+    tx.oncomplete = ()=>{ db.close(); res(r && r.result!==undefined ? r.result : true); }; tx.onerror = tx.onabort = ()=>{ db.close(); res(null); }; }catch(e){ res(null); } };
+}catch(e){ res(null); } }); }
+let idbEroare = false;
+function idbSalveaza(j, t){ return idbCere(st=>st.put({j,t}, 'stare')).then(r=>{ idbEroare = !r; return !!r; }); }
+function idbCitesteStare(){ return idbCere(st=>st.get('stare')).then(r=> (r && r!==true) ? r : null); }
 async function loadState(){
+  let raw = null;
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
+    raw = localStorage.getItem(STORAGE_KEY);
+    const tLs = parseInt(localStorage.getItem(STORAGE_KEY+'_t')||'0',10);
+    const d = await idbCitesteStare();
+    if(d && d.j && (!raw || d.t > tLs)) raw = d.j;
+  }catch(e){}
+  try{
     if(raw){
       const parsed = JSON.parse(raw);
       state = Object.assign(state, parsed);
@@ -860,12 +877,20 @@ let ultimJsonSalvat = null;
 function saveStateNow(){
   clearTimeout(saveTimer);
   try{
-    const j = JSON.stringify(state);
-    localStorage.setItem(STORAGE_KEY, j);
+    const j = JSON.stringify(state), t = Date.now();
+    let ok = false;
+    const scrie = ()=>{ localStorage.setItem(STORAGE_KEY, j); try{ localStorage.setItem(STORAGE_KEY+'_t', String(t)); }catch(_){} };
+    try{ scrie(); ok = true; }catch(e1){
+      // spațiu plin: eliberăm copiile de siguranță (se păstrează oricum în IndexedDB / în cont) și reîncercăm
+      ['catalog_efs_copie_inlocuita', (typeof BAZA_KEY!=='undefined'?BAZA_KEY:'')].filter(Boolean).forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} });
+      try{ scrie(); ok = true; }catch(e2){ ok = false; }
+    }
+    idbSalveaza(j, t).then(r=>{ if(!r && !ok) showToast('Nu am putut salva pe acest dispozitiv.'); });
+    if(typeof indexedDB!=='undefined') ok = true;   // IndexedDB primește oricum starea
     ultimaSalvare = new Date();
     if(ultimJsonSalvat!==null && j!==ultimJsonSalvat && typeof marcheazaModificat==='function') marcheazaModificat();
     ultimJsonSalvat = j;
-    return true;
+    return ok;
   }catch(e){
     return false;
   }

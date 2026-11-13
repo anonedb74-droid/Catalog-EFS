@@ -4446,6 +4446,7 @@ const OBSERVATII_PREDEFINITE = [
   'Nu participă la ore din motive medicale',
   'Refuză participarea la oră',
   'Nu respectă sarcinile date de profesor',
+  'Conducere',
 ];
 // câte ore de absență are o înregistrare: 1 implicit, 2 (sau 3) când în ziua respectivă clasa a avut mai multe ore
 function oreAbs(a){ return a && a.stare==='absent' ? (a.ore||1) : 0; }
@@ -4755,12 +4756,27 @@ function renderAbsente(main){
         customInput.style.display = 'none';
         customInput.value = '';
         upsertAbsenta(eleviId, {nota: sel.value});
+        if(sel.value) treciLaUrmatorul(row);
       }
     });
   });
+  // după ce treci observația, mergi direct la elevul următor (rândul se aduce pe ecran și îi primește selectorul)
+  function treciLaUrmatorul(row){
+    let r = row.nextElementSibling;
+    while(r && !r.querySelector('.select-observatie')) r = r.nextElementSibling;
+    if(!r) return;
+    const sel2 = r.querySelector('.select-observatie');
+    r.scrollIntoView({block:'center', behavior:'smooth'});
+    try{ sel2.focus({preventScroll:true}); }catch(_){}
+    r.style.transition = 'box-shadow .3s'; r.style.boxShadow = 'inset 0 0 0 3px var(--infield)';
+    setTimeout(()=>{ r.style.boxShadow = ''; }, 1400);
+  }
   main.querySelectorAll('.input-observatie-custom').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       upsertAbsenta(inp.dataset.elev, {nota: inp.value.trim()});
+    });
+    inp.addEventListener('keydown', ev=>{
+      if(ev.key==='Enter'){ ev.preventDefault(); upsertAbsenta(inp.dataset.elev, {nota: inp.value.trim()}); inp.blur(); treciLaUrmatorul(inp.closest('tr')); }
     });
   });
 }

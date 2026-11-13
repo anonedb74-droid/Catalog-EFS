@@ -4489,12 +4489,12 @@ function problemeRepetatHTML(e, data){
   return `<div style="font-size:11px; margin-top:3px; color:#B33A1B; font-weight:700;">⚠ repetat la ${zileIntre(anterioara,data)} zile (anterior ${formatDataRo(anterioara)}) · fără scutire</div>`;
 }
 // observații după care elevul nu participă activ la oră
-const OBS_NEPARTICIPARE = ['Nu s-a prezentat la oră în echipament sportiv','Nu participă la ore din motive medicale','Refuză participarea la oră', OBS_PROBLEME];
+const OBS_NEPARTICIPARE = ['Nu s-a prezentat la oră în echipament sportiv','Nu participă la ore din motive medicale','Refuză participarea la oră', 'Conducere', OBS_PROBLEME];
 function oreNeefectuateElev(e){
   const rez = [];
   state.absente.filter(a=>a.eleviId===e.id).forEach(a=>{
     if(a.stare==='absent') rez.push({data:a.data, ore:a.ore||1, motiv:'Absent'});
-    else if(a.nota && OBS_NEPARTICIPARE.includes(a.nota)) rez.push({data:a.data, ore:1, motiv:a.nota===OBS_PROBLEME?'Nu a participat la oră':a.nota});
+    else if(a.nota && OBS_NEPARTICIPARE.includes(a.nota)) rez.push({data:a.data, ore:1, motiv:a.nota===OBS_PROBLEME?'Nu a participat la oră':a.nota==='Conducere'?'Învoit pentru ora de conducere':a.nota});
   });
   return rez.sort((x,y)=>x.data.localeCompare(y.data));
 }

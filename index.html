@@ -664,6 +664,9 @@ function migreazaDate(){
   Object.keys(impliciteObs).forEach(k=>{
     if(state.puncteObservatii[k]===undefined) state.puncteObservatii[k] = impliciteObs[k];
   });
+  // „Conducere” = elev învoit pentru ora de conducere: nu e absență și nu se penalizează (dacă exista ca observație proprie, se mută aici)
+  state.observatiiCustom = (state.observatiiCustom || []).filter(o=>o!=='Conducere');
+  state.puncteObservatii['Conducere'] = 0;
   (state.observatiiCustom || []).forEach(o=>{
     if(state.puncteObservatii[o]===undefined) state.puncteObservatii[o] = 1;
   });

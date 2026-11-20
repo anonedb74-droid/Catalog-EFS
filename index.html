@@ -3984,7 +3984,11 @@ function findBaremForProba(probaNume){
   return state.bareme.find(b=>b.nume.trim().toLowerCase()===target) || null;
 }
 // Întoarce nota calculată (10..4) sau null dacă nu există prag definit / rezultatul e sub baremul minim.
+// refuz la probă: valoarea „R” = elevul a refuzat să dea proba, nota 2
+const NOTA_REFUZ = 2;
+function esteRefuz(valoareStr){ return String(valoareStr==null?'':valoareStr).trim().toUpperCase()==='R'; }
 function calculeazaNota(barem, an, sex, valoareStr){
+  if(esteRefuz(valoareStr)) return NOTA_REFUZ;
   if(!barem) return null;
   const v = parseFloat(String(valoareStr).replace(',','.'));
   if(isNaN(v)) return null;
@@ -4251,7 +4255,8 @@ function renderNotare(main){
               }
               return `<td style="padding:4px 6px;"><div style="display:flex; align-items:center; gap:5px; white-space:nowrap;">
                 <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" data-moment="${momentStr}" value="${rec ? escapeHtml(rec.valoare) : ''}" placeholder="—" style="width:58px; min-height:32px; padding:4px 6px;"/>
-                ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nota!=null?nota:'—'}</span>` : ''}
+                ${barem ? `<span class="pill ${esteRefuz(rec?rec.valoare:'')?'pill-danger':'pill-ok'} nota-calc" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nota!=null?nota:'—'}</span>` : ''}
+                <button class="btn btn-ghost btn-refuz" data-elev="${e.id}" data-moment="${momentStr}" title="Refuz la probă (nota 2)" style="padding:3px 7px; min-height:28px; font-weight:700; ${esteRefuz(rec?rec.valoare:'')?'background:#F6DCDA; color:var(--danger);':''}">R</button>
                 ${rec ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" data-moment="${momentStr}" title="Șterge" style="padding:3px 6px; min-height:28px;">${ICONS.trash}</button>` : ''}
               </div></td>`;
             }
@@ -4307,6 +4312,7 @@ function renderNotare(main){
               <td class="student-name">${numeCuTagPartial}</td>
               <td><div style="display:flex; align-items:center; gap:8px;">
                 <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
+                <button class="btn btn-ghost btn-refuz" data-elev="${e.id}" title="Refuz la probă (nota 2)" style="padding:3px 7px; min-height:28px; font-weight:700; ${esteRefuz(existing?existing.valoare:'')?'background:#F6DCDA; color:var(--danger);':''}">R</button>
                 ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
               </div></td>
               ${celulaTehnica(e.id)}
@@ -4331,12 +4337,22 @@ function renderNotare(main){
     saveState();
     currentTab = 'bareme'; render();
   });
+  // refuz la probă: un clic pune „R” (nota 2); al doilea clic pe R îl scoate
+  main.querySelectorAll('.btn-refuz').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const m = b.dataset.moment || moment;
+      const rec = state.note.find(n=>n.eleviId===b.dataset.elev && n.probaId===ui.notareProba && n.moment===m);
+      if(rec && esteRefuz(rec.valoare)) upsertNota(b.dataset.elev, m, '', null);
+      else upsertNota(b.dataset.elev, m, 'R', NOTA_REFUZ);
+      render();
+    });
+  });
   // notă directă / barem: salvare automată pe fiecare tastă + actualizare live a pastilei cu nota (fără să redesenăm tot tabelul, ca să nu pierdem focusul din câmp)
   main.querySelectorAll('.grade-input').forEach(inp=>{
     inp.addEventListener('input', ()=>{
       const val = inp.value.trim();
       const momentCurent = inp.dataset.moment || moment;
-      const notaCalc = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
+      const notaCalc = esteRefuz(val) ? NOTA_REFUZ : (barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null);
       if(barem){
         const cell = afisareDubla
           ? main.querySelector(`.nota-calc[data-nota-for="${inp.dataset.elev}"][data-moment-for="${momentCurent}"]`)

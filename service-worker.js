@@ -1,6 +1,6 @@
 // Service worker pentru Catalog EFS — face aplicația disponibilă offline,
 // oricât timp a trecut de la ultima deschidere cu internet.
-const CACHE_NAME = 'catalog-efs-cache-v8';
+const CACHE_NAME = 'catalog-efs-cache-v9';
 const FILES_DE_CACHE = [
   './',
   './index.html',

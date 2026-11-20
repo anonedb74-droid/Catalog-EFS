@@ -3944,6 +3944,7 @@ const CALIFICATIVE = [
   {cod:'S',   nota:5,  label:'S — Suficient'},
   {cod:'NS*', nota:4,  label:'NS* — Nesatisfăcător cu stea'},
   {cod:'NS',  nota:3,  label:'NS — Nesatisfăcător'},
+  {cod:'R',   nota:2,  label:'R — Refuz la probă (elevul nu a dat proba)'},
 ];
 function notaDinCalificativ(cod){
   const c = CALIFICATIVE.find(c=>c.cod===cod);
@@ -4242,7 +4243,7 @@ function renderNotare(main){
                 return `<td style="padding:4px 6px;"><div style="display:flex; align-items:center; gap:5px; white-space:nowrap;">
                   <select class="calificativ-input" data-elev="${e.id}" data-moment="${momentStr}">
                     <option value="">—</option>
-                    ${CALIFICATIVE.filter(c=>momentStr!=='initial' || ['NS','S','B','FB'].includes(c.cod) || c.cod===v).map(c=>`<option value="${c.cod}" title="${escapeHtml(c.label)}" ${v===c.cod?'selected':''}>${c.cod}</option>`).join('')}
+                    ${CALIFICATIVE.filter(c=>momentStr!=='initial' || ['NS','S','B','FB','R'].includes(c.cod) || c.cod===v).map(c=>`<option value="${c.cod}" title="${escapeHtml(c.label)}" ${v===c.cod?'selected':''}>${c.cod}</option>`).join('')}
                   </select>
                   ${momentStr==='initial' ? '' : `<span class="pill pill-ok nota-calc-calif" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nc!=null?nc:'—'}</span>`}
                   ${rec ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" data-moment="${momentStr}" title="Șterge" style="padding:3px 6px; min-height:28px;">${ICONS.trash}</button>` : ''}

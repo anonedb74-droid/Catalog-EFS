@@ -2790,7 +2790,7 @@ function renderCurente(main){
         <div class="field"><label>Clasă</label>
           <select id="select-curente-clasa">${claseActive().map(c=>`<option value="${c.id}" ${c.id===claseId?'selected':''}>${escapeHtml(c.nume)}</option>`).join('')}</select></div>
         <div class="field"><label>Data</label><input type="date" id="input-curente-data" value="${ui.curenteData}"/></div>
-        <div class="field" style="min-width:210px;"><label>Motivul notei</label>
+        <div class="field" style="min-width:210px;"><label>Motivul notei${probaCur?' (opțional la probă)':''}</label>
           <select id="select-curente-motiv">${MOTIVE_CURENTE.map(m=>`<option ${m===ui.curenteMotiv?'selected':''}>${escapeHtml(m)}</option>`).join('')}</select></div>
         ${esteAltul ? `<div class="field" style="flex:1; min-width:200px;"><label>Scrie motivul</label><input type="text" id="input-curente-motiv-altul" value="${escapeHtml(ui.curenteMotivAltul||'')}" placeholder="ex: a ajutat la pregătirea terenului"/></div>` : ''}
       </div>
@@ -2871,7 +2871,8 @@ function renderCurente(main){
   const btn = document.getElementById('btn-salveaza-curente');
   if(btn) btn.addEventListener('click', ()=>{
     const motiv = ui.curenteMotiv==='Altul…' ? (ui.curenteMotivAltul||'').trim() : ui.curenteMotiv;
-    if(!motiv) return showToast('Scrie motivul notei.');
+    // motivul se cere doar când nu e aleasă nicio probă; cu probă aleasă (refuz sau notă) nu e obligatoriu
+    if(!motiv && !probaCur) return showToast('Scrie motivul notei.');
     const noi = [], refuzuriProba = [];
     for(const chk of main.querySelectorAll('.chk-curenta-refuz')){
       if(!chk.checked) continue;
@@ -2894,7 +2895,7 @@ function renderCurente(main){
       const v = parseFloat(brut);
       if(isNaN(v) || v<1 || v>10) return showToast('Notele trebuie să fie între 1 și 10.');
       const obs = (main.querySelector(`.inp-curenta-obs[data-elev="${inp.dataset.elev}"]`)||{value:''}).value.trim();
-      noi.push({id:uid(), eleviId:inp.dataset.elev, claseId, data:ui.curenteData, valoare:v, motiv, detalii:(ui.curenteDetalii||'').trim(), obs, probaId:probaCur?probaCur.id:undefined});
+      noi.push({id:uid(), eleviId:inp.dataset.elev, claseId, data:ui.curenteData, valoare:v, motiv:motiv||(probaCur?probaCur.nume:''), detalii:(ui.curenteDetalii||'').trim(), obs, probaId:probaCur?probaCur.id:undefined});
     }
     if(!noi.length && !refuzuriProba.length) return showToast('Nu ai scris nicio notă și nu ai bifat niciun refuz.');
     state.noteCurente.push(...noi);

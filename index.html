@@ -450,6 +450,9 @@ setInterval(()=>{ const st=document.querySelector('header .subtitle'); if(st && 
 const STORAGE_KEY = 'catalog_efs_state_v1';
 const UI_STORAGE_KEY = 'catalog_efs_ui_v1';
 
+// refuz la probă: valoarea „R” = elevul a refuzat să dea proba, nota 2
+const NOTA_REFUZ = 2;
+function esteRefuz(valoareStr){ return String(valoareStr==null?'':valoareStr).trim().toUpperCase()==='R'; }
 let state = {
   settings: { titlu: 'Catalogul meu EFS', anScolar: '2026-2027', urmatorulCodElev: 1, taburiAscunse: [], ultimulExport: null },
   clase: [],      // {id, nume, an: 'IX'|'X'|'XI'|'XII'}
@@ -602,6 +605,8 @@ function migreazaDate(){
   });
   (state.note || []).forEach(n=>{
     if(!n.moment) n.moment = 'initial';
+    // refuz: la testul inițial nu se notează, la testul final nota e 2 (intră în PPT)
+    if(esteRefuz(n.valoare)){ n.valoare = 'R'; n.refuz = true; n.notaCalculata = n.moment==='final' ? NOTA_REFUZ : null; }
   });
   (state.clase || []).forEach(c=>{
     if(!c.practica) c.practica = [];
@@ -1204,7 +1209,7 @@ function noteCurenteNumerice(eleviId){
 }
 function notaCurentaPillHTML(n){
   const titlu = [n.motiv, n.detalii, n.obs].filter(Boolean).join(' — ') + ' (' + formatDataRo(n.data) + ')';
-  return `<span class="pill pill-ok" title="${escapeHtml(titlu)}" style="margin:1px 2px;">${n.valoare}</span>`;
+  return `<span class="pill ${n.refuz?'pill-danger':'pill-ok'}" title="${escapeHtml((n.refuz?'Refuz — ':'')+titlu)}" style="margin:1px 2px;">${n.valoare}</span>`;
 }
 // câți elevi au cel puțin o notă la proba asta, față de câți se pot nota
 function statusProba(claseId, probaId){
@@ -2766,10 +2771,19 @@ function renderCurente(main){
   if(!ui.curenteMotiv) ui.curenteMotiv = MOTIVE_CURENTE[0];
   const esteAltul = ui.curenteMotiv==='Altul…';
   const absentLaData = id => state.absente.some(a=>a.eleviId===id && a.data===ui.curenteData && a.stare==='absent');
-  const istoric = (state.noteCurente||[]).filter(n=>n.claseId===claseId).sort((a,b)=>b.data.localeCompare(a.data)).slice(0,150);
+  const probeClasaCur = state.probe.filter(p=>probaSeAplicaClasei(p, claseId)).sort((a,b)=>b.data.localeCompare(a.data));
+  if(ui.curenteProba && !probeClasaCur.find(p=>p.id===ui.curenteProba)) ui.curenteProba = '';
+  if(!ui.curenteProba) ui.curenteTest = '';
+  const probaCur = probeClasaCur.find(p=>p.id===ui.curenteProba) || null;
+  const eleviClasaIds = eleviDinClasa(claseId).map(e=>e.id);
+  // istoric: notele curente + refuzurile la probe (acestea din urmă nu intră în media notelor curente)
+  const refuzuriProbe = state.note.filter(n=>esteRefuz(n.valoare) && eleviClasaIds.includes(n.eleviId))
+    .map(n=>{ const pr = state.probe.find(x=>x.id===n.probaId); return {id:n.id, eleviId:n.eleviId, data:n.data, valoare:n.moment==='final'?NOTA_REFUZ:'R', refuz:true, esteProba:true,
+      motiv:'Refuz la probă — '+(pr?pr.nume:'probă ștearsă')+' ('+(n.moment==='final'?'TF':'TI')+')', detalii:'', obs:n.obs||''}; });
+  const istoric = [...(state.noteCurente||[]).filter(n=>n.claseId===claseId), ...refuzuriProbe].sort((a,b)=>b.data.localeCompare(a.data)).slice(0,150);
   main.innerHTML = `
     <h2>Note curente</h2>
-    <p class="tab-desc">O notă pusă la oră, în afara probelor — de exemplu pentru că elevul a respectat indicațiile. Fiecare notă păstrează <b>motivul</b>, iar notele curente se iau în calcul la media din Sinteză.</p>
+    <p class="tab-desc">O notă pusă la oră — de exemplu pentru că elevul a respectat indicațiile. Fiecare notă păstrează <b>motivul</b> și se ia în calcul la media din Sinteză.<br><b>Refuz (R):</b> fără probă aleasă → notă curentă 2 în catalog. Cu probă + <b>TI</b> → doar se consemnează (testul inițial nu se notează). Cu probă + <b>TF</b> → performanța la testul final devine 2 și nota se calculează prin PPT.</p>
     ${bannerPracticaHTML(claseId)}
     <div class="card">
       <div class="row">
@@ -2781,7 +2795,18 @@ function renderCurente(main){
         ${esteAltul ? `<div class="field" style="flex:1; min-width:200px;"><label>Scrie motivul</label><input type="text" id="input-curente-motiv-altul" value="${escapeHtml(ui.curenteMotivAltul||'')}" placeholder="ex: a ajutat la pregătirea terenului"/></div>` : ''}
       </div>
       <div class="row" style="margin-top:10px;">
-        <div class="field" style="flex:1; min-width:240px;"><label>La ce activitate / temă</label>
+        <div class="field" style="min-width:220px;"><label>La ce probă</label>
+          <select id="select-curente-proba">
+            <option value="">— fără probă (scriu tema) —</option>
+            ${probeClasaCur.map(p=>`<option value="${p.id}" ${p.id===ui.curenteProba?'selected':''}>${escapeHtml(p.nume)}</option>`).join('')}
+          </select></div>
+        ${probaCur ? `<div class="field" style="min-width:150px;"><label>Testul (pentru refuz)</label>
+          <select id="select-curente-test">
+            <option value="">—</option>
+            <option value="initial" ${ui.curenteTest==='initial'?'selected':''}>TI — test inițial</option>
+            <option value="final" ${ui.curenteTest==='final'?'selected':''}>TF — test final</option>
+          </select></div>` : ''}
+        <div class="field" style="flex:1; min-width:240px;"><label>Tema / activitatea (o poți scrie manual)</label>
           <input type="text" id="input-curente-detalii" value="${escapeHtml(ui.curenteDetalii)}" placeholder="ex: Fotbal — joc bilateral"/></div>
       </div>
       <div style="font-size:12px; color:var(--muted); margin-top:4px;">${plan?'Tema a fost preluată din planificarea clasei pentru această dată.':'Nicio planificare pentru această dată — scrie tu activitatea.'}</div>
@@ -2789,13 +2814,14 @@ function renderCurente(main){
     ${lista.length===0 ? emptyState('Niciun elev în această clasă.', 'Adaugă elevi în secțiunea „Elevi”.') : `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table>
-        <thead><tr><th>Nr.</th><th>Elev</th><th>Nota</th><th>Observație (opțional)</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Elev</th><th>Nota</th><th title="Refuz la probă / activitate">R</th><th>Observație — pentru ce anume (opțional)</th></tr></thead>
         <tbody>
           ${lista.map((e,idx)=>`<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>
             <td style="color:var(--muted); text-align:center;">${idx+1}</td>
             <td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}${absentLaData(e.id)?'<div style="font-size:12px; font-weight:600; color:var(--danger); margin-top:2px;">● Absent</div>':''}${observatieAziHTML(e)}${noteCurenteElev(e.id).length?`<div style="margin-top:2px;">${noteCurenteElev(e.id).slice(-4).map(notaCurentaPillHTML).join('')}</div>`:''}</td>
             <td>${blocheazaNotarea(e) ? motivBlocareHTML(e,true) : `<input type="number" inputmode="decimal" min="1" max="10" step="0.5" class="grade-input inp-curenta" data-elev="${e.id}" placeholder="—"/>`}</td>
-            <td>${blocheazaNotarea(e) ? '' : `<input type="text" class="inp-curenta-obs" data-elev="${e.id}" placeholder="opțional" style="width:100%; min-width:120px;"/>`}</td>
+            <td style="text-align:center;">${blocheazaNotarea(e) ? '' : `<input type="checkbox" class="chk-curenta-refuz" data-elev="${e.id}" title="Refuz" style="width:22px; height:22px; cursor:pointer; accent-color:var(--danger);"/>`}</td>
+            <td>${blocheazaNotarea(e) ? '' : `<input type="text" class="inp-curenta-obs" data-elev="${e.id}" placeholder="ex: execuție corectă la preluare" style="width:100%; min-width:120px;"/>`}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -2808,9 +2834,9 @@ function renderCurente(main){
       <table>
         <thead><tr><th>Data</th><th>Elev</th><th>Nota</th><th>Motiv</th><th>Activitate / observație</th><th></th></tr></thead>
         <tbody>${istoric.map(n=>{ const e = state.elevi.find(x=>x.id===n.eleviId); return `<tr>
-          <td>${formatDataRo(n.data)}</td><td>${e?escapeHtml(e.nume)+' '+escapeHtml(e.prenume):'—'}</td><td><strong>${n.valoare}</strong></td>
+          <td>${formatDataRo(n.data)}</td><td>${e?escapeHtml(e.nume)+' '+escapeHtml(e.prenume):'—'}</td><td><strong style="${n.refuz?'color:var(--danger);':''}">${n.valoare}</strong>${n.refuz?' <span class="pill pill-danger" style="padding:1px 6px;">R</span>':''}</td>
           <td>${escapeHtml(n.motiv||'')}</td><td>${escapeHtml([n.detalii,n.obs].filter(Boolean).join(' — '))}</td>
-          <td><button class="btn btn-danger" data-del-curenta="${n.id}">${ICONS.trash}</button></td></tr>`; }).join('')}</tbody>
+          <td><button class="btn btn-danger" ${n.esteProba?`data-del-refuz-proba="${n.id}"`:`data-del-curenta="${n.id}"`}>${ICONS.trash}</button></td></tr>`; }).join('')}</tbody>
       </table>
     </div>`}
   `;
@@ -2820,22 +2846,66 @@ function renderCurente(main){
   const mAltul = document.getElementById('input-curente-motiv-altul');
   if(mAltul) mAltul.addEventListener('input', e=>{ ui.curenteMotivAltul = e.target.value; });
   document.getElementById('input-curente-detalii').addEventListener('input', e=>{ ui.curenteDetalii = e.target.value; });
+  document.getElementById('select-curente-proba').addEventListener('change', e=>{
+    ui.curenteProba = e.target.value;
+    const pr = state.probe.find(x=>x.id===ui.curenteProba);
+    if(pr) ui.curenteDetalii = pr.nume;
+    render();
+  });
+  const selTest = document.getElementById('select-curente-test');
+  if(selTest) selTest.addEventListener('change', e=>{ ui.curenteTest = e.target.value; });
+  main.querySelectorAll('.chk-curenta-refuz').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const inp = main.querySelector(`.inp-curenta[data-elev="${chk.dataset.elev}"]`);
+      if(inp){ inp.disabled = chk.checked; if(chk.checked) inp.value = ''; }
+      chk.closest('tr').style.background = chk.checked ? '#FBEDEC' : '';
+    });
+  });
+  main.querySelectorAll('[data-del-refuz-proba]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(!confirm('Ștergi acest refuz la probă?')) return;
+      state.note = state.note.filter(n=>n.id!==b.dataset.delRefuzProba);
+      saveState(); render(); showToast('Refuz șters.');
+    });
+  });
   const btn = document.getElementById('btn-salveaza-curente');
   if(btn) btn.addEventListener('click', ()=>{
     const motiv = ui.curenteMotiv==='Altul…' ? (ui.curenteMotivAltul||'').trim() : ui.curenteMotiv;
     if(!motiv) return showToast('Scrie motivul notei.');
-    const noi = [];
+    const noi = [], refuzuriProba = [];
+    for(const chk of main.querySelectorAll('.chk-curenta-refuz')){
+      if(!chk.checked) continue;
+      const obs = (main.querySelector(`.inp-curenta-obs[data-elev="${chk.dataset.elev}"]`)||{value:''}).value.trim();
+      if(probaCur){
+        if(!ui.curenteTest) return showToast('Pentru refuz la probă alege testul: TI sau TF (sau scoate proba).');
+        refuzuriProba.push({eleviId:chk.dataset.elev, obs});
+      } else {
+        noi.push({id:uid(), eleviId:chk.dataset.elev, claseId, data:ui.curenteData, valoare:NOTA_REFUZ, refuz:true, motiv:'Refuz', detalii:(ui.curenteDetalii||'').trim(), obs});
+      }
+    }
+    if(refuzuriProba.length){
+      const cuRezultat = refuzuriProba.filter(r=>{ const x = state.note.find(n=>n.eleviId===r.eleviId && n.probaId===probaCur.id && n.moment===ui.curenteTest); return x && !esteRefuz(x.valoare); });
+      if(cuRezultat.length && !confirm(`${cuRezultat.length} elev(i) au deja rezultat la ${probaCur.nume} (${ui.curenteTest==='final'?'TF':'TI'}). Înlocuiești rezultatul cu refuz?`)) return;
+    }
     for(const inp of main.querySelectorAll('.inp-curenta')){
+      if(inp.disabled) continue;
       const brut = inp.value.trim().replace(',','.');
       if(!brut) continue;
       const v = parseFloat(brut);
       if(isNaN(v) || v<1 || v>10) return showToast('Notele trebuie să fie între 1 și 10.');
       const obs = (main.querySelector(`.inp-curenta-obs[data-elev="${inp.dataset.elev}"]`)||{value:''}).value.trim();
-      noi.push({id:uid(), eleviId:inp.dataset.elev, claseId, data:ui.curenteData, valoare:v, motiv, detalii:(ui.curenteDetalii||'').trim(), obs});
+      noi.push({id:uid(), eleviId:inp.dataset.elev, claseId, data:ui.curenteData, valoare:v, motiv, detalii:(ui.curenteDetalii||'').trim(), obs, probaId:probaCur?probaCur.id:undefined});
     }
-    if(!noi.length) return showToast('Nu ai scris nicio notă.');
+    if(!noi.length && !refuzuriProba.length) return showToast('Nu ai scris nicio notă și nu ai bifat niciun refuz.');
     state.noteCurente.push(...noi);
-    saveState(); render(); showToast(noi.length===1 ? 'Nota curentă salvată.' : `${noi.length} note curente salvate.`);
+    refuzuriProba.forEach(r=>{
+      state.note = state.note.filter(n=>!(n.eleviId===r.eleviId && n.probaId===probaCur.id && n.moment===ui.curenteTest));
+      state.note.push({id:uid(), eleviId:r.eleviId, probaId:probaCur.id, moment:ui.curenteTest, valoare:'R', refuz:true,
+        notaCalculata: ui.curenteTest==='final' ? NOTA_REFUZ : null, data:ui.curenteData, obs:r.obs});
+    });
+    saveState(); render();
+    const total = noi.length + refuzuriProba.length;
+    showToast(total===1 ? 'Salvat.' : `${total} înregistrări salvate.`);
   });
   main.querySelectorAll('[data-del-curenta]').forEach(b=>{
     b.addEventListener('click', ()=>{
@@ -3944,7 +4014,6 @@ const CALIFICATIVE = [
   {cod:'S',   nota:5,  label:'S — Suficient'},
   {cod:'NS*', nota:4,  label:'NS* — Nesatisfăcător cu stea'},
   {cod:'NS',  nota:3,  label:'NS — Nesatisfăcător'},
-  {cod:'R',   nota:2,  label:'R — Refuz la probă (elevul nu a dat proba)'},
 ];
 function notaDinCalificativ(cod){
   const c = CALIFICATIVE.find(c=>c.cod===cod);
@@ -3984,11 +4053,7 @@ function findBaremForProba(probaNume){
   return state.bareme.find(b=>b.nume.trim().toLowerCase()===target) || null;
 }
 // Întoarce nota calculată (10..4) sau null dacă nu există prag definit / rezultatul e sub baremul minim.
-// refuz la probă: valoarea „R” = elevul a refuzat să dea proba, nota 2
-const NOTA_REFUZ = 2;
-function esteRefuz(valoareStr){ return String(valoareStr==null?'':valoareStr).trim().toUpperCase()==='R'; }
 function calculeazaNota(barem, an, sex, valoareStr){
-  if(esteRefuz(valoareStr)) return NOTA_REFUZ;
   if(!barem) return null;
   const v = parseFloat(String(valoareStr).replace(',','.'));
   if(isNaN(v)) return null;
@@ -4179,6 +4244,10 @@ function renderNotare(main){
     saveState();
   }
 
+  // refuz consemnat din „Note curente”: căsuță roșie, fără câmp de introducere (se poate șterge cu coșul)
+  function celulaRefuzInner(eleviId, momentStr){
+    return `<div style="display:flex; align-items:center; gap:5px; white-space:nowrap;"><span class="pill pill-danger" title="Refuz consemnat în secțiunea Note curente">Refuz${momentStr==='final'?' · nota '+NOTA_REFUZ:''}</span><button class="btn btn-ghost btn-sterge-nota" data-elev="${eleviId}" data-moment="${momentStr}" title="Șterge refuzul" style="padding:3px 6px; min-height:28px;">${ICONS.trash}</button></div>`;
+  }
   // câmpul de Tehnică (corectitudinea execuției): notă 1-10 dată de profesor, o singură dată per probă
   function celulaTehnica(eleviId){
     const t = gasesteTehnica(eleviId, ui.notareProba);
@@ -4242,12 +4311,13 @@ function renderNotare(main){
             const notaFinal = barem ? calculeazaNota(barem, an, e.sex, recFinal ? recFinal.valoare : '') : null;
 
             function celulaMoment(rec, nota, momentStr){
+              if(rec && esteRefuz(rec.valoare)) return `<td style="padding:4px 6px; background:#FBEDEC;">${celulaRefuzInner(e.id, momentStr)}</td>`;
               if(tipNotare==='calificativ'){
                 const v = rec ? rec.valoare : '', nc = v ? notaDinCalificativ(v) : null;
                 return `<td style="padding:4px 6px;"><div style="display:flex; align-items:center; gap:5px; white-space:nowrap;">
                   <select class="calificativ-input" data-elev="${e.id}" data-moment="${momentStr}">
                     <option value="">—</option>
-                    ${CALIFICATIVE.filter(c=>momentStr!=='initial' || ['NS','S','B','FB','R'].includes(c.cod) || c.cod===v).map(c=>`<option value="${c.cod}" title="${escapeHtml(c.label)}" ${v===c.cod?'selected':''}>${c.cod}</option>`).join('')}
+                    ${CALIFICATIVE.filter(c=>momentStr!=='initial' || ['NS','S','B','FB'].includes(c.cod) || c.cod===v).map(c=>`<option value="${c.cod}" title="${escapeHtml(c.label)}" ${v===c.cod?'selected':''}>${c.cod}</option>`).join('')}
                   </select>
                   ${momentStr==='initial' ? '' : `<span class="pill pill-ok nota-calc-calif" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nc!=null?nc:'—'}</span>`}
                   ${rec ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" data-moment="${momentStr}" title="Șterge" style="padding:3px 6px; min-height:28px;">${ICONS.trash}</button>` : ''}
@@ -4255,8 +4325,7 @@ function renderNotare(main){
               }
               return `<td style="padding:4px 6px;"><div style="display:flex; align-items:center; gap:5px; white-space:nowrap;">
                 <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" data-sex="${e.sex}" data-an="${an}" data-moment="${momentStr}" value="${rec ? escapeHtml(rec.valoare) : ''}" placeholder="—" style="width:58px; min-height:32px; padding:4px 6px;"/>
-                ${barem ? `<span class="pill ${esteRefuz(rec?rec.valoare:'')?'pill-danger':'pill-ok'} nota-calc" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nota!=null?nota:'—'}</span>` : ''}
-                <button class="btn btn-ghost btn-refuz" data-elev="${e.id}" data-moment="${momentStr}" title="Refuz la probă (nota 2)" style="padding:3px 7px; min-height:28px; font-weight:700; ${esteRefuz(rec?rec.valoare:'')?'background:#F6DCDA; color:var(--danger);':''}">R</button>
+                ${barem ? `<span class="pill pill-ok nota-calc" data-nota-for="${e.id}" data-moment-for="${momentStr}" style="padding:1px 6px;">${nota!=null?nota:'—'}</span>` : ''}
                 ${rec ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" data-moment="${momentStr}" title="Șterge" style="padding:3px 6px; min-height:28px;">${ICONS.trash}</button>` : ''}
               </div></td>`;
             }
@@ -4290,6 +4359,9 @@ function renderNotare(main){
               return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="2">${motivBlocareHTML(e)}</td></tr>`;
             }
             const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${absentAziHTML(e)}`;
+            if(existing && esteRefuz(existing.valoare)){
+              return `<tr>${numarOrdine}<td class="student-name">${numeCuTagPartial}</td><td style="background:#FBEDEC;">${celulaRefuzInner(e.id, moment)}</td>${celulaTehnica(e.id)}</tr>`;
+            }
             if(tipNotare==='calificativ'){
               const valExist = existing ? existing.valoare : '';
               const notaExist = valExist ? notaDinCalificativ(valExist) : null;
@@ -4312,7 +4384,6 @@ function renderNotare(main){
               <td class="student-name">${numeCuTagPartial}</td>
               <td><div style="display:flex; align-items:center; gap:8px;">
                 <input type="text" inputmode="decimal" class="grade-input" data-elev="${e.id}" value="${existing ? escapeHtml(existing.valoare) : ''}" placeholder="—"/>
-                <button class="btn btn-ghost btn-refuz" data-elev="${e.id}" title="Refuz la probă (nota 2)" style="padding:3px 7px; min-height:28px; font-weight:700; ${esteRefuz(existing?existing.valoare:'')?'background:#F6DCDA; color:var(--danger);':''}">R</button>
                 ${existing ? `<button class="btn btn-ghost btn-sterge-nota" data-elev="${e.id}" title="Șterge nota" style="padding:6px 10px; min-height:34px;">${ICONS.trash}</button>` : ''}
               </div></td>
               ${celulaTehnica(e.id)}
@@ -4337,22 +4408,12 @@ function renderNotare(main){
     saveState();
     currentTab = 'bareme'; render();
   });
-  // refuz la probă: un clic pune „R” (nota 2); al doilea clic pe R îl scoate
-  main.querySelectorAll('.btn-refuz').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const m = b.dataset.moment || moment;
-      const rec = state.note.find(n=>n.eleviId===b.dataset.elev && n.probaId===ui.notareProba && n.moment===m);
-      if(rec && esteRefuz(rec.valoare)) upsertNota(b.dataset.elev, m, '', null);
-      else upsertNota(b.dataset.elev, m, 'R', NOTA_REFUZ);
-      render();
-    });
-  });
   // notă directă / barem: salvare automată pe fiecare tastă + actualizare live a pastilei cu nota (fără să redesenăm tot tabelul, ca să nu pierdem focusul din câmp)
   main.querySelectorAll('.grade-input').forEach(inp=>{
     inp.addEventListener('input', ()=>{
       const val = inp.value.trim();
       const momentCurent = inp.dataset.moment || moment;
-      const notaCalc = esteRefuz(val) ? NOTA_REFUZ : (barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null);
+      const notaCalc = barem ? calculeazaNota(barem, inp.dataset.an, inp.dataset.sex, val) : null;
       if(barem){
         const cell = afisareDubla
           ? main.querySelector(`.nota-calc[data-nota-for="${inp.dataset.elev}"][data-moment-for="${momentCurent}"]`)

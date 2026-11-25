@@ -1229,10 +1229,6 @@ function neexecutatCelulaHTML(e, probaId){
   const r = neexecutatLaProba(e.id, probaId);
   return `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><span class="pill pill-blue" style="padding:2px 9px;">Nu poate efectua proba${r&&r.motiv?' — '+escapeHtml(r.motiv):''}</span><button class="btn btn-ghost btn-neex-anuleaza" data-elev="${e.id}" style="padding:3px 8px; min-height:28px;">Anulează</button></div>`;
 }
-function neexBtnHTML(e){
-  if(!ui.notareProba || neexecutatLaProba(e.id, ui.notareProba)) return '';
-  return `<div><button class="btn btn-ghost btn-neex" data-elev="${e.id}" style="padding:1px 8px; min-height:24px; font-size:12px; color:var(--muted); margin-top:3px;">Nu poate da proba</button></div>`;
-}
 // câți elevi au cel puțin o notă la proba asta (sau nu pot efectua proba din motive medicale), față de câți se pot nota
 function statusProba(claseId, probaId){
   const elevi = eleviDinClasa(claseId).filter(e=>!blocheazaNotarea(e));
@@ -4330,7 +4326,7 @@ function renderNotare(main){
             if(blocheazaNotarea(e)){
               return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="4">${motivBlocareHTML(e)}</td></tr>`;
             }
-            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}${absentAziHTML(e)}${neexBtnHTML(e)}`;
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}${absentAziHTML(e)}`;
             if(neexecutatLaProba(e.id, ui.notareProba)) return `<tr>${numarOrdine}<td class="student-name">${numeCuTagPartial}</td><td colspan="4">${neexecutatCelulaHTML(e, ui.notareProba)}</td></tr>`;
             const an = claseAn(e.claseId);
             const recInitial = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='initial');
@@ -4386,7 +4382,7 @@ function renderNotare(main){
             if(blocheazaNotarea(e)){
               return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="2">${motivBlocareHTML(e)}</td></tr>`;
             }
-            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}${absentAziHTML(e)}${neexBtnHTML(e)}`;
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}${absentAziHTML(e)}`;
             if(neexecutatLaProba(e.id, ui.notareProba)) return `<tr>${numarOrdine}<td class="student-name">${numeCuTagPartial}</td><td colspan="2">${neexecutatCelulaHTML(e, ui.notareProba)}</td></tr>`;
             if(existing && esteRefuz(existing.valoare)){
               return `<tr>${numarOrdine}<td class="student-name">${numeCuTagPartial}</td><td style="background:#FBEDEC;">${celulaRefuzInner(e.id, moment)}</td>${celulaTehnica(e.id)}</tr>`;
@@ -4424,14 +4420,6 @@ function renderNotare(main){
     <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată. <b>Tehnică</b> = nota ta (1-10) pentru corectitudinea execuției, dată o singură dată per probă; intră în calculul PPT.</p>
     `}
   `;
-  main.querySelectorAll('.btn-neex').forEach(b=>b.addEventListener('click', ()=>{
-    const el = state.elevi.find(x=>x.id===b.dataset.elev); if(!el || !ui.notareProba) return;
-    if(state.note.some(n=>n.eleviId===el.id && n.probaId===ui.notareProba)) return showToast('Elevul are deja un rezultat la această probă. Șterge-l întâi.');
-    const motiv = prompt(`${el.nume} ${el.prenume} nu poate efectua această probă. Motivul (opțional):`, 'motiv medical');
-    if(motiv===null) return;
-    state.neexecutatProba.push({id:uid(), eleviId:el.id, probaId:ui.notareProba, motiv:motiv.trim(), data:todayISO()});
-    saveState(); render(); showToast('Marcat: nu poate efectua proba.');
-  }));
   main.querySelectorAll('.btn-neex-anuleaza').forEach(b=>b.addEventListener('click', ()=>{
     state.neexecutatProba = state.neexecutatProba.filter(x=>!(x.eleviId===b.dataset.elev && x.probaId===ui.notareProba));
     saveState(); render(); showToast('Marcaj anulat.');
@@ -5284,6 +5272,10 @@ function renderScutiri(main){
   const eleviCes = state.elevi.filter(e=>e.ces);
   const ordineCl = new Map(claseActive().map((c,i)=>[c.id,i]));
   const eleviAtentie = state.elevi.filter(e=>e.atentieNotare && !esteInactiv(e)).sort((a,b)=>(ordineCl.get(a.claseId)??999)-(ordineCl.get(b.claseId)??999) || (a.nume+' '+a.prenume).localeCompare(b.nume+' '+b.prenume,'ro'));
+  const probeClasaScut = ui.clasaCurenta ? state.probe.filter(p=>probaSeAplicaClasei(p, ui.clasaCurenta)).sort((a,b)=>b.data.localeCompare(a.data)) : [];
+  const eleviActiviClasaScut = ui.clasaCurenta ? eleviDinClasa(ui.clasaCurenta).filter(e=>!esteInactiv(e)) : [];
+  const neexLista = (state.neexecutatProba||[]).map(r=>({r, e:state.elevi.find(x=>x.id===r.eleviId), pr:state.probe.find(x=>x.id===r.probaId)})).filter(x=>x.e && x.pr)
+    .sort((a,b)=>(ordineCl.get(a.e.claseId)??999)-(ordineCl.get(b.e.claseId)??999) || (a.e.nume+' '+a.e.prenume).localeCompare(b.e.nume+' '+b.e.prenume,'ro'));
   const eleviFaraAtentieClasa = ui.clasaCurenta ? eleviDinClasa(ui.clasaCurenta).filter(e=>!e.atentieNotare) : [];
   const eleviNeCesClasa = ui.clasaCurenta ? eleviDinClasa(ui.clasaCurenta).filter(e=>!e.ces) : [];
   main.innerHTML = `
@@ -5478,7 +5470,68 @@ function renderScutiri(main){
         </tbody>
       </table>
     </div>`}
+
+    <h2 style="margin-top:28px;">Nu poate efectua o probă</h2>
+    <p class="tab-desc">Elev <b>apt</b> (nu e scutit), dar care din motive medicale nu poate da o anumită probă. Marchezi o singură dată aici; în <b>Notare</b> și <b>PPT</b> rândul lui apare deja marcat la acea probă, iar clasa se poate considera notată fără el. Nu primește notă și nu e refuz.</p>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="min-width:200px;">
+          <label>Elev (din clasa aleasă mai sus)</label>
+          <select id="select-neex-elev" ${eleviActiviClasaScut.length===0?'disabled':''}>
+            <option value="">${eleviActiviClasaScut.length===0 ? 'Niciun elev disponibil' : 'Alege un elev...'}</option>
+            ${eleviActiviClasaScut.map(e=>`<option value="${e.id}">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="min-width:180px;">
+          <label>Proba</label>
+          <select id="select-neex-proba" ${probeClasaScut.length===0?'disabled':''}>
+            <option value="">${probeClasaScut.length===0 ? 'Nicio probă pentru clasă' : 'Alege proba...'}</option>
+            ${probeClasaScut.map(p=>`<option value="${p.id}">${escapeHtml(p.nume)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="flex:1; min-width:180px;">
+          <label>Motiv (opțional)</label>
+          <input type="text" id="input-neex-motiv" placeholder="ex: motiv medical" value="motiv medical"/>
+        </div>
+        <button class="btn btn-primary" id="btn-add-neex">+ Adaugă</button>
+      </div>
+    </div>
+    ${neexLista.length===0 ? emptyState('Niciun elev marcat.', 'Adaugă unul folosind formularul de mai sus.') : `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead><tr><th>Elev</th><th>Clasă</th><th>Proba</th><th>Motiv</th><th>Din</th><th></th></tr></thead>
+        <tbody>
+          ${neexLista.map(x=>`
+            <tr>
+              <td class="student-name">${escapeHtml(x.e.nume)} ${escapeHtml(x.e.prenume)}</td>
+              <td>${escapeHtml(claseNume(x.e.claseId))}</td>
+              <td>${escapeHtml(x.pr.nume)}</td>
+              <td>${escapeHtml(x.r.motiv)||'—'}</td>
+              <td style="white-space:nowrap;">${x.r.data?formatDataRo(x.r.data):'—'}</td>
+              <td><button class="btn btn-ghost" data-unneex="${x.r.id}">Scoate</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`}
   `;
+  const btnNeex = document.getElementById('btn-add-neex');
+  if(btnNeex) btnNeex.addEventListener('click', ()=>{
+    const eid = document.getElementById('select-neex-elev').value, pid = document.getElementById('select-neex-proba').value;
+    if(!eid) return showToast('Alege un elev.');
+    if(!pid) return showToast('Alege proba.');
+    if(neexecutatLaProba(eid, pid)) return showToast('Elevul e deja marcat la această probă.');
+    if(state.note.some(n=>n.eleviId===eid && n.probaId===pid)) return showToast('Elevul are deja un rezultat la această probă. Șterge-l întâi din Notare.');
+    state.neexecutatProba.push({id:uid(), eleviId:eid, probaId:pid, motiv:document.getElementById('input-neex-motiv').value.trim(), data:todayISO()});
+    saveState(); render(); showToast('Marcat: nu poate efectua proba.');
+  });
+  main.querySelectorAll('[data-unneex]').forEach(b=>b.addEventListener('click', ()=>{
+    const r = state.neexecutatProba.find(x=>x.id===b.dataset.unneex); if(!r) return;
+    const e = state.elevi.find(x=>x.id===r.eleviId), pr = state.probe.find(x=>x.id===r.probaId);
+    if(!confirm(`Scoți marcajul pentru ${e?e.nume+' '+e.prenume:'elev'} la ${pr?pr.nume:'probă'}?`)) return;
+    state.neexecutatProba = state.neexecutatProba.filter(x=>x.id!==r.id);
+    saveState(); render(); showToast('Marcaj scos.');
+  }));
   const btnAtentie = document.getElementById('btn-add-atentie');
   if(btnAtentie) btnAtentie.addEventListener('click', ()=>{
     const id = document.getElementById('select-atentie-elev').value;

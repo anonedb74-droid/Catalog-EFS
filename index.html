@@ -24,11 +24,12 @@
     --track-dark:#9A350A;
     --infield:#22402C;
     --infield-dark:#182E20;
-    --chalk:#F6F4EE;
-    --card:#FFFFFF;
-    --ink:#1E211D;
+    --chalk:#CFD7E0;   /* fundal albastru-gri (varianta B, fără alb) */
+    --card:#E1E7EE;
+    --camp:#EBEFF4;    /* fundalul câmpurilor și butoanelor secundare */
+    --ink:#26313B;
     --muted:#6E7268;
-    --border:#E2DECF;
+    --border:#BCC7D3;
     --yellow:#E3A23C;
     --danger:#B23A32;
     --ok:#3D7A4E;
@@ -248,7 +249,7 @@
     padding:10px 12px;
     border:1.5px solid var(--border);
     border-radius:8px;
-    background:#fff;
+    background:var(--camp);
     color:var(--ink);
     min-height:44px;
   }
@@ -266,7 +267,7 @@
   }
   button.btn-primary{background:var(--track); color:#fff;}
   button.btn-primary:hover{background:var(--track-dark);}
-  button.btn-secondary{background:#fff; color:var(--infield); border:1.5px solid var(--infield);}
+  button.btn-secondary{background:var(--camp); color:var(--infield); border:1.5px solid var(--infield);}
   button.btn-danger{background:transparent; color:var(--danger); border:1.5px solid var(--danger); padding:8px 12px; font-size:13px; min-height:36px;}
   button.btn-ghost{background:transparent; color:var(--muted); border:1px solid var(--border); padding:8px 12px; font-size:13px; min-height:36px;}
   table{width:100%; border-collapse:collapse; font-size:14px;}
@@ -350,7 +351,7 @@
     z-index:100;
   }
   .modal{
-    background:#fff; border-radius:12px; padding:24px;
+    background:var(--card); border-radius:12px; padding:24px;
     width:min(420px,90vw);
     max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px);
     overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
@@ -408,7 +409,7 @@
   .stare-fin{background:#2E7D32; color:#fff;}
   .legenda-stare{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; font-size:12px;}
   .legenda-stare .stare-cell{padding:2px 8px; border-radius:10px; cursor:default;}
-  #lbl-clasa-notata{display:flex; align-items:center; gap:10px; padding:10px 12px; border:2px solid var(--border); border-radius:10px; margin-bottom:12px; background:#fff; font-weight:600; cursor:pointer;}
+  #lbl-clasa-notata{display:flex; align-items:center; gap:10px; padding:10px 12px; border:2px solid var(--border); border-radius:10px; margin-bottom:12px; background:var(--card); font-weight:600; cursor:pointer;}
   #lbl-clasa-notata.notata-ok{background:#E3EFDD; border-color:#2E7D32; color:#1B5E20;}
   #lbl-clasa-notata input{width:24px; height:24px; flex-shrink:0;}
   /* ---------- ECHIPE REPREZENTATE ---------- */
@@ -5930,7 +5931,7 @@ function bannerSync(){
   if(!sync.disponibil || sync.uid || syncLocal.uid || syncLocal.faraBanner) return '';
   return `<div class="card" style="background:#D9E6F5; border-color:#9DB9DD; display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
     <div>☁ <strong>Același catalog pe tabletă, laptop și telefon:</strong> intră cu contul tău Google. Pe teren merge și fără semnal — se sincronizează când revine internetul.</div>
-    <div style="display:flex; gap:6px;"><button class="btn btn-ghost" data-sync="nu" style="background:#fff;">Nu acum</button><button class="btn btn-primary" data-sync="in">Intră cu Google</button></div></div>`;
+    <div style="display:flex; gap:6px;"><button class="btn btn-ghost" data-sync="nu" style="background:var(--camp);">Nu acum</button><button class="btn btn-primary" data-sync="in">Intră cu Google</button></div></div>`;
 }
 document.addEventListener('click', e=>{
   const a=e.target.closest('[data-sync]'); if(!a) return;

@@ -468,6 +468,7 @@ let state = {
   sporturiEchipe: ['Fotbal','Futsal','Handbal','Baschet','Volei','Atletism','Tenis de masă'],
   noteCurente: [],   // {id, eleviId, claseId, data, valoare, motiv, detalii, obs} — note curente, în afara probelor
   notareFinalizata: [], // {claseId, probaId} — clasa bifată ca „notată” la o probă
+  neexecutatProba: [],  // {id, eleviId, probaId, motiv, data} — elev apt, dar care nu poate efectua o anumită probă (motiv medical); nu e scutire și nu e refuz
   module: [],     // {id, nume, start, end} — perioadele anului școlar (5 module), pentru calculul Participării active (PPP)
   puncteObservatii: {},  // { "textul observației": puncte de scăzut din 10 } — editabil de profesor
   puncteAbsentaGoala: 2,  // puncte scăzute pentru fiecare absență (punctaj fix, uniform — observația nu se mai aplică la absență)
@@ -651,6 +652,7 @@ function migreazaDate(){
   if(state.settings.scoalaTabel===undefined) state.settings.scoalaTabel = 'Liceul Tehnologic „Al. Vlahuță” Șendriceni';
   if(state.settings.profesorTabel===undefined) state.settings.profesorTabel = 'Daniel Botezatu';
   if(!state.notareFinalizata) state.notareFinalizata = [];
+  if(!state.neexecutatProba) state.neexecutatProba = [];
   if(!state.pppPonderi) state.pppPonderi = { performanta: 40, progres: 25, tehnica: 35, participare: 20, participareActiva: false };
   if(state.pppPonderi.tehnica===undefined) state.pppPonderi.tehnica = 35;
   if(state.pppPonderi.participareActiva===undefined) state.pppPonderi.participareActiva = false;
@@ -1219,10 +1221,22 @@ function notaCurentaPillHTML(n){
   const titlu = [n.motiv, n.detalii, n.obs].filter(Boolean).join(' — ') + ' (' + formatDataRo(n.data) + ')';
   return `<span class="pill ${n.refuz?'pill-danger':'pill-ok'}" title="${escapeHtml((n.refuz?'Refuz — ':'')+titlu)}" style="margin:1px 2px;">${n.valoare}</span>`;
 }
-// câți elevi au cel puțin o notă la proba asta, față de câți se pot nota
+// elev care nu poate efectua o anumită probă (motiv medical) — rămâne apt, nu e scutit, nu are refuz
+function neexecutatLaProba(eleviId, probaId){
+  return (state.neexecutatProba||[]).find(x=>x.eleviId===eleviId && x.probaId===probaId) || null;
+}
+function neexecutatCelulaHTML(e, probaId){
+  const r = neexecutatLaProba(e.id, probaId);
+  return `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><span class="pill pill-blue" style="padding:2px 9px;">Nu poate efectua proba${r&&r.motiv?' — '+escapeHtml(r.motiv):''}</span><button class="btn btn-ghost btn-neex-anuleaza" data-elev="${e.id}" style="padding:3px 8px; min-height:28px;">Anulează</button></div>`;
+}
+function neexBtnHTML(e){
+  if(!ui.notareProba || neexecutatLaProba(e.id, ui.notareProba)) return '';
+  return `<div><button class="btn btn-ghost btn-neex" data-elev="${e.id}" style="padding:1px 8px; min-height:24px; font-size:12px; color:var(--muted); margin-top:3px;">Nu poate da proba</button></div>`;
+}
+// câți elevi au cel puțin o notă la proba asta (sau nu pot efectua proba din motive medicale), față de câți se pot nota
 function statusProba(claseId, probaId){
   const elevi = eleviDinClasa(claseId).filter(e=>!blocheazaNotarea(e));
-  const notati = elevi.filter(e=>state.note.some(n=>n.eleviId===e.id && n.probaId===probaId)).length;
+  const notati = elevi.filter(e=>state.note.some(n=>n.eleviId===e.id && n.probaId===probaId) || neexecutatLaProba(e.id, probaId)).length;
   const fin = (state.notareFinalizata||[]).some(f=>f.claseId===claseId && f.probaId===probaId);
   return {notati, total:elevi.length, fin};
 }
@@ -2192,6 +2206,10 @@ function renderPPP(main){
           ${lista.map((e,idx)=>{
             if(blocheazaNotarea(e)){
               return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="${esteCalif?5:6}">${motivBlocareHTML(e)}</td></tr>`;
+            }
+            if(neexecutatLaProba(e.id, ui.pppProba)){
+              const rn = neexecutatLaProba(e.id, ui.pppProba);
+              return `<tr><td style="color:var(--muted); text-align:center;">${idx+1}</td><td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}</td><td colspan="${esteCalif?5:6}"><span class="pill pill-blue" style="padding:2px 9px;">Nu poate efectua proba${rn&&rn.motiv?' — '+escapeHtml(rn.motiv):''}</span></td></tr>`;
             }
             const r = calculeazaPPP(e.id, ui.pppProba);
             const tehnicaRec = gasesteTehnica(e.id, ui.pppProba);
@@ -4312,7 +4330,8 @@ function renderNotare(main){
             if(blocheazaNotarea(e)){
               return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="4">${motivBlocareHTML(e)}</td></tr>`;
             }
-            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}${absentAziHTML(e)}`;
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}${absentAziHTML(e)}${neexBtnHTML(e)}`;
+            if(neexecutatLaProba(e.id, ui.notareProba)) return `<tr>${numarOrdine}<td class="student-name">${numeCuTagPartial}</td><td colspan="4">${neexecutatCelulaHTML(e, ui.notareProba)}</td></tr>`;
             const an = claseAn(e.claseId);
             const recInitial = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='initial');
             const recFinal = state.note.find(n=>n.eleviId===e.id && n.probaId===ui.notareProba && n.moment==='final');
@@ -4367,7 +4386,8 @@ function renderNotare(main){
             if(blocheazaNotarea(e)){
               return `<tr ${esteInactiv(e)?'class="rand-inactiv"':''}>${numarOrdine}<td class="student-name">${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${cesTagHTML(e)}${situatieElevHTML(e)}</td><td colspan="2">${motivBlocareHTML(e)}</td></tr>`;
             }
-            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}${absentAziHTML(e)}`;
+            const numeCuTagPartial = `${escapeHtml(e.nume)} ${escapeHtml(e.prenume)} ${scutirePartialaActiva(e)?`<span class="pill pill-blue" title="${escapeHtml(e.motivScutire||'')}" style="margin-left:4px; padding:1px 6px;">scutire parțială</span>`:''} ${cesTagHTML(e)}${atentieNotareTagHTML(e)}${absentAziHTML(e)}${neexBtnHTML(e)}`;
+            if(neexecutatLaProba(e.id, ui.notareProba)) return `<tr>${numarOrdine}<td class="student-name">${numeCuTagPartial}</td><td colspan="2">${neexecutatCelulaHTML(e, ui.notareProba)}</td></tr>`;
             if(existing && esteRefuz(existing.valoare)){
               return `<tr>${numarOrdine}<td class="student-name">${numeCuTagPartial}</td><td style="background:#FBEDEC;">${celulaRefuzInner(e.id, moment)}</td>${celulaTehnica(e.id)}</tr>`;
             }
@@ -4404,6 +4424,18 @@ function renderNotare(main){
     <p class="tab-desc" style="margin-top:10px;">✓ Salvare automată. <b>Tehnică</b> = nota ta (1-10) pentru corectitudinea execuției, dată o singură dată per probă; intră în calculul PPT.</p>
     `}
   `;
+  main.querySelectorAll('.btn-neex').forEach(b=>b.addEventListener('click', ()=>{
+    const el = state.elevi.find(x=>x.id===b.dataset.elev); if(!el || !ui.notareProba) return;
+    if(state.note.some(n=>n.eleviId===el.id && n.probaId===ui.notareProba)) return showToast('Elevul are deja un rezultat la această probă. Șterge-l întâi.');
+    const motiv = prompt(`${el.nume} ${el.prenume} nu poate efectua această probă. Motivul (opțional):`, 'motiv medical');
+    if(motiv===null) return;
+    state.neexecutatProba.push({id:uid(), eleviId:el.id, probaId:ui.notareProba, motiv:motiv.trim(), data:todayISO()});
+    saveState(); render(); showToast('Marcat: nu poate efectua proba.');
+  }));
+  main.querySelectorAll('.btn-neex-anuleaza').forEach(b=>b.addEventListener('click', ()=>{
+    state.neexecutatProba = state.neexecutatProba.filter(x=>!(x.eleviId===b.dataset.elev && x.probaId===ui.notareProba));
+    saveState(); render(); showToast('Marcaj anulat.');
+  }));
   document.getElementById('select-notare-clasa').addEventListener('change', e=>{ ui.clasaCurenta = e.target.value; ui.notareProba = null; render(); });
   const selProba = document.getElementById('select-notare-proba');
   if(selProba) selProba.addEventListener('change', e=>{ ui.notareProba = e.target.value; render(); });

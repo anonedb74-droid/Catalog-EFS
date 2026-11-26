@@ -1397,6 +1397,7 @@ Legea securității și sănătății în muncă nr. 319/2006 și normele ei met
 3.2. Se scot ceasurile, brățările, lănțișoarele, inelele, cerceii mari, agrafele și orice obiect care poate răni elevul sau colegii. Unghiile se țin scurte, iar părul lung se leagă.
 3.3. Telefoanele și obiectele de valoare se lasă la loc sigur, stabilit de profesor. Folosirea telefonului, fotografierea și filmarea în timpul orelor se fac numai cu acordul profesorului. Gumele de mestecat și alimentele se scot înaintea lecției.
 3.4. Elevul fără echipament adecvat **nu participă la exercițiile practice**, ci îndeplinește sarcinile date de profesor, iar lipsa echipamentului se consemnează.
+3.5. Participarea la lecția de educație fizică și sport se face **numai în echipament sportiv corespunzător** (în sală, cu încălțăminte curată, de schimb). Elevul fără echipament rămâne la oră, sub supravegherea profesorului, fără activitate practică, și **nu părăsește ora sau școala fără învoire**.
 
 ## 4. Înainte de lecție
 4.1. Elevii intră în sală sau pe teren numai împreună cu profesorul sau cu aprobarea lui și se așază în formația indicată.
@@ -1453,7 +1454,16 @@ function pmInit(){
     state.pm.sesiuni.forEach(x=>{ if(typeof x.text==='string') x.text = pmImbunatatesteText(x.text); });
     state.pm.boldV1 = true;
   }
+  // o singură dată: adaugă punctul 3.5 (regula despre echipament) în textul salvat, după 3.4. Procesele-verbale deja create (semnate sau nu) își păstrează textul neschimbat.
+  if(!state.pm.echipamentV1){
+    if(!/(^|\n)\s*3\.5\./.test(state.pm.text)){
+      const m = state.pm.text.match(/(^|\n)(3\.4\.[^\n]*)/);
+      if(m){ const poz = m.index + m[0].length; state.pm.text = state.pm.text.slice(0,poz)+"\n"+PM_REGULA_ECHIPAMENT+state.pm.text.slice(poz); }
+    }
+    state.pm.echipamentV1 = true;
+  }
 }
+const PM_REGULA_ECHIPAMENT = `3.5. Participarea la lecția de educație fizică și sport se face **numai în echipament sportiv corespunzător** (în sală, cu încălțăminte curată, de schimb). Elevul fără echipament rămâne la oră, sub supravegherea profesorului, fără activitate practică, și **nu părăsește ora sau școala fără învoire**.`;
 const PM_FRAZE_BOLD = ['numai sub supravegherea profesorului','fără aprobarea profesorului','la comanda sau la semnalul acestuia','anunță profesorul înainte de începerea lecției','predă la timp adeverința medicală','întrerupe imediat exercițiul și anunță profesorul','este interzisă','nu participă la exercițiile practice','este obligatorie','numai la comanda profesorului','fără învoirea profesorului','se anunță imediat profesorului','nu mută elevul accidentat','obligația de a-și informa familia','obligația de a anunța profesorul și școala, în scris','se obligă să le respecte','distanța de siguranță'];
 function pmImbunatatesteText(t){
   t = String(t||'');

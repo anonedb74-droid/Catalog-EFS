@@ -1379,7 +1379,7 @@ const PM_DECL = 'Am fost instruit, am înțeles și mă oblig să respect normel
 // coloana Observații: dacă elevul a semnat apare declarația; dacă nu, motivul scris de profesor
 function pmObsText(s,e){ return (s.semnaturi && s.semnaturi[e.id]) ? PM_DECL : ((s.obs&&s.obs[e.id])||''); }
 const PM_TEXT_IMPLICIT = `## Temei legal
-Legea securității și sănătății în muncă nr. 319/2006 și normele ei metodologice de aplicare (H.G. nr. 1425/2006); Legea învățământului preuniversitar nr. 198/2023; Regulamentul de organizare și funcționare a unităților de învățământ preuniversitar; Regulamentul intern și normele proprii de securitate și sănătate în muncă ale școlii; reglementările în vigoare privind educația fizică și sportul școlar. (Verifică actele cu cele aplicate în școala ta și completează-le dacă e nevoie.)
+Legea securității și sănătății în muncă nr. 319/2006 și normele ei metodologice de aplicare (H.G. nr. 1425/2006); Legea învățământului preuniversitar nr. 198/2023; Regulamentul de organizare și funcționare a unităților de învățământ preuniversitar; Regulamentul intern și normele proprii de securitate și sănătate în muncă ale școlii; Legea educației fizice și sportului nr. 69/2000, cu modificările și completările ulterioare, precum și reglementările în vigoare privind educația fizică și sportul școlar. (Verifică actele cu cele aplicate în școala ta și completează-le dacă e nevoie.)
 
 ## 1. Dispoziții generale
 1.1. Orele de educație fizică și sport se desfășoară **numai sub supravegherea profesorului**. Elevul nu începe niciun exercițiu, nu folosește niciun material sportiv și nu pleacă din spațiul de lucru **fără aprobarea profesorului**.
@@ -1461,6 +1461,12 @@ function pmInit(){
       if(m){ const poz = m.index + m[0].length; state.pm.text = state.pm.text.slice(0,poz)+"\n"+PM_REGULA_ECHIPAMENT+state.pm.text.slice(poz); }
     }
     state.pm.echipamentV1 = true;
+  }
+  // o singură dată: trece Legea nr. 69/2000 în „Temei legal” (fraza generică devine explicită). Nu atinge procesele-verbale create.
+  if(!state.pm.temeiV1){
+    const v = "reglementările în vigoare privind educația fizică și sportul școlar", n = "Legea educației fizice și sportului nr. 69/2000, cu modificările și completările ulterioare, precum și reglementările în vigoare privind educația fizică și sportul școlar";
+    if(!state.pm.text.includes('69/2000') && state.pm.text.split(v).length===2) state.pm.text = state.pm.text.replace(v, n);
+    state.pm.temeiV1 = true;
   }
 }
 const PM_REGULA_ECHIPAMENT = `3.5. Participarea la lecția de educație fizică și sport se face **numai în echipament sportiv corespunzător** (în sală, cu încălțăminte curată, de schimb). Elevul fără echipament rămâne la oră, sub supravegherea profesorului, fără activitate practică, și **nu părăsește ora sau școala fără învoire**.`;
